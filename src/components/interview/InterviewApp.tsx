@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { CSSProperties } from 'react';
 import type { Question, InterviewMode, InterviewAppProps } from '../../types/interview';
 import { DEMO_QUESTIONS } from '../../types/interview';
-import { interviewApi, voiceApi, interviewResponsesApi, type ApiQuestionResponse, type InterviewResponseItem, type AllQuestionsQuestion } from '../../services/api';
+import { interviewApi, voiceApi, interviewResponsesApi, type InterviewResponseItem, type AllQuestionsQuestion } from '../../services/api';
 
 // Question Input Components
 import { TextInput } from './inputs/TextInput';
@@ -23,12 +23,18 @@ function ReviewResponseCard({
   const [isEditing, setIsEditing] = useState(false);
   const [editText, setEditText] = useState(response.text);
   const [isSaving, setIsSaving] = useState(false);
+  const [showConfirm, setShowConfirm] = useState(false);
 
-  const handleSave = async () => {
+  const handleSaveClick = () => {
     if (editText === response.text) {
       setIsEditing(false);
       return;
     }
+    setShowConfirm(true);
+  };
+
+  const handleConfirmSave = async () => {
+    setShowConfirm(false);
     setIsSaving(true);
     await onSave(editText);
     setIsSaving(false);
@@ -50,6 +56,7 @@ function ReviewResponseCard({
             value={editText}
             onChange={(e) => setEditText(e.target.value)}
             rows={4}
+            autoFocus
           />
           <div style={reviewCardStyles.editActions}>
             <button
@@ -63,10 +70,10 @@ function ReviewResponseCard({
             </button>
             <button
               style={{...reviewCardStyles.saveButton, opacity: isSaving ? 0.7 : 1}}
-              onClick={handleSave}
+              onClick={handleSaveClick}
               disabled={isSaving}
             >
-              {isSaving ? 'Saving...' : 'Save'}
+              {isSaving ? 'Saving...' : 'Save Changes'}
             </button>
           </div>
         </div>
@@ -85,6 +92,29 @@ function ReviewResponseCard({
               Edit
             </button>
           )}
+        </div>
+      )}
+
+      {/* Save Confirmation Dialog */}
+      {showConfirm && (
+        <div style={reviewCardStyles.confirmOverlay}>
+          <div style={reviewCardStyles.confirmDialog}>
+            <p style={reviewCardStyles.confirmText}>Save this response?</p>
+            <div style={reviewCardStyles.confirmActions}>
+              <button
+                style={reviewCardStyles.confirmCancelBtn}
+                onClick={() => setShowConfirm(false)}
+              >
+                Cancel
+              </button>
+              <button
+                style={reviewCardStyles.confirmSaveBtn}
+                onClick={handleConfirmSave}
+              >
+                Save
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </div>
@@ -194,6 +224,62 @@ const reviewCardStyles: Record<string, CSSProperties> = {
     borderRadius: '6px',
     cursor: 'pointer',
   },
+  // Confirmation Dialog Styles
+  confirmOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.2)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+  },
+  confirmDialog: {
+    backgroundColor: 'rgba(255, 255, 255, 0.95)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    borderRadius: '14px',
+    padding: '20px 24px',
+    minWidth: '260px',
+    textAlign: 'center',
+    boxShadow: '0 10px 40px rgba(0, 0, 0, 0.12)',
+  },
+  confirmText: {
+    fontSize: '15px',
+    fontWeight: '500',
+    color: '#1D1D1F',
+    margin: '0 0 16px 0',
+  },
+  confirmActions: {
+    display: 'flex',
+    gap: '8px',
+    justifyContent: 'center',
+  },
+  confirmCancelBtn: {
+    flex: 1,
+    padding: '10px 16px',
+    fontSize: '14px',
+    fontWeight: '500',
+    color: '#1D1D1F',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+  },
+  confirmSaveBtn: {
+    flex: 1,
+    padding: '10px 16px',
+    fontSize: '14px',
+    fontWeight: '600',
+    color: '#FFFFFF',
+    backgroundColor: '#1D1D1F',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+  },
 };
 
 interface ChecklistResult {
@@ -230,16 +316,25 @@ interface InterviewState {
   // Pre-fetched questions
   allQuestions: AllQuestionsQuestion[];
   totalQuestions: number;
+  // Welcome screen (after mode selection, for new assessments only)
+  showWelcomeScreen: boolean;
+  isNewAssessment: boolean;
+  // Completion tracking
+  startTime: Date | null;
 }
 
 export function InterviewApp({
   initialMode = 'select',
   reviewId,
   participantId,
+  viewOnly = false,
+  editMode = false,
+  interviewId: providedInterviewId,
   onExit,
   onComplete,
 }: InterviewAppProps) {
   const [mode, setMode] = useState<InterviewMode>(initialMode);
+  const [showExitConfirm, setShowExitConfirm] = useState(false);
   const [state, setState] = useState<InterviewState>({
     questions: [],
     currentIndex: 0,
@@ -259,6 +354,9 @@ export function InterviewApp({
     showMergedApproval: false,
     allQuestions: [],
     totalQuestions: 0,
+    showWelcomeScreen: false,
+    isNewAssessment: false,
+    startTime: null,
   });
   const [inputValue, setInputValue] = useState<string>('');
   const [isRecording, setIsRecording] = useState(false);
@@ -268,6 +366,9 @@ export function InterviewApp({
   const [isPlayingQuestion, setIsPlayingQuestion] = useState(false);
   const [editableMergedResponse, setEditableMergedResponse] = useState<string>('');
   const [reviewingState, setReviewingState] = useState<'idle' | 'reviewing' | 'success' | 'followup'>('idle');
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [furthestQuestionIndex, setFurthestQuestionIndex] = useState(0);
+  const [savedResponses, setSavedResponses] = useState<Record<string, string>>({});
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -285,6 +386,101 @@ export function InterviewApp({
       }));
     }
   }, [isDemoMode]);
+
+  // Handle viewOnly mode - load responses directly without starting new interview
+  useEffect(() => {
+    if (viewOnly && providedInterviewId && !isDemoMode) {
+      const loadViewOnlyResponses = async () => {
+        setState(prev => ({ ...prev, isLoading: true }));
+        try {
+          // Load all responses for this interview
+          const responsesData = await interviewResponsesApi.getResponses(providedInterviewId);
+
+          // Also load questions if available
+          const allQuestionsData = await interviewApi.getAllQuestions(providedInterviewId);
+          const questions: Question[] = allQuestionsData.questions.map(q => ({
+            id: q.id,
+            number: q.number,
+            total: allQuestionsData.total_questions,
+            aspect: q.aspect,
+            aspect_code: q.aspect_code,
+            text: q.text,
+            type: q.type,
+            options: q.options,
+            scale: q.scale,
+          }));
+
+          setState(prev => ({
+            ...prev,
+            interviewId: providedInterviewId,
+            questions,
+            allQuestions: allQuestionsData.questions,
+            totalQuestions: allQuestionsData.total_questions,
+            allResponses: responsesData.responses,
+            isLoading: false,
+            showReviewMode: true, // Go directly to review mode
+            canEdit: false, // View only, no editing
+          }));
+        } catch (error) {
+          console.error('Failed to load responses:', error);
+          setState(prev => ({
+            ...prev,
+            isLoading: false,
+            error: 'Failed to load responses',
+          }));
+        }
+      };
+      loadViewOnlyResponses();
+    }
+  }, [viewOnly, providedInterviewId, isDemoMode]);
+
+  // Handle editMode - load existing interview with responses for editing (same UI as view but with edit capability)
+  useEffect(() => {
+    if (editMode && providedInterviewId && !isDemoMode) {
+      const loadEditModeInterview = async () => {
+        setState(prev => ({ ...prev, isLoading: true }));
+        try {
+          // Load all responses for this interview
+          const responsesData = await interviewResponsesApi.getResponses(providedInterviewId);
+
+          // Also load questions
+          const allQuestionsData = await interviewApi.getAllQuestions(providedInterviewId);
+          const questions: Question[] = allQuestionsData.questions.map(q => ({
+            id: q.id,
+            number: q.number,
+            total: allQuestionsData.total_questions,
+            aspect: q.aspect,
+            aspect_code: q.aspect_code,
+            text: q.text,
+            type: q.type,
+            options: q.options,
+            scale: q.scale,
+          }));
+
+          setState(prev => ({
+            ...prev,
+            interviewId: providedInterviewId,
+            questions,
+            allQuestions: allQuestionsData.questions,
+            totalQuestions: allQuestionsData.total_questions,
+            allResponses: responsesData.responses,
+            isLoading: false,
+            showReviewMode: true, // Show review UI (same as view mode)
+            canEdit: true, // But allow editing
+          }));
+
+        } catch (error) {
+          console.error('Failed to load interview for editing:', error);
+          setState(prev => ({
+            ...prev,
+            isLoading: false,
+            error: 'Failed to load interview',
+          }));
+        }
+      };
+      loadEditModeInterview();
+    }
+  }, [editMode, providedInterviewId, isDemoMode]);
 
   // Start interview when mode is selected (non-demo)
   const startInterview = useCallback(async (selectedMode: InterviewMode) => {
@@ -319,6 +515,23 @@ export function InterviewApp({
       const currentIdx = allQuestionsData.current_question - 1; // Convert 1-indexed to 0-indexed
       const currentQ = allQuestionsData.questions[currentIdx];
 
+      // Fetch existing responses for resumed interviews
+      let existingResponses: Record<string, string> = {};
+      if (currentIdx > 0) {
+        try {
+          const responsesData = await interviewResponsesApi.getResponses(response.id);
+          // Map responses by question_id
+          responsesData.responses.forEach(r => {
+            existingResponses[r.question_id] = r.text;
+          });
+        } catch (e) {
+          console.warn('Could not fetch existing responses:', e);
+        }
+      }
+
+      // Determine if this is a new assessment (not resumed)
+      const isNewAssessment = currentIdx === 0;
+
       setState(prev => ({
         ...prev,
         interviewId: response.id,
@@ -328,7 +541,18 @@ export function InterviewApp({
         questions,
         currentIndex: currentIdx,
         checklist: currentQ?.checklist || [],
+        startTime: prev.startTime || new Date(), // Track when interview started
+        showWelcomeScreen: isNewAssessment, // Only show welcome for new assessments
+        isNewAssessment,
       }));
+
+      // Initialize saved responses with existing answers
+      setSavedResponses(existingResponses);
+
+      // Initialize furthest question index for resumed interviews
+      // All questions before current are considered answered
+      setFurthestQuestionIndex(currentIdx);
+
     } catch (error) {
       setState(prev => ({
         ...prev,
@@ -337,47 +561,6 @@ export function InterviewApp({
       }));
     }
   }, [isDemoMode, reviewId, participantId]);
-
-  // Fetch current question from API
-  const fetchCurrentQuestion = async (interviewId: string) => {
-    try {
-      const response: ApiQuestionResponse = await interviewApi.getCurrentQuestion(interviewId);
-
-      if (response.complete) {
-        setState(prev => ({ ...prev, isComplete: true }));
-        return;
-      }
-
-      if (response.question) {
-        const question: Question = {
-          id: response.question.id,
-          number: response.question.number,
-          total: response.question.total,
-          aspect: response.question.aspect,
-          aspect_code: response.question.aspect_code,
-          text: response.question.text,
-          type: response.question.type,
-          options: response.question.options,
-          scale: response.question.scale,
-        };
-
-        setState(prev => ({
-          ...prev,
-          questions: prev.questions.length === 0
-            ? [question]
-            : [...prev.questions.slice(0, prev.currentIndex), question, ...prev.questions.slice(prev.currentIndex + 1)],
-          followupQuestion: response.followup || null,
-          checklist: (response.question as { checklist?: ChecklistItem[] }).checklist || [],
-          checklistResults: (response as { checklist_results?: ChecklistResult[] }).checklist_results || [],
-        }));
-      }
-    } catch (error) {
-      setState(prev => ({
-        ...prev,
-        error: error instanceof Error ? error.message : 'Failed to fetch question',
-      }));
-    }
-  };
 
   // Recording timer
   useEffect(() => {
@@ -472,6 +655,44 @@ export function InterviewApp({
           return;
         }
 
+        // Handle "stay" action - re-answered a previous question
+        // Backend didn't advance progress, but we still navigate to next question in sequence
+        if (result.next_action === 'stay') {
+          setReviewingState('success');
+          await new Promise(resolve => setTimeout(resolve, 800));
+
+          // Show transition animation
+          setShowTransition(true);
+          setReviewingState('idle');
+
+          // Wait for transition out
+          await new Promise(resolve => setTimeout(resolve, 300));
+
+          // Move to next question in sequence (but don't update furthestQuestionIndex)
+          const nextIndex = state.currentIndex + 1;
+          const nextQuestion = state.allQuestions[nextIndex];
+
+          // Save the response for this question
+          setSavedResponses(prev => ({ ...prev, [currentQuestion.id]: inputValue }));
+
+          setState(prev => ({
+            ...prev,
+            currentIndex: nextIndex,
+            answers: newAnswers,
+            followupQuestion: null,
+            checklist: nextQuestion?.checklist || [],
+            checklistResults: [],
+            mergedResponse: null,
+            showMergedApproval: false,
+          }));
+          // Load saved response for next question if it exists
+          setInputValue(savedResponses[nextQuestion?.id] || '');
+
+          setTimeout(() => setShowTransition(false), 50);
+          setIsSubmitting(false);
+          return;
+        }
+
         // Move to next question (for next_question action or any unhandled case)
         // Show success state
         setReviewingState('success');
@@ -488,6 +709,14 @@ export function InterviewApp({
         const nextIndex = state.currentIndex + 1;
         const nextQuestion = state.allQuestions[nextIndex];
 
+        // Save the response for this question
+        setSavedResponses(prev => ({ ...prev, [currentQuestion.id]: inputValue }));
+
+        // Update furthest question index if we're moving forward
+        if (nextIndex > furthestQuestionIndex) {
+          setFurthestQuestionIndex(nextIndex);
+        }
+
         setState(prev => ({
           ...prev,
           currentIndex: nextIndex,
@@ -498,7 +727,8 @@ export function InterviewApp({
           mergedResponse: null,
           showMergedApproval: false,
         }));
-        setInputValue('');
+        // Load saved response for next question if it exists, otherwise clear
+        setInputValue(savedResponses[nextQuestion?.id] || '');
 
         // Wait a tick then show the new question with transition in
         setTimeout(() => setShowTransition(false), 50);
@@ -516,15 +746,29 @@ export function InterviewApp({
       }
     } else {
       // Demo mode - just move to next question
+      // Save response for current question
+      if (currentQuestion) {
+        setSavedResponses(prev => ({ ...prev, [currentQuestion.id]: inputValue }));
+      }
+
       setShowTransition(true);
       setTimeout(() => {
         if (state.currentIndex < totalQuestions - 1) {
+          const nextIndex = state.currentIndex + 1;
+          const nextQuestion = state.questions[nextIndex];
+
+          // Update furthest question index
+          if (nextIndex > furthestQuestionIndex) {
+            setFurthestQuestionIndex(nextIndex);
+          }
+
           setState(prev => ({
             ...prev,
-            currentIndex: prev.currentIndex + 1,
+            currentIndex: nextIndex,
             answers: newAnswers,
           }));
-          setInputValue('');
+          // Load saved response for next question if exists
+          setInputValue(savedResponses[nextQuestion?.id] || '');
         } else {
           setState(prev => ({ ...prev, isComplete: true, answers: newAnswers }));
         }
@@ -541,18 +785,73 @@ export function InterviewApp({
 
   const handlePrevious = () => {
     if (state.currentIndex > 0) {
+      // Save current response before navigating
+      if (currentQuestion && inputValue.trim()) {
+        setSavedResponses(prev => ({ ...prev, [currentQuestion.id]: inputValue }));
+      }
+
       setShowTransition(true);
       setTimeout(() => {
         const prevIndex = state.currentIndex - 1;
+        const questionsArray = state.allQuestions.length > 0 ? state.allQuestions : state.questions;
+        const prevQuestion = questionsArray[prevIndex];
+        const prevQuestionId = prevQuestion?.id;
+
+        // Get checklist from allQuestions if available (non-demo mode)
+        const checklist = state.allQuestions[prevIndex]?.checklist || [];
+
         setState(prev => ({
           ...prev,
           currentIndex: prevIndex,
           followupQuestion: null,
+          checklist: checklist,
+          checklistResults: [],
+          mergedResponse: null,
+          showMergedApproval: false,
         }));
-        setInputValue(state.answers[state.questions[prevIndex]?.id] || '');
+
+        // Load saved response for the previous question
+        setInputValue(savedResponses[prevQuestionId] || state.answers[prevQuestionId] || '');
         setShowTransition(false);
       }, 300);
     }
+  };
+
+  // Navigate to a specific question from sidebar
+  const navigateToQuestion = (targetIndex: number) => {
+    // Can only navigate to answered questions or current unanswered
+    if (targetIndex > furthestQuestionIndex) return;
+
+    // Save current response before navigating
+    if (currentQuestion && inputValue.trim()) {
+      setSavedResponses(prev => ({ ...prev, [currentQuestion.id]: inputValue }));
+    }
+
+    setSidebarOpen(false);
+    setShowTransition(true);
+
+    setTimeout(() => {
+      const questionsArray = state.allQuestions.length > 0 ? state.allQuestions : state.questions;
+      const targetQuestion = questionsArray[targetIndex];
+      const targetQuestionId = targetQuestion?.id;
+
+      // Get checklist from allQuestions if available (non-demo mode)
+      const checklist = state.allQuestions[targetIndex]?.checklist || [];
+
+      setState(prev => ({
+        ...prev,
+        currentIndex: targetIndex,
+        followupQuestion: null,
+        checklist: checklist,
+        checklistResults: [],
+        mergedResponse: null,
+        showMergedApproval: false,
+      }));
+
+      // Load saved response for the target question
+      setInputValue(savedResponses[targetQuestionId] || state.answers[targetQuestionId] || '');
+      setShowTransition(false);
+    }, 300);
   };
 
   const handleKeyDown = (e: React.KeyboardEvent) => {
@@ -727,16 +1026,83 @@ export function InterviewApp({
 
     setIsSubmitting(true);
     try {
+      console.log('[APPROVE] Starting approval for question:', currentQuestion.id);
+      console.log('[APPROVE] Current state.currentIndex:', state.currentIndex);
+      console.log('[APPROVE] furthestQuestionIndex:', furthestQuestionIndex);
+
       const result = await interviewApi.approveMerged(
         state.interviewId,
         currentQuestion.id,
         editableMergedResponse || state.mergedResponse || ''
       );
 
+      console.log('[APPROVE] API returned:', result);
+      console.log('[APPROVE] next_action:', result.next_action);
+
       if (result.next_action === 'complete') {
+        console.log('[APPROVE] Handling COMPLETE action');
+        // Save the merged response as the final response for this question
+        if (currentQuestion) {
+          setSavedResponses(prev => ({
+            ...prev,
+            [currentQuestion.id]: editableMergedResponse || state.mergedResponse || ''
+          }));
+        }
         setState(prev => ({ ...prev, isComplete: true }));
         if (onComplete) onComplete(state.interviewId!);
+      } else if (result.next_action === 'stay') {
+        console.log('[APPROVE] Handling STAY action');
+        // Approved a previous question (via sidebar) - navigate to next in sequence
+        if (currentQuestion) {
+          setSavedResponses(prev => ({
+            ...prev,
+            [currentQuestion.id]: editableMergedResponse || state.mergedResponse || ''
+          }));
+        }
+
+        // Show transition animation
+        setShowTransition(true);
+
+        // Wait for transition out
+        await new Promise(resolve => setTimeout(resolve, 300));
+
+        // Move to next question in sequence (but don't update furthestQuestionIndex)
+        const nextIndex = state.currentIndex + 1;
+        const nextQuestion = state.allQuestions[nextIndex];
+
+        console.log('[APPROVE STAY] state.currentIndex:', state.currentIndex);
+        console.log('[APPROVE STAY] nextIndex:', nextIndex);
+        console.log('[APPROVE STAY] nextQuestion:', nextQuestion?.id);
+
+        setState(prev => {
+          console.log('[APPROVE STAY] setState prev.currentIndex:', prev.currentIndex);
+          console.log('[APPROVE STAY] Setting currentIndex to:', nextIndex);
+          return {
+            ...prev,
+            currentIndex: nextIndex,
+            followupQuestion: null,
+            checklist: nextQuestion?.checklist || [],
+            checklistResults: [],
+            mergedResponse: null,
+            showMergedApproval: false,
+          };
+        });
+        // Load saved response for next question if it exists
+        setInputValue(savedResponses[nextQuestion?.id] || '');
+        setEditableMergedResponse('');
+
+        console.log('[APPROVE STAY] Navigation complete');
+        setTimeout(() => setShowTransition(false), 50);
       } else {
+        console.log('[APPROVE] Handling NEXT_QUESTION action (else branch)');
+        // next_question - Save and move to next
+        if (currentQuestion) {
+          setSavedResponses(prev => ({
+            ...prev,
+            [currentQuestion.id]: editableMergedResponse || state.mergedResponse || ''
+          }));
+        }
+
         // Show transition animation
         setShowTransition(true);
 
@@ -747,16 +1113,32 @@ export function InterviewApp({
         const nextIndex = state.currentIndex + 1;
         const nextQuestion = state.allQuestions[nextIndex];
 
-        setState(prev => ({
-          ...prev,
-          currentIndex: nextIndex,
-          followupQuestion: null,
-          checklist: nextQuestion?.checklist || [],
-          checklistResults: [],
-          mergedResponse: null,
-          showMergedApproval: false,
-        }));
-        setInputValue('');
+        console.log('[APPROVE NEXT] state.currentIndex:', state.currentIndex);
+        console.log('[APPROVE NEXT] nextIndex:', nextIndex);
+        console.log('[APPROVE NEXT] nextQuestion:', nextQuestion?.id);
+        console.log('[APPROVE NEXT] furthestQuestionIndex:', furthestQuestionIndex);
+
+        // Update furthest question index if we're moving forward
+        if (nextIndex > furthestQuestionIndex) {
+          console.log('[APPROVE NEXT] Updating furthestQuestionIndex to:', nextIndex);
+          setFurthestQuestionIndex(nextIndex);
+        }
+
+        setState(prev => {
+          console.log('[APPROVE NEXT] setState prev.currentIndex:', prev.currentIndex);
+          console.log('[APPROVE NEXT] Setting currentIndex to:', nextIndex);
+          return {
+            ...prev,
+            currentIndex: nextIndex,
+            followupQuestion: null,
+            checklist: nextQuestion?.checklist || [],
+            checklistResults: [],
+            mergedResponse: null,
+            showMergedApproval: false,
+          };
+        });
+        // Load saved response for next question if it exists, otherwise clear
+        setInputValue(savedResponses[nextQuestion?.id] || '');
         setEditableMergedResponse('');
 
         // Wait a tick then show the new question with transition in
@@ -893,13 +1275,19 @@ export function InterviewApp({
           <div style={styles.headerLeft}>
             <button
               style={styles.backButton}
-              onClick={() => setState(prev => ({ ...prev, showReviewMode: false }))}
+              onClick={() => {
+                if (viewOnly || editMode) {
+                  onExit?.();
+                } else {
+                  setState(prev => ({ ...prev, showReviewMode: false }));
+                }
+              }}
             >
               <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
                 <path d="M10 12L6 8l4-4" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
-            <span style={styles.headerTitle}>Review Your Responses</span>
+            <span style={styles.headerTitle}>{viewOnly ? 'Your Responses' : editMode ? 'Edit Responses' : 'Review Your Responses'}</span>
           </div>
         </header>
 
@@ -925,63 +1313,289 @@ export function InterviewApp({
         <footer style={styles.footer}>
           <button
             style={{...styles.navButton, ...styles.navButtonSecondary}}
-            onClick={() => setState(prev => ({ ...prev, showReviewMode: false }))}
+            onClick={() => {
+              if (viewOnly || editMode) {
+                onExit?.();
+              } else {
+                setState(prev => ({ ...prev, showReviewMode: false }));
+              }
+            }}
           >
-            Back to Summary
+            {(viewOnly || editMode) ? 'Back to Dashboard' : 'Back to Summary'}
           </button>
         </footer>
       </div>
     );
   }
 
-  // Completion Screen
+  // Completion Screen - Premium Apple HIG Style
   if (state.isComplete) {
+    // Calculate duration
+    const durationMinutes = state.startTime
+      ? Math.round((new Date().getTime() - state.startTime.getTime()) / 60000)
+      : 0;
+    const durationDisplay = durationMinutes > 0
+      ? `${Math.floor(durationMinutes / 60) > 0 ? Math.floor(durationMinutes / 60) + 'h ' : ''}${durationMinutes % 60}m`
+      : '--';
+    const questionsAnswered = Object.keys(state.answers).length || state.allResponses.length || totalQuestions;
+    const completionPercent = Math.round((questionsAnswered / totalQuestions) * 100);
+
+    // Confetti colors
+    const confettiColors = ['#34C759', '#007AFF', '#5856D6', '#FF9500', '#FF2D55'];
+
     return (
-      <div style={styles.container}>
-        <div style={styles.completionContainer}>
+      <div style={{
+        minHeight: '100vh',
+        backgroundColor: '#F5F5F7',
+        position: 'relative',
+        overflow: 'hidden',
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'center',
+      }}>
+        {/* Background Gradient */}
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'linear-gradient(135deg, #F5F5F7 0%, #E8E8ED 50%, #F5F5F7 100%)',
+          zIndex: 0,
+        }} />
+
+        {/* Background Orbs */}
+        <div style={{
+          position: 'fixed',
+          top: '-20%',
+          right: '-10%',
+          width: '60%',
+          height: '60%',
+          background: 'radial-gradient(circle, rgba(52, 199, 89, 0.1) 0%, transparent 70%)',
+          borderRadius: '50%',
+          zIndex: 0,
+        }} />
+        <div style={{
+          position: 'fixed',
+          bottom: '-30%',
+          left: '-10%',
+          width: '50%',
+          height: '50%',
+          background: 'radial-gradient(circle, rgba(0, 122, 255, 0.08) 0%, transparent 70%)',
+          borderRadius: '50%',
+          zIndex: 0,
+        }} />
+
+        {/* Confetti Particles */}
+        {state.isSubmitted && [...Array(30)].map((_, i) => (
+          <div
+            key={i}
+            style={{
+              position: 'fixed',
+              top: '-20px',
+              left: `${Math.random() * 100}%`,
+              width: `${6 + Math.random() * 8}px`,
+              height: `${6 + Math.random() * 8}px`,
+              backgroundColor: confettiColors[i % confettiColors.length],
+              borderRadius: Math.random() > 0.5 ? '50%' : '2px',
+              opacity: 0.8,
+              zIndex: 2,
+              animation: `confettiFall ${2.5 + Math.random() * 1.5}s linear ${Math.random() * 0.5}s forwards`,
+              transform: `rotate(${Math.random() * 360}deg)`,
+            }}
+          />
+        ))}
+
+        {/* Main Content */}
+        <div style={{
+          position: 'relative',
+          zIndex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          padding: '48px 24px',
+          maxWidth: '480px',
+          textAlign: 'center',
+        }}>
           {state.isSubmitted ? (
             <>
-              <div style={styles.completionIcon}>
+              {/* Animated Success Checkmark */}
+              <div style={{
+                width: '96px',
+                height: '96px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #34C759 0%, #30D158 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 8px 32px rgba(52, 199, 89, 0.3)',
+                marginBottom: '32px',
+                animation: 'successPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+              }}>
                 <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                  <circle cx="24" cy="24" r="24" fill="#059669" fillOpacity="0.1"/>
-                  <path d="M16 24L22 30L32 18" stroke="#059669" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path
+                    d="M14 24L20 30L34 16"
+                    stroke="white"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                    style={{
+                      strokeDasharray: 50,
+                      strokeDashoffset: 0,
+                      animation: 'checkDraw 0.4s ease 0.2s backwards',
+                    }}
+                  />
                 </svg>
               </div>
-              <h1 style={styles.completionTitle}>Interview Submitted</h1>
-              <p style={styles.completionText}>
-                Your interview has been submitted to the assessment pool. The assessment creator will be notified that your responses are ready for review.
+
+              {/* Thank You Message */}
+              <h1 style={{
+                fontSize: '28px',
+                fontWeight: '600',
+                color: '#1D1D1F',
+                letterSpacing: '-0.02em',
+                marginBottom: '12px',
+                animation: 'fadeInUp 0.4s ease 0.15s backwards',
+              }}>
+                Thank you!
+              </h1>
+              <p style={{
+                fontSize: '16px',
+                color: 'rgba(60, 60, 67, 0.6)',
+                lineHeight: 1.6,
+                marginBottom: '32px',
+                animation: 'fadeInUp 0.4s ease 0.25s backwards',
+              }}>
+                Your responses have been submitted and will help shape meaningful insights for your organization.
               </p>
             </>
           ) : (
             <>
-              <div style={styles.completionIcon}>
+              {/* Blue Checkmark for All Answered */}
+              <div style={{
+                width: '96px',
+                height: '96px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                boxShadow: '0 8px 32px rgba(0, 122, 255, 0.3)',
+                marginBottom: '32px',
+                animation: 'successPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+              }}>
                 <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
-                  <circle cx="24" cy="24" r="24" fill="#3B82F6" fillOpacity="0.1"/>
-                  <path d="M16 24L22 30L32 18" stroke="#3B82F6" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"/>
+                  <path
+                    d="M14 24L20 30L34 16"
+                    stroke="white"
+                    strokeWidth="4"
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
                 </svg>
               </div>
-              <h1 style={styles.completionTitle}>All Questions Answered</h1>
-              <p style={styles.completionText}>
-                You've answered all questions. You can review and edit your responses before submitting, or submit now to finalize your interview.
+
+              <h1 style={{
+                fontSize: '28px',
+                fontWeight: '600',
+                color: '#1D1D1F',
+                letterSpacing: '-0.02em',
+                marginBottom: '12px',
+                animation: 'fadeInUp 0.4s ease 0.15s backwards',
+              }}>
+                All Questions Answered
+              </h1>
+              <p style={{
+                fontSize: '16px',
+                color: 'rgba(60, 60, 67, 0.6)',
+                lineHeight: 1.6,
+                marginBottom: '32px',
+                animation: 'fadeInUp 0.4s ease 0.25s backwards',
+              }}>
+                You've completed the assessment. Review your responses or submit now to finalize.
               </p>
             </>
           )}
 
-          <div style={styles.completionStats}>
-            <div style={styles.statItem}>
-              <span style={styles.statValue}>{Object.keys(state.answers).length || state.allResponses.length}</span>
-              <span style={styles.statLabel}>Questions Answered</span>
+          {/* Stats Card */}
+          <div style={{
+            display: 'flex',
+            gap: '1px',
+            backgroundColor: 'rgba(0, 0, 0, 0.06)',
+            borderRadius: '16px',
+            overflow: 'hidden',
+            marginBottom: '32px',
+            width: '100%',
+            animation: 'fadeInUp 0.4s ease 0.35s backwards',
+          }}>
+            <div style={{
+              flex: 1,
+              padding: '20px 16px',
+              backgroundColor: 'rgba(255, 255, 255, 0.85)',
+              backdropFilter: 'blur(20px)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '4px',
+            }}>
+              <span style={{ fontSize: '28px', fontWeight: '600', color: '#1D1D1F' }}>{questionsAnswered}</span>
+              <span style={{ fontSize: '12px', color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Questions</span>
             </div>
-            <div style={styles.statItem}>
-              <span style={styles.statValue}>{totalQuestions}</span>
-              <span style={styles.statLabel}>Total Questions</span>
+            <div style={{
+              flex: 1,
+              padding: '20px 16px',
+              backgroundColor: 'rgba(255, 255, 255, 0.85)',
+              backdropFilter: 'blur(20px)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '4px',
+            }}>
+              <span style={{ fontSize: '28px', fontWeight: '600', color: '#1D1D1F' }}>{durationDisplay}</span>
+              <span style={{ fontSize: '12px', color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Duration</span>
+            </div>
+            <div style={{
+              flex: 1,
+              padding: '20px 16px',
+              backgroundColor: 'rgba(255, 255, 255, 0.85)',
+              backdropFilter: 'blur(20px)',
+              display: 'flex',
+              flexDirection: 'column',
+              alignItems: 'center',
+              gap: '4px',
+            }}>
+              <span style={{ fontSize: '28px', fontWeight: '600', color: state.isSubmitted ? '#34C759' : '#007AFF' }}>{completionPercent}%</span>
+              <span style={{ fontSize: '12px', color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Complete</span>
             </div>
           </div>
 
+          {/* Actions */}
           {!state.isSubmitted && !isDemoMode && (
-            <div style={styles.completionActions}>
+            <div style={{
+              display: 'flex',
+              flexDirection: 'column',
+              gap: '12px',
+              width: '100%',
+              marginBottom: '16px',
+              animation: 'fadeInUp 0.4s ease 0.45s backwards',
+            }}>
               <button
-                style={styles.reviewButton}
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  gap: '8px',
+                  padding: '16px 24px',
+                  fontSize: '15px',
+                  fontWeight: '500',
+                  backgroundColor: 'rgba(255, 255, 255, 0.85)',
+                  backdropFilter: 'blur(20px)',
+                  color: '#1D1D1F',
+                  border: '1px solid rgba(0, 0, 0, 0.06)',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
                 onClick={() => {
                   loadResponses();
                   setState(prev => ({ ...prev, showReviewMode: true }));
@@ -994,7 +1608,19 @@ export function InterviewApp({
                 Review & Edit Responses
               </button>
               <button
-                style={{...styles.submitButton, opacity: isSubmitting ? 0.7 : 1}}
+                style={{
+                  padding: '16px 24px',
+                  fontSize: '15px',
+                  fontWeight: '600',
+                  background: 'linear-gradient(135deg, #059669 0%, #34C759 100%)',
+                  color: '#FFFFFF',
+                  border: 'none',
+                  borderRadius: '12px',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                  boxShadow: '0 4px 16px rgba(5, 150, 105, 0.25)',
+                  opacity: isSubmitting ? 0.7 : 1,
+                }}
                 onClick={handleSubmitInterview}
                 disabled={isSubmitting}
               >
@@ -1003,13 +1629,47 @@ export function InterviewApp({
             </div>
           )}
 
+          {/* Return to Dashboard */}
           <button
-            style={styles.completionButton}
+            style={{
+              padding: '16px 32px',
+              fontSize: '15px',
+              fontWeight: '600',
+              background: state.isSubmitted ? 'linear-gradient(135deg, #1D1D1F 0%, #3A3A3C 100%)' : 'transparent',
+              color: state.isSubmitted ? '#FFFFFF' : '#71717A',
+              border: state.isSubmitted ? 'none' : '1px solid rgba(0, 0, 0, 0.1)',
+              borderRadius: '12px',
+              cursor: 'pointer',
+              transition: 'all 0.15s ease',
+              boxShadow: state.isSubmitted ? '0 4px 16px rgba(0, 0, 0, 0.15)' : 'none',
+              animation: 'fadeInUp 0.4s ease 0.55s backwards',
+            }}
             onClick={onExit}
           >
             Return to Dashboard
           </button>
         </div>
+
+        {/* CSS Animations */}
+        <style>{`
+          @keyframes successPop {
+            0% { transform: scale(0); opacity: 0; }
+            50% { transform: scale(1.1); }
+            100% { transform: scale(1); opacity: 1; }
+          }
+          @keyframes checkDraw {
+            0% { stroke-dashoffset: 50; }
+            100% { stroke-dashoffset: 0; }
+          }
+          @keyframes fadeInUp {
+            0% { opacity: 0; transform: translateY(10px); }
+            100% { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes confettiFall {
+            0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
+            100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+          }
+        `}</style>
       </div>
     );
   }
@@ -1191,27 +1851,324 @@ export function InterviewApp({
     );
   }
 
+  // Helper to check if a question is answered
+  const isQuestionAnswered = (index: number) => {
+    const q = state.allQuestions[index] || state.questions[index];
+    if (!q) return false;
+    return !!(savedResponses[q.id] || state.answers[q.id]);
+  };
+
+  // Welcome Screen - Apple-inspired centered layout
+  if (state.showWelcomeScreen && state.isNewAssessment) {
+    const estimatedMinutes = Math.ceil(totalQuestions * 0.7);
+
+    return (
+      <div style={styles.selectScreenContainer as React.CSSProperties}>
+        {/* Background - same as mode selection */}
+        <div style={styles.selectBackground as React.CSSProperties} />
+        <div style={styles.selectOrb1 as React.CSSProperties} />
+        <div style={styles.selectOrb2 as React.CSSProperties} />
+
+        {/* Content - centered, open layout */}
+        <div style={{
+          width: '100%',
+          maxWidth: '580px',
+          position: 'relative',
+          zIndex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          textAlign: 'center',
+          paddingTop: '60px',
+        }}>
+          {/* Back link - subtle, top left */}
+          <button
+            style={{
+              position: 'absolute',
+              top: 0,
+              left: 0,
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: '6px',
+              padding: '8px 0',
+              fontSize: '14px',
+              fontWeight: '500',
+              color: 'rgba(60, 60, 67, 0.6)',
+              backgroundColor: 'transparent',
+              border: 'none',
+              cursor: 'pointer',
+              transition: 'color 0.2s ease',
+            }}
+            onClick={onExit}
+            onMouseOver={(e) => { e.currentTarget.style.color = '#1D1D1F'; }}
+            onMouseOut={(e) => { e.currentTarget.style.color = 'rgba(60, 60, 67, 0.6)'; }}
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Back
+          </button>
+
+          {/* Large headline */}
+          <h1 style={{
+            fontSize: '44px',
+            fontWeight: '600',
+            color: '#1D1D1F',
+            letterSpacing: '-0.025em',
+            lineHeight: 1.1,
+            margin: '0 0 16px 0',
+          }}>
+            Ready when you are.
+          </h1>
+
+          {/* Subheadline */}
+          <p style={{
+            fontSize: '17px',
+            fontWeight: '400',
+            color: 'rgba(60, 60, 67, 0.6)',
+            lineHeight: 1.5,
+            margin: '0 0 40px 0',
+            maxWidth: '420px',
+          }}>
+            Take your time. Answer honestly. Your responses shape insights that matter.
+          </p>
+
+          {/* Stats - clean inline text */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: '24px',
+            marginBottom: '48px',
+            fontSize: '15px',
+            color: 'rgba(60, 60, 67, 0.6)',
+          }}>
+            <span><strong style={{ color: '#1D1D1F', fontWeight: '600' }}>{totalQuestions}</strong> questions</span>
+            <span style={{ color: 'rgba(0,0,0,0.15)' }}>·</span>
+            <span><strong style={{ color: '#1D1D1F', fontWeight: '600' }}>~{estimatedMinutes}</strong> min</span>
+            <span style={{ color: 'rgba(0,0,0,0.15)' }}>·</span>
+            <span style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+              </svg>
+              Private
+            </span>
+          </div>
+
+          {/* Primary CTA - prominent */}
+          <button
+            style={{
+              padding: '16px 32px',
+              fontSize: '17px',
+              fontWeight: '600',
+              color: '#FFFFFF',
+              background: 'linear-gradient(135deg, #1D1D1F 0%, #3A3A3C 100%)',
+              border: 'none',
+              borderRadius: '14px',
+              cursor: 'pointer',
+              boxShadow: '0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)',
+              transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '10px',
+            }}
+            onClick={() => {
+              setState(prev => ({ ...prev, showWelcomeScreen: false }));
+            }}
+            onMouseOver={(e) => {
+              e.currentTarget.style.transform = 'translateY(-2px)';
+              e.currentTarget.style.boxShadow = '0 8px 30px rgba(0, 0, 0, 0.2), 0 4px 12px rgba(0, 0, 0, 0.15)';
+            }}
+            onMouseOut={(e) => {
+              e.currentTarget.style.transform = 'translateY(0)';
+              e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.15), 0 2px 8px rgba(0, 0, 0, 0.1)';
+            }}
+          >
+            Begin Assessment
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M5 12h14M12 5l7 7-7 7" />
+            </svg>
+          </button>
+
+          {/* Supporting info - simple text, no card */}
+          <p style={{
+            marginTop: '48px',
+            fontSize: '13px',
+            color: 'rgba(60, 60, 67, 0.45)',
+            lineHeight: 1.6,
+            maxWidth: '360px',
+          }}>
+            Your responses are confidential. You can pause anytime and pick up where you left off.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Text Mode
   if (mode === 'text') {
     return (
       <div style={styles.container}>
+        {/* Sidebar Overlay */}
+        <div
+          style={{
+            ...styles.sidebarOverlay,
+            ...(sidebarOpen ? styles.sidebarOverlayOpen : {}),
+          }}
+          onClick={() => setSidebarOpen(false)}
+        />
+
+        {/* Sidebar */}
+        <aside style={{
+          ...styles.sidebar,
+          ...(sidebarOpen ? styles.sidebarOpen : {}),
+        }}>
+          <div style={styles.sidebarHeader}>
+            <span style={styles.sidebarTitle}>Questions</span>
+            <button
+              style={styles.sidebarCloseButton}
+              onClick={() => setSidebarOpen(false)}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M12 4L4 12M4 4l8 8" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+
+          <div style={styles.sidebarContent}>
+            {/* Progress */}
+            <div style={styles.sidebarProgress}>
+              <div style={styles.sidebarProgressText}>
+                {Object.keys(savedResponses).length + Object.keys(state.answers).length} of {totalQuestions} answered
+              </div>
+              <div style={styles.sidebarProgressBar}>
+                <div style={{
+                  ...styles.sidebarProgressFill,
+                  width: `${((Object.keys(savedResponses).length + Object.keys(state.answers).length) / totalQuestions) * 100}%`,
+                }} />
+              </div>
+            </div>
+
+            {/* Question List */}
+            <div style={styles.sidebarQuestionList}>
+              {(state.allQuestions.length > 0 ? state.allQuestions : state.questions).map((q, index) => {
+                const isAnswered = isQuestionAnswered(index);
+                const isCurrent = index === state.currentIndex;
+                const isFuture = index > furthestQuestionIndex;
+                const canNavigate = !isFuture || isCurrent;
+
+                return (
+                  <button
+                    key={q.id}
+                    style={{
+                      ...styles.sidebarQuestionItem,
+                      ...(isCurrent ? styles.sidebarQuestionItemActive : {}),
+                      ...(isFuture && !isCurrent ? styles.sidebarQuestionItemDisabled : {}),
+                    }}
+                    onClick={() => canNavigate && navigateToQuestion(index)}
+                    disabled={!canNavigate}
+                  >
+                    <div style={{
+                      ...styles.sidebarQuestionNumber,
+                      ...(isAnswered && !isCurrent ? styles.sidebarQuestionNumberAnswered : {}),
+                      ...(isCurrent ? styles.sidebarQuestionNumberCurrent : {}),
+                      ...(isFuture && !isCurrent ? styles.sidebarQuestionNumberFuture : {}),
+                      ...(!isAnswered && !isCurrent && !isFuture ? styles.sidebarQuestionNumberFuture : {}),
+                    }}>
+                      {isAnswered && !isCurrent ? (
+                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M3 8l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      ) : (
+                        index + 1
+                      )}
+                    </div>
+                    <div style={styles.sidebarQuestionInfo}>
+                      <div style={styles.sidebarQuestionAspect}>{q.aspect}</div>
+                      <div style={styles.sidebarQuestionAspectCode}>{q.aspect_code}</div>
+                    </div>
+                    {isCurrent && (
+                      <div style={styles.sidebarQuestionStatus}>
+                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#18181B" strokeWidth="1.5">
+                          <path d="M6 12l4-4-4-4" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </aside>
+
         {/* Header */}
         <header style={styles.header}>
           <div style={styles.headerLeft}>
+            {/* Menu Button - Premium Grid Icon */}
             <button
-              style={styles.backButton}
-              onClick={() => onExit ? onExit() : setMode('select')}
+              style={styles.menuButton}
+              onClick={() => setSidebarOpen(true)}
+              title="View all questions"
             >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M10 12L6 8l4-4" strokeLinecap="round" strokeLinejoin="round"/>
+              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
+                <rect x="2" y="2" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <rect x="11" y="2" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <rect x="2" y="11" width="5" height="5" rx="1.5" fill="currentColor"/>
+                <rect x="11" y="11" width="5" height="5" rx="1.5" fill="currentColor"/>
               </svg>
             </button>
             <span style={styles.headerTitle}>CABAS® Discovery Assessment</span>
           </div>
           <div style={styles.headerRight}>
             <span style={styles.progressText}>{state.currentIndex + 1} of {totalQuestions}</span>
+            <button
+              style={styles.exitButton}
+              onClick={() => setShowExitConfirm(true)}
+              title="Exit assessment"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
           </div>
         </header>
+
+        {/* Exit Confirmation Dialog */}
+        {showExitConfirm && (
+          <div style={styles.exitOverlay}>
+            <div style={styles.exitDialog}>
+              <div style={styles.exitIcon}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#71717A" strokeWidth="1.5">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </div>
+              <h3 style={styles.exitTitle}>Exit assessment?</h3>
+              <p style={styles.exitMessage}>
+                Your progress is saved automatically.
+              </p>
+              <div style={styles.exitActions}>
+                <button
+                  style={styles.exitCancelButton}
+                  onClick={() => setShowExitConfirm(false)}
+                >
+                  Continue
+                </button>
+                <button
+                  style={styles.exitConfirmButton}
+                  onClick={() => {
+                    setShowExitConfirm(false);
+                    onExit?.();
+                  }}
+                >
+                  Exit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Progress Bar */}
         <div style={styles.progressContainer}>
@@ -1429,8 +2386,53 @@ export function InterviewApp({
           </div>
           <div style={styles.headerRight}>
             <span style={styles.progressText}>{state.currentIndex + 1} of {totalQuestions}</span>
+            <button
+              style={styles.exitButton}
+              onClick={() => setShowExitConfirm(true)}
+              title="Exit assessment"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
           </div>
         </header>
+
+        {/* Exit Confirmation Dialog */}
+        {showExitConfirm && (
+          <div style={styles.exitOverlay}>
+            <div style={styles.exitDialog}>
+              <div style={styles.exitIcon}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#71717A" strokeWidth="1.5">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </div>
+              <h3 style={styles.exitTitle}>Exit assessment?</h3>
+              <p style={styles.exitMessage}>
+                Your progress is saved automatically.
+              </p>
+              <div style={styles.exitActions}>
+                <button
+                  style={styles.exitCancelButton}
+                  onClick={() => setShowExitConfirm(false)}
+                >
+                  Continue
+                </button>
+                <button
+                  style={styles.exitConfirmButton}
+                  onClick={() => {
+                    setShowExitConfirm(false);
+                    onExit?.();
+                  }}
+                >
+                  Exit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Progress Bar */}
         <div style={styles.progressContainer}>
@@ -1990,11 +2992,104 @@ const styles: Record<string, CSSProperties> = {
   headerRight: {
     display: 'flex',
     alignItems: 'center',
+    gap: '12px',
   },
   progressText: {
     fontSize: '13px',
     color: '#71717A',
     fontVariantNumeric: 'tabular-nums',
+  },
+  exitButton: {
+    width: '36px',
+    height: '36px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    color: '#71717A',
+    transition: 'all 0.15s ease',
+  },
+
+  // Exit Confirmation Dialog - Premium Glass UI
+  exitOverlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    backgroundColor: 'rgba(250, 250, 250, 0.5)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    animation: 'fadeIn 0.15s ease',
+  },
+  exitDialog: {
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backdropFilter: 'blur(24px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(24px) saturate(180%)',
+    borderRadius: '16px',
+    padding: '28px 32px',
+    maxWidth: '340px',
+    width: '90%',
+    textAlign: 'center',
+    border: '1px solid rgba(0, 0, 0, 0.06)',
+    boxShadow: '0 8px 32px rgba(0, 0, 0, 0.08)',
+    animation: 'scaleIn 0.2s ease',
+  },
+  exitIcon: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '12px',
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    margin: '0 auto 16px',
+  },
+  exitTitle: {
+    fontSize: '17px',
+    fontWeight: '600',
+    color: '#1D1D1F',
+    margin: '0 0 6px 0',
+    letterSpacing: '-0.01em',
+  },
+  exitMessage: {
+    fontSize: '13px',
+    color: '#71717A',
+    lineHeight: '1.5',
+    margin: '0 0 20px 0',
+  },
+  exitActions: {
+    display: 'flex',
+    gap: '8px',
+  },
+  exitCancelButton: {
+    flex: 1,
+    padding: '12px 16px',
+    fontSize: '14px',
+    fontWeight: '600',
+    backgroundColor: '#1D1D1F',
+    color: '#FFFFFF',
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
+  exitConfirmButton: {
+    flex: 1,
+    padding: '12px 16px',
+    fontSize: '14px',
+    fontWeight: '500',
+    backgroundColor: 'rgba(0, 0, 0, 0.05)',
+    color: '#71717A',
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
   },
   voiceBadge: {
     display: 'flex',
@@ -2480,6 +3575,173 @@ const styles: Record<string, CSSProperties> = {
   followupIcon: {
     animation: 'successPop 0.4s ease-out',
   },
+
+  // Sidebar styles
+  sidebarOverlay: {
+    position: 'fixed',
+    inset: 0,
+    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    zIndex: 100,
+    opacity: 0,
+    transition: 'opacity 0.3s ease',
+    pointerEvents: 'none',
+  },
+  sidebarOverlayOpen: {
+    opacity: 1,
+    pointerEvents: 'auto',
+  },
+  sidebar: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    bottom: 0,
+    width: '320px',
+    backgroundColor: '#FFFFFF',
+    zIndex: 101,
+    transform: 'translateX(-100%)',
+    transition: 'transform 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+    display: 'flex',
+    flexDirection: 'column',
+    boxShadow: '4px 0 24px rgba(0, 0, 0, 0.12)',
+  },
+  sidebarOpen: {
+    transform: 'translateX(0)',
+  },
+  sidebarHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '20px 24px',
+    borderBottom: '1px solid #F4F4F5',
+  },
+  sidebarTitle: {
+    fontSize: '15px',
+    fontWeight: '600',
+    color: '#18181B',
+    letterSpacing: '-0.01em',
+  },
+  sidebarCloseButton: {
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#F4F4F5',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    color: '#71717A',
+    transition: 'all 0.15s ease',
+  },
+  sidebarContent: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '16px',
+  },
+  sidebarProgress: {
+    padding: '0 8px 16px',
+    borderBottom: '1px solid #F4F4F5',
+    marginBottom: '16px',
+  },
+  sidebarProgressText: {
+    fontSize: '12px',
+    fontWeight: '500',
+    color: '#71717A',
+    marginBottom: '8px',
+  },
+  sidebarProgressBar: {
+    height: '4px',
+    backgroundColor: '#F4F4F5',
+    borderRadius: '2px',
+    overflow: 'hidden',
+  },
+  sidebarProgressFill: {
+    height: '100%',
+    backgroundColor: '#18181B',
+    borderRadius: '2px',
+    transition: 'width 0.3s ease',
+  },
+  sidebarQuestionList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  sidebarQuestionItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '12px 14px',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    border: 'none',
+    backgroundColor: 'transparent',
+    width: '100%',
+    textAlign: 'left',
+  },
+  sidebarQuestionItemActive: {
+    backgroundColor: '#F4F4F5',
+  },
+  sidebarQuestionItemDisabled: {
+    opacity: 0.4,
+    cursor: 'not-allowed',
+  },
+  sidebarQuestionNumber: {
+    width: '28px',
+    height: '28px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '12px',
+    fontWeight: '600',
+    borderRadius: '8px',
+    flexShrink: 0,
+  },
+  sidebarQuestionNumberAnswered: {
+    backgroundColor: '#ECFDF5',
+    color: '#059669',
+  },
+  sidebarQuestionNumberCurrent: {
+    backgroundColor: '#18181B',
+    color: '#FFFFFF',
+  },
+  sidebarQuestionNumberFuture: {
+    backgroundColor: '#F4F4F5',
+    color: '#A1A1AA',
+  },
+  sidebarQuestionInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  sidebarQuestionAspect: {
+    fontSize: '13px',
+    fontWeight: '500',
+    color: '#18181B',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  sidebarQuestionAspectCode: {
+    fontSize: '11px',
+    color: '#A1A1AA',
+    marginTop: '2px',
+  },
+  sidebarQuestionStatus: {
+    flexShrink: 0,
+  },
+  menuButton: {
+    width: '36px',
+    height: '36px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'transparent',
+    border: '1px solid #E4E4E7',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    color: '#52525B',
+    transition: 'all 0.15s ease',
+  },
 };
 
 // Add keyframes for animations
@@ -2503,6 +3765,20 @@ if (typeof document !== 'undefined') {
       }
       50% {
         transform: scale(1.1);
+      }
+      100% {
+        transform: scale(1);
+        opacity: 1;
+      }
+    }
+    @keyframes fadeIn {
+      0% { opacity: 0; }
+      100% { opacity: 1; }
+    }
+    @keyframes scaleIn {
+      0% {
+        transform: scale(0.9);
+        opacity: 0;
       }
       100% {
         transform: scale(1);

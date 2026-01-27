@@ -76,13 +76,13 @@ export interface SubmitResponseResult {
     merged_response?: string;
     checklist_results?: ChecklistResultItem[];
   };
-  next_action: 'complete' | 'next_question' | 'followup' | 'approve_merged';
+  next_action: 'complete' | 'next_question' | 'followup' | 'approve_merged' | 'stay';
   interview_status: 'in_progress' | 'completed';
 }
 
 export interface ApproveMergedResult {
   approved: boolean;
-  next_action: 'complete' | 'next_question';
+  next_action: 'complete' | 'next_question' | 'stay';
   interview_status: 'in_progress' | 'completed';
 }
 

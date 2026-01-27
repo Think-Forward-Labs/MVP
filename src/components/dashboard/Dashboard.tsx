@@ -12,6 +12,8 @@ interface DashboardProps {
   setSection: (section: DashboardSection) => void;
   onLogout: () => void;
   onStartInterview: (mode: 'select' | 'text' | 'voice', reviewId?: string, participantId?: string) => void;
+  onViewInterview?: (reviewId: string, participantId: string, interviewId: string) => void;
+  onEditInterview?: (reviewId: string, participantId: string, interviewId: string) => void;
   onSelectReview: (reviewId: string) => void;
   onCreateReview: () => void;
 }
@@ -23,6 +25,8 @@ export function Dashboard({
   setSection: _setSection,
   onLogout,
   onStartInterview,
+  onViewInterview,
+  onEditInterview,
   onSelectReview,
   onCreateReview,
 }: DashboardProps) {
@@ -216,8 +220,9 @@ export function Dashboard({
         <DashboardMainPanel
           user={user}
           onCreateAssessment={onCreateReview}
-          onSelectAssessment={onSelectReview}
           onStartInterview={(reviewId, participantId) => onStartInterview('select', reviewId, participantId)}
+          onViewInterview={onViewInterview}
+          onEditInterview={onEditInterview}
           stats={{
             totalAssessments: totalReviews,
             totalParticipants: totalParticipants,
