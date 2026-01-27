@@ -1,78 +1,68 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { CSSProperties } from 'react';
 import { Icons } from '../common/Icons';
-import { AssessmentsPanel } from './panels/AssessmentsPanel';
-import type { User, DashboardSection } from '../../types/app';
+import { DashboardMainPanel } from './panels/DashboardMainPanel';
+import { reviewsApi, type ReviewResponse } from '../../services/api';
+import type { User, Business, DashboardSection } from '../../types/app';
 
 interface DashboardProps {
   user: User | null;
+  business: Business | null;
   section: DashboardSection;
   setSection: (section: DashboardSection) => void;
   onLogout: () => void;
-  onStartInterview: (mode: 'select' | 'text' | 'voice') => void;
+  onStartInterview: (mode: 'select' | 'text' | 'voice', reviewId?: string, participantId?: string) => void;
+  onSelectReview: (reviewId: string) => void;
+  onCreateReview: () => void;
 }
 
-interface Interview {
-  id: string;
-  title: string;
-  status: 'complete' | 'in-progress' | 'pending';
-  duration?: string;
-  date: Date;
-}
+export function Dashboard({
+  user,
+  business,
+  section: _section,
+  setSection: _setSection,
+  onLogout,
+  onStartInterview,
+  onSelectReview,
+  onCreateReview,
+}: DashboardProps) {
+  // TODO: section and setSection will be used for nav
+  void _section;
+  void _setSection;
+  const [hoveredReview, setHoveredReview] = useState<string | null>(null);
+  const [reviews, setReviews] = useState<ReviewResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [refreshKey, setRefreshKey] = useState(0);
 
-interface Batch {
-  id: string;
-  name: string;
-  date: Date;
-  interviews: Interview[];
-  isExpanded: boolean;
-}
+  // Fetch reviews on mount and when refreshKey changes
+  useEffect(() => {
+    const fetchReviews = async () => {
+      setLoading(true);
+      try {
+        const data = await reviewsApi.list();
+        setReviews(data);
+      } catch (error) {
+        console.error('Failed to fetch reviews:', error);
+      } finally {
+        setLoading(false);
+      }
+    };
 
-export function Dashboard({ user, section, setSection, onLogout, onStartInterview }: DashboardProps) {
-  const [hoveredBatch, setHoveredBatch] = useState<string | null>(null);
-  const [hoveredInterview, setHoveredInterview] = useState<string | null>(null);
+    fetchReviews();
+  }, [refreshKey]);
 
-  const [batches, setBatches] = useState<Batch[]>([
-    {
-      id: 'b1',
-      name: 'Q4 Leadership Review',
-      date: new Date(Date.now() - 86400000),
-      isExpanded: true,
-      interviews: [
-        { id: 'i1', title: 'Executive leadership assessment', status: 'complete', duration: '23 min', date: new Date(Date.now() - 86400000) },
-        { id: 'i2', title: 'Strategy & planning review', status: 'complete', duration: '18 min', date: new Date(Date.now() - 90000000) },
-        { id: 'i3', title: 'Team culture evaluation', status: 'in-progress', date: new Date(Date.now() - 93600000) },
-      ]
-    },
-    {
-      id: 'b2',
-      name: 'Operations Assessment',
-      date: new Date(Date.now() - 259200000),
-      isExpanded: false,
-      interviews: [
-        { id: 'i4', title: 'Process efficiency review', status: 'complete', duration: '31 min', date: new Date(Date.now() - 259200000) },
-        { id: 'i5', title: 'Resource allocation analysis', status: 'complete', duration: '27 min', date: new Date(Date.now() - 262800000) },
-      ]
-    },
-    {
-      id: 'b3',
-      name: 'Technology Infrastructure',
-      date: new Date(Date.now() - 604800000),
-      isExpanded: false,
-      interviews: [
-        { id: 'i6', title: 'Systems architecture review', status: 'complete', duration: '42 min', date: new Date(Date.now() - 604800000) },
-        { id: 'i7', title: 'Security assessment', status: 'pending', date: new Date(Date.now() - 608400000) },
-      ]
-    },
-  ]);
+  // Refresh reviews when CreateReviewModal succeeds (triggered by parent)
+  useEffect(() => {
+    const interval = setInterval(() => {
+      // Check if we should refresh (could be triggered by parent closing modal)
+      setRefreshKey(prev => prev + 1);
+    }, 30000); // Refresh every 30 seconds as fallback
 
-  const toggleBatch = (batchId: string) => {
-    setBatches(prev => prev.map(batch =>
-      batch.id === batchId ? { ...batch, isExpanded: !batch.isExpanded } : batch
-    ));
-  };
+    return () => clearInterval(interval);
+  }, []);
 
-  const formatDate = (date: Date) => {
+  const formatDate = (dateStr: string) => {
+    const date = new Date(dateStr);
     const now = new Date();
     const diff = now.getTime() - date.getTime();
     const days = Math.floor(diff / 86400000);
@@ -83,10 +73,23 @@ export function Dashboard({ user, section, setSection, onLogout, onStartIntervie
     return date.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
   };
 
+  const getStatusColor = (status: string) => {
+    switch (status) {
+      case 'active':
+        return '#34C759';
+      case 'completed':
+        return '#007AFF';
+      case 'draft':
+        return '#FF9500';
+      default:
+        return 'rgba(120, 120, 128, 0.3)';
+    }
+  };
+
   // Calculate stats
-  const totalInterviews = batches.reduce((acc, b) => acc + b.interviews.length, 0);
-  const completedInterviews = batches.reduce((acc, b) => acc + b.interviews.filter(i => i.status === 'complete').length, 0);
-  const inProgressInterviews = batches.reduce((acc, b) => acc + b.interviews.filter(i => i.status === 'in-progress').length, 0);
+  const totalReviews = reviews.length;
+  const totalParticipants = reviews.reduce((acc, r) => acc + r.participant_count, 0);
+  const completedInterviews = reviews.reduce((acc, r) => acc + r.completed_count, 0);
 
   return (
     <div style={styles.container}>
@@ -114,99 +117,76 @@ export function Dashboard({ user, section, setSection, onLogout, onStartIntervie
           </div>
         </div>
 
-        {/* New Session Button */}
+        {/* New Assessment Button */}
         <div style={styles.actionContainer}>
           <button
             style={styles.actionButton}
-            onClick={() => onStartInterview('select')}
+            onClick={onCreateReview}
           >
             <Icons.Plus />
-            <span>New session</span>
+            <span>New Assessment</span>
           </button>
         </div>
 
-        {/* Sessions/History List */}
+        {/* Reviews List */}
         <div style={styles.historyContainer}>
           <div style={styles.historyHeader}>
-            <span style={styles.historyLabel}>Sessions</span>
-            <button style={styles.filterButton}>
+            <span style={styles.historyLabel}>Assessments</span>
+            <button
+              style={styles.filterButton}
+              onClick={() => setRefreshKey(prev => prev + 1)}
+              title="Refresh"
+            >
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <line x1="4" y1="21" x2="4" y2="14" />
-                <line x1="4" y1="10" x2="4" y2="3" />
-                <line x1="12" y1="21" x2="12" y2="12" />
-                <line x1="12" y1="8" x2="12" y2="3" />
-                <line x1="20" y1="21" x2="20" y2="16" />
-                <line x1="20" y1="12" x2="20" y2="3" />
-                <line x1="1" y1="14" x2="7" y2="14" />
-                <line x1="9" y1="8" x2="15" y2="8" />
-                <line x1="17" y1="16" x2="23" y2="16" />
+                <path d="M23 4v6h-6" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M1 20v-6h6" strokeLinecap="round" strokeLinejoin="round"/>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
           </div>
 
-          <div style={styles.batchList}>
-            {batches.map(batch => (
-              <div key={batch.id} style={styles.batchItem}>
+          <div style={styles.reviewList}>
+            {loading && reviews.length === 0 ? (
+              <div style={styles.loadingState}>
+                <div style={styles.spinner} />
+                <span>Loading assessments...</span>
+              </div>
+            ) : reviews.length === 0 ? (
+              <div style={styles.emptyState}>
+                <Icons.FileText />
+                <span>No assessments yet</span>
+                <button style={styles.emptyButton} onClick={onCreateReview}>
+                  Create your first assessment
+                </button>
+              </div>
+            ) : (
+              reviews.map(review => (
                 <button
+                  key={review.id}
                   style={{
-                    ...styles.batchHeader,
-                    ...(hoveredBatch === batch.id ? styles.batchHeaderHover : {}),
+                    ...styles.reviewItem,
+                    ...(hoveredReview === review.id ? styles.reviewItemHover : {}),
                   }}
-                  onClick={() => toggleBatch(batch.id)}
-                  onMouseEnter={() => setHoveredBatch(batch.id)}
-                  onMouseLeave={() => setHoveredBatch(null)}
+                  onClick={() => onSelectReview(review.id)}
+                  onMouseEnter={() => setHoveredReview(review.id)}
+                  onMouseLeave={() => setHoveredReview(null)}
                 >
-                  <svg
-                    width="10"
-                    height="10"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth="2"
+                  <span
                     style={{
-                      transform: batch.isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                      transition: 'transform 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-                      color: 'rgba(120, 120, 128, 0.6)',
-                      flexShrink: 0,
-                      marginTop: '2px',
+                      ...styles.statusIndicator,
+                      backgroundColor: getStatusColor(review.status),
                     }}
-                  >
-                    <polyline points="9 18 15 12 9 6" />
-                  </svg>
-                  <div style={styles.batchInfo}>
-                    <span style={styles.batchName}>{batch.name}</span>
-                    <span style={styles.batchMeta}>
-                      {batch.interviews.length} interviews · {formatDate(batch.date)}
+                  />
+                  <div style={styles.reviewInfo}>
+                    <span style={styles.reviewName}>{review.name}</span>
+                    <span style={styles.reviewMeta}>
+                      {review.participant_count} participants · {formatDate(review.created_at)}
                     </span>
                   </div>
+                  <Icons.ChevronRight />
                 </button>
-
-                {batch.isExpanded && (
-                  <div style={styles.interviewList}>
-                    {batch.interviews.map(interview => (
-                      <button
-                        key={interview.id}
-                        style={{
-                          ...styles.interviewItem,
-                          ...(hoveredInterview === interview.id ? styles.interviewItemHover : {}),
-                        }}
-                        onMouseEnter={() => setHoveredInterview(interview.id)}
-                        onMouseLeave={() => setHoveredInterview(null)}
-                      >
-                        <span
-                          style={{
-                            ...styles.statusIndicator,
-                            backgroundColor: interview.status === 'complete' ? '#34C759' :
-                              interview.status === 'in-progress' ? '#FF9500' : 'rgba(120, 120, 128, 0.3)',
-                          }}
-                        />
-                        <span style={styles.interviewTitle}>{interview.title}</span>
-                      </button>
-                    ))}
-                  </div>
-                )}
-              </div>
-            ))}
+              ))
+            )}
           </div>
         </div>
 
@@ -214,15 +194,17 @@ export function Dashboard({ user, section, setSection, onLogout, onStartIntervie
         <div style={styles.sidebarFooter}>
           <div style={styles.userSection}>
             <div style={styles.userAvatar}>
-              {user?.name?.charAt(0).toUpperCase() || 'P'}
+              {user?.name?.charAt(0).toUpperCase() || 'U'}
             </div>
             <div style={styles.userInfo}>
-              <span style={styles.userName}>{user?.name || 'paul oamen'}</span>
-              <span style={styles.userPlan}>Max plan</span>
+              <span style={styles.userName}>{user?.name || 'User'}</span>
+              <span style={styles.userPlan}>{business?.name || 'Business'}</span>
             </div>
-            <button style={styles.expandButton}>
-              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <polyline points="6 9 12 15 18 9" />
+            <button style={styles.logoutButton} onClick={onLogout} title="Sign out">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                <polyline points="16 17 21 12 16 7" />
+                <line x1="21" y1="12" x2="9" y2="12" />
               </svg>
             </button>
           </div>
@@ -231,13 +213,16 @@ export function Dashboard({ user, section, setSection, onLogout, onStartIntervie
 
       {/* Main Content Area */}
       <main style={styles.mainContent}>
-        <AssessmentsPanel
-          onStartInterview={onStartInterview}
+        <DashboardMainPanel
+          user={user}
+          onCreateAssessment={onCreateReview}
+          onSelectAssessment={onSelectReview}
+          onStartInterview={(reviewId, participantId) => onStartInterview('select', reviewId, participantId)}
           stats={{
-            totalInterviews,
-            completedInterviews,
-            inProgressInterviews,
-            totalBatches: batches.length,
+            totalAssessments: totalReviews,
+            totalParticipants: totalParticipants,
+            completedInterviews: completedInterviews,
+            completionRate: totalParticipants > 0 ? Math.round((completedInterviews / totalParticipants) * 100) : 0,
           }}
         />
       </main>
@@ -300,7 +285,7 @@ const styles: Record<string, CSSProperties> = {
 
   // Sidebar - Glass Effect
   sidebar: {
-    width: '280px',
+    width: '300px',
     backgroundColor: 'rgba(255, 255, 255, 0.72)',
     backdropFilter: 'blur(20px) saturate(180%)',
     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
@@ -377,13 +362,12 @@ const styles: Record<string, CSSProperties> = {
     padding: '10px 14px',
     fontSize: '13px',
     fontWeight: '500',
-    color: '#1D1D1F',
-    backgroundColor: 'rgba(255, 255, 255, 0.8)',
-    border: '1px solid rgba(0, 0, 0, 0.06)',
+    color: '#FFFFFF',
+    backgroundColor: '#18181B',
+    border: 'none',
     borderRadius: '10px',
     cursor: 'pointer',
     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
-    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
   },
 
   // History
@@ -407,8 +391,8 @@ const styles: Record<string, CSSProperties> = {
     color: 'rgba(60, 60, 67, 0.6)',
   },
   filterButton: {
-    width: '24px',
-    height: '24px',
+    width: '28px',
+    height: '28px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -416,93 +400,102 @@ const styles: Record<string, CSSProperties> = {
     border: 'none',
     color: 'rgba(60, 60, 67, 0.6)',
     cursor: 'pointer',
-    borderRadius: '4px',
-    transition: 'color 0.15s ease',
+    borderRadius: '6px',
+    transition: 'all 0.15s ease',
   },
 
-  // Batch List
-  batchList: {
+  // Review List
+  reviewList: {
     flex: 1,
     overflowY: 'auto',
     padding: '0 8px',
-  },
-  batchItem: {
-    marginBottom: '4px',
-  },
-  batchHeader: {
     display: 'flex',
-    alignItems: 'flex-start',
-    gap: '8px',
+    flexDirection: 'column',
+    gap: '4px',
+  },
+  reviewItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
     width: '100%',
-    padding: '8px',
+    padding: '12px',
     backgroundColor: 'transparent',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '10px',
     cursor: 'pointer',
     textAlign: 'left',
     transition: 'background-color 0.15s ease',
   },
-  batchHeaderHover: {
-    backgroundColor: 'rgba(0, 0, 0, 0.03)',
+  reviewItemHover: {
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
   },
-  batchInfo: {
+  statusIndicator: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '50%',
+    flexShrink: 0,
+  },
+  reviewInfo: {
     flex: 1,
     display: 'flex',
     flexDirection: 'column',
     gap: '2px',
     minWidth: 0,
   },
-  batchName: {
-    fontSize: '13px',
+  reviewName: {
+    fontSize: '14px',
     fontWeight: '500',
     color: '#1D1D1F',
     whiteSpace: 'nowrap',
     overflow: 'hidden',
     textOverflow: 'ellipsis',
   },
-  batchMeta: {
-    fontSize: '11px',
+  reviewMeta: {
+    fontSize: '12px',
     color: 'rgba(60, 60, 67, 0.6)',
     fontWeight: '400',
   },
 
-  // Interview List
-  interviewList: {
-    marginLeft: '18px',
-    paddingLeft: '12px',
-    borderLeft: '1px solid rgba(0, 0, 0, 0.06)',
-    marginTop: '2px',
-    marginBottom: '4px',
-  },
-  interviewItem: {
+  // Loading & Empty States
+  loadingState: {
     display: 'flex',
+    flexDirection: 'column',
     alignItems: 'center',
-    gap: '8px',
-    width: '100%',
-    padding: '6px 8px',
-    backgroundColor: 'transparent',
+    justifyContent: 'center',
+    gap: '12px',
+    padding: '40px 20px',
+    color: 'rgba(60, 60, 67, 0.6)',
+    fontSize: '13px',
+  },
+  spinner: {
+    width: '24px',
+    height: '24px',
+    border: '2px solid #E4E4E7',
+    borderTopColor: '#18181B',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
+  },
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '12px',
+    padding: '40px 20px',
+    color: 'rgba(60, 60, 67, 0.6)',
+    fontSize: '13px',
+    textAlign: 'center',
+  },
+  emptyButton: {
+    marginTop: '8px',
+    padding: '8px 16px',
+    fontSize: '12px',
+    fontWeight: '500',
+    color: '#007AFF',
+    backgroundColor: 'rgba(0, 122, 255, 0.1)',
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer',
-    textAlign: 'left',
-    transition: 'background-color 0.15s ease',
-  },
-  interviewItemHover: {
-    backgroundColor: 'rgba(0, 0, 0, 0.03)',
-  },
-  statusIndicator: {
-    width: '6px',
-    height: '6px',
-    borderRadius: '50%',
-    flexShrink: 0,
-  },
-  interviewTitle: {
-    fontSize: '12px',
-    fontWeight: '400',
-    color: 'rgba(60, 60, 67, 0.85)',
-    whiteSpace: 'nowrap',
-    overflow: 'hidden',
-    textOverflow: 'ellipsis',
   },
 
   // Footer - Glass Effect
@@ -516,7 +509,6 @@ const styles: Record<string, CSSProperties> = {
     alignItems: 'center',
     gap: '10px',
     padding: '4px',
-    cursor: 'pointer',
   },
   userAvatar: {
     width: '32px',
@@ -541,14 +533,20 @@ const styles: Record<string, CSSProperties> = {
     fontSize: '13px',
     fontWeight: '500',
     color: '#1D1D1F',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   },
   userPlan: {
     fontSize: '11px',
     color: 'rgba(60, 60, 67, 0.6)',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
   },
-  expandButton: {
-    width: '24px',
-    height: '24px',
+  logoutButton: {
+    width: '32px',
+    height: '32px',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
@@ -556,12 +554,14 @@ const styles: Record<string, CSSProperties> = {
     border: 'none',
     color: 'rgba(60, 60, 67, 0.6)',
     cursor: 'pointer',
+    borderRadius: '6px',
+    transition: 'all 0.15s ease',
   },
 
   // Main Content
   mainContent: {
     flex: 1,
-    marginLeft: '280px',
+    marginLeft: '300px',
     display: 'flex',
     flexDirection: 'column',
     minHeight: '100vh',

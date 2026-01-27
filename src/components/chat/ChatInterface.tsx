@@ -20,7 +20,8 @@ interface ChatInterfaceProps {
   onNavigate?: (section: string) => void;
 }
 
-export function ChatInterface({ onNavigate }: ChatInterfaceProps) {
+export function ChatInterface({ onNavigate: _onNavigate }: ChatInterfaceProps) {
+  void _onNavigate; // Will be used for navigation commands
   const [messages, setMessages] = useState<Message[]>([]);
   const [inputValue, setInputValue] = useState('');
   const [isTyping, setIsTyping] = useState(false);

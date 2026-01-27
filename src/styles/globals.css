@@ -16,6 +16,12 @@ body {
   color: #18181B;
 }
 
+/* Spinner animation for loading states */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
 /* Wave animation for voice recording */
 @keyframes wave {
   0%, 100% { transform: scaleY(0.5); }
