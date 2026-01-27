@@ -293,6 +293,12 @@ export interface TTSResponse {
   voice: string;
 }
 
+export interface VoiceConfigResponse {
+  websocket_url: string;
+  api_key: string;
+  available_voices: string[];
+}
+
 export const voiceApi = {
   /**
    * Convert text to speech and return base64 audio (demo endpoint - no auth required)
@@ -309,6 +315,13 @@ export const voiceApi = {
    */
   getVoices: async (): Promise<{ voices: Array<{ id: string; model: string; gender: string }>; default: string }> => {
     return apiRequest('/voice/voices');
+  },
+
+  /**
+   * Get voice configuration for real-time STT (WebSocket URL + API key)
+   */
+  getConfig: async (): Promise<VoiceConfigResponse> => {
+    return apiRequest<VoiceConfigResponse>('/voice/config');
   },
 };
 

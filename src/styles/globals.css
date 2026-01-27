@@ -28,6 +28,12 @@ body {
   50% { transform: scaleY(1); }
 }
 
+/* Pulse animation for speaking indicator */
+@keyframes pulse {
+  0%, 100% { transform: scale(1); opacity: 1; }
+  50% { transform: scale(1.05); opacity: 0.8; }
+}
+
 /* Focus styles */
 textarea:focus {
   outline: none;

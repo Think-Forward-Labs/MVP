@@ -3,6 +3,7 @@ import type { CSSProperties } from 'react';
 import type { Question, InterviewMode, InterviewAppProps } from '../../types/interview';
 import { DEMO_QUESTIONS } from '../../types/interview';
 import { interviewApi, voiceApi, interviewResponsesApi, type InterviewResponseItem, type AllQuestionsQuestion } from '../../services/api';
+import { useVoiceRecording } from '../../hooks/useVoiceRecording';
 
 // Question Input Components
 import { TextInput } from './inputs/TextInput';
@@ -359,8 +360,6 @@ export function InterviewApp({
     startTime: null,
   });
   const [inputValue, setInputValue] = useState<string>('');
-  const [isRecording, setIsRecording] = useState(false);
-  const [recordingTime, setRecordingTime] = useState(0);
   const [showTransition, setShowTransition] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [isPlayingQuestion, setIsPlayingQuestion] = useState(false);
@@ -369,8 +368,38 @@ export function InterviewApp({
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [furthestQuestionIndex, setFurthestQuestionIndex] = useState(0);
   const [savedResponses, setSavedResponses] = useState<Record<string, string>>({});
+  const [voiceError, setVoiceError] = useState<string | null>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+
+  // Voice recording hook
+  const {
+    isRecording,
+    isConnecting: isVoiceConnecting,
+    interimTranscript,
+    recordingTime,
+    error: voiceRecordingError,
+    startRecording,
+    stopRecording,
+    clearTranscript,
+    isSupported: isVoiceSupported,
+  } = useVoiceRecording({
+    onTranscriptUpdate: (text) => {
+      // Update input value with transcript (including interim)
+      if (mode === 'voice') {
+        setInputValue(text);
+      }
+    },
+    onError: (error) => {
+      setVoiceError(error);
+    },
+    onRecordingStop: (finalTranscript) => {
+      // Keep the final transcript in the input
+      if (mode === 'voice' && finalTranscript) {
+        setInputValue(finalTranscript);
+      }
+    },
+  });
 
   // Use demo mode if no reviewId/participantId provided
   const isDemoMode = !reviewId || !participantId;
@@ -561,17 +590,6 @@ export function InterviewApp({
       }));
     }
   }, [isDemoMode, reviewId, participantId]);
-
-  // Recording timer
-  useEffect(() => {
-    let interval: number;
-    if (isRecording) {
-      interval = setInterval(() => {
-        setRecordingTime(t => t + 1);
-      }, 1000);
-    }
-    return () => clearInterval(interval);
-  }, [isRecording]);
 
   // Focus input on question change
   useEffect(() => {
@@ -860,13 +878,15 @@ export function InterviewApp({
     }
   };
 
-  const toggleRecording = () => {
+  const toggleRecording = async () => {
     if (isRecording) {
-      setIsRecording(false);
-      setInputValue(`Voice recording (${formatTime(recordingTime)})`);
+      stopRecording();
     } else {
-      setIsRecording(true);
-      setRecordingTime(0);
+      // Clear previous transcript when starting new recording
+      clearTranscript();
+      setInputValue('');
+      setVoiceError(null);
+      await startRecording();
     }
   };
 
@@ -917,6 +937,41 @@ export function InterviewApp({
     }
     setIsPlayingQuestion(false);
   };
+
+  // Track what we've spoken to prevent duplicates
+  const lastSpokenRef = useRef<string | null>(null);
+
+  // Auto-play TTS when question or follow-up changes in voice mode
+  useEffect(() => {
+    if (mode !== 'voice' || !currentQuestion || state.isLoading || isPlayingQuestion) {
+      return;
+    }
+
+    // Create a unique key for what needs to be spoken
+    const speakKey = state.followupQuestion
+      ? `followup-${currentQuestion.id}-${state.followupQuestion.substring(0, 20)}`
+      : `question-${currentQuestion.id}`;
+
+    // Don't speak the same thing twice
+    if (lastSpokenRef.current === speakKey) {
+      return;
+    }
+
+    // Stop any currently playing audio first
+    if (audioRef.current) {
+      audioRef.current.pause();
+      audioRef.current = null;
+    }
+
+    // Small delay to let the UI settle
+    const timer = setTimeout(() => {
+      lastSpokenRef.current = speakKey;
+      playQuestion();
+    }, 600);
+
+    return () => clearTimeout(timer);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, currentQuestion?.id, state.followupQuestion, state.isLoading, isPlayingQuestion]);
 
   // Render question input based on type
   const renderQuestionInput = () => {
@@ -2457,6 +2512,18 @@ export function InterviewApp({
               </h2>
             </div>
 
+            {/* Voice Error Display */}
+            {(voiceError || voiceRecordingError) && (
+              <div style={styles.voiceError}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10"/>
+                  <line x1="12" y1="8" x2="12" y2="12"/>
+                  <line x1="12" y1="16" x2="12.01" y2="16"/>
+                </svg>
+                {voiceError || voiceRecordingError}
+              </div>
+            )}
+
             {/* Recording Interface */}
             <div style={styles.recordingSection}>
               {isRecording ? (
@@ -2475,6 +2542,22 @@ export function InterviewApp({
                   </div>
                   <span style={styles.recordingTime}>{formatTime(recordingTime)}</span>
                 </div>
+              ) : isVoiceConnecting ? (
+                <div style={styles.recordingIdle}>
+                  <div style={styles.connectingSpinner} />
+                  <p style={styles.recordingPrompt}>Connecting to voice service...</p>
+                </div>
+              ) : isPlayingQuestion ? (
+                <div style={styles.recordingIdle}>
+                  <div style={styles.speakingIndicator}>
+                    <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="#007AFF" strokeWidth="1.5">
+                      <path d="M11 5L6 9H2v6h4l5 4V5z"/>
+                      <path d="M15.54 8.46a5 5 0 0 1 0 7.07"/>
+                      <path d="M19.07 4.93a10 10 0 0 1 0 14.14"/>
+                    </svg>
+                  </div>
+                  <p style={styles.recordingPrompt}>Agent is speaking...</p>
+                </div>
               ) : (
                 <div style={styles.recordingIdle}>
                   <div style={styles.micIcon}>
@@ -2484,49 +2567,125 @@ export function InterviewApp({
                       <line x1="12" y1="19" x2="12" y2="22"/>
                     </svg>
                   </div>
-                  <p style={styles.recordingPrompt}>Press the button below to start recording</p>
+                  <p style={styles.recordingPrompt}>
+                    {!isVoiceSupported
+                      ? 'Voice recording is not supported in this browser'
+                      : 'Press the button below to start recording'}
+                  </p>
                 </div>
               )}
 
-              <button
-                style={{
-                  ...styles.recordButton,
-                  backgroundColor: isRecording ? '#DC2626' : '#18181B',
-                }}
-                onClick={toggleRecording}
-              >
-                {isRecording ? (
-                  <>
-                    <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
-                      <rect x="4" y="4" width="12" height="12" rx="2"/>
+              {/* Button area - changes based on state */}
+              {isRecording ? (
+                // Currently recording - show stop button
+                <button
+                  style={{
+                    ...styles.recordButton,
+                    backgroundColor: '#DC2626',
+                  }}
+                  onClick={toggleRecording}
+                >
+                  <svg width="20" height="20" viewBox="0 0 20 20" fill="currentColor">
+                    <rect x="4" y="4" width="12" height="12" rx="2"/>
+                  </svg>
+                  Stop Recording
+                </button>
+              ) : inputValue && !isVoiceConnecting ? (
+                // Has transcript - show Re-record and Submit buttons
+                <div style={styles.voiceButtonGroup}>
+                  <button
+                    style={styles.reRecordButton}
+                    onClick={() => {
+                      clearTranscript();
+                      setInputValue('');
+                      startRecording();
+                    }}
+                    disabled={isPlayingQuestion}
+                  >
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z"/>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                      <line x1="12" y1="19" x2="12" y2="22"/>
                     </svg>
-                    Stop Recording
-                  </>
-                ) : (
-                  <>
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10"/>
-                      <circle cx="12" cy="12" r="4" fill="currentColor"/>
-                    </svg>
-                    Start Recording
-                  </>
-                )}
-              </button>
+                    Re-record
+                  </button>
+                  <button
+                    style={{
+                      ...styles.submitVoiceButton,
+                      opacity: isSubmitting ? 0.7 : 1,
+                    }}
+                    onClick={handleNext}
+                    disabled={isSubmitting || isPlayingQuestion}
+                  >
+                    {isSubmitting ? (
+                      <>
+                        <div style={styles.buttonSpinner} />
+                        Submitting...
+                      </>
+                    ) : (
+                      <>
+                        {state.currentIndex === totalQuestions - 1 ? 'Complete' : 'Submit'}
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                          <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </>
+                    )}
+                  </button>
+                </div>
+              ) : (
+                // No transcript - show start recording button
+                <button
+                  style={{
+                    ...styles.recordButton,
+                    backgroundColor: '#18181B',
+                    opacity: (isVoiceConnecting || isPlayingQuestion || !isVoiceSupported) ? 0.5 : 1,
+                  }}
+                  onClick={toggleRecording}
+                  disabled={isVoiceConnecting || isPlayingQuestion || !isVoiceSupported}
+                >
+                  {isVoiceConnecting ? (
+                    <>
+                      <div style={styles.buttonSpinner} />
+                      Connecting...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <circle cx="12" cy="12" r="10"/>
+                        <circle cx="12" cy="12" r="4" fill="currentColor"/>
+                      </svg>
+                      Start Recording
+                    </>
+                  )}
+                </button>
+              )}
             </div>
 
-            {inputValue && (
-              <div style={styles.savedIndicator}>
-                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#059669" strokeWidth="2">
-                  <path d="M3 8l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-                Response recorded
-              </div>
-            )}
+            {/* Transcript Display */}
+            <div style={styles.transcriptSection}>
+              <label style={styles.transcriptLabel}>Your Response</label>
+              <textarea
+                style={{
+                  ...styles.transcriptInput,
+                  borderColor: isRecording ? '#007AFF' : '#E4E4E7',
+                }}
+                value={inputValue}
+                onChange={(e) => setInputValue(e.target.value)}
+                placeholder={isRecording ? 'Listening...' : 'Your transcribed response will appear here. You can also edit it before submitting.'}
+                rows={4}
+              />
+              {interimTranscript && isRecording && (
+                <p style={styles.interimText}>
+                  <span style={styles.interimDot} />
+                  {interimTranscript}
+                </p>
+              )}
+            </div>
           </div>
         </main>
 
-        {/* Footer Navigation */}
-        <footer style={styles.footer}>
+        {/* Footer Navigation - simplified for voice mode */}
+        <footer style={styles.voiceFooter}>
           <button
             style={{...styles.navButton, ...styles.navButtonSecondary}}
             onClick={handlePrevious}
@@ -2537,20 +2696,9 @@ export function InterviewApp({
             </svg>
             Previous
           </button>
-          <button
-            style={{
-              ...styles.navButton,
-              ...styles.navButtonPrimary,
-              opacity: inputValue ? 1 : 0.5
-            }}
-            onClick={handleNext}
-            disabled={!inputValue}
-          >
-            {state.currentIndex === totalQuestions - 1 ? 'Complete' : 'Continue'}
-            <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M6 12l4-4-4-4" strokeLinecap="round" strokeLinejoin="round"/>
-            </svg>
-          </button>
+          <span style={styles.voiceFooterHint}>
+            {state.currentIndex + 1} of {totalQuestions}
+          </span>
         </footer>
 
       </div>
@@ -3341,13 +3489,142 @@ const styles: Record<string, CSSProperties> = {
     cursor: 'pointer',
     transition: 'all 0.15s ease',
   },
+  voiceButtonGroup: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  reRecordButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '12px 20px',
+    fontSize: '14px',
+    fontWeight: '500',
+    color: '#71717A',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #E4E4E7',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
+  submitVoiceButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '12px 24px',
+    fontSize: '15px',
+    fontWeight: '600',
+    color: '#FFFFFF',
+    backgroundColor: '#18181B',
+    border: 'none',
+    borderRadius: '10px',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
   savedIndicator: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
-    marginTop: '24px',
+    marginTop: '16px',
     fontSize: '14px',
     color: '#059669',
+  },
+  voiceError: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '12px 16px',
+    backgroundColor: '#FEF2F2',
+    border: '1px solid #FECACA',
+    borderRadius: '8px',
+    fontSize: '14px',
+    color: '#DC2626',
+    marginBottom: '16px',
+    width: '100%',
+    maxWidth: '400px',
+  },
+  connectingSpinner: {
+    width: '32px',
+    height: '32px',
+    border: '3px solid #E4E4E7',
+    borderTopColor: '#007AFF',
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite',
+  },
+  speakingIndicator: {
+    width: '64px',
+    height: '64px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#EFF6FF',
+    borderRadius: '50%',
+    animation: 'pulse 1.5s ease-in-out infinite',
+  },
+  buttonSpinner: {
+    width: '16px',
+    height: '16px',
+    border: '2px solid rgba(255, 255, 255, 0.3)',
+    borderTopColor: '#FFFFFF',
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite',
+  },
+  transcriptSection: {
+    width: '100%',
+    maxWidth: '500px',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  transcriptLabel: {
+    fontSize: '13px',
+    fontWeight: '500',
+    color: '#71717A',
+  },
+  transcriptInput: {
+    width: '100%',
+    minHeight: '100px',
+    padding: '14px 16px',
+    fontSize: '15px',
+    lineHeight: '1.6',
+    color: '#18181B',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #E4E4E7',
+    borderRadius: '12px',
+    resize: 'vertical',
+    outline: 'none',
+    transition: 'border-color 0.15s ease',
+    fontFamily: 'inherit',
+  },
+  interimText: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '13px',
+    color: '#71717A',
+    fontStyle: 'italic',
+    margin: 0,
+  },
+  interimDot: {
+    width: '8px',
+    height: '8px',
+    backgroundColor: '#007AFF',
+    borderRadius: '50%',
+    animation: 'pulse 1s ease-in-out infinite',
+  },
+  voiceFooter: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px 24px',
+    backgroundColor: 'transparent',
+    borderTop: '1px solid #F4F4F5',
+  },
+  voiceFooterHint: {
+    fontSize: '13px',
+    color: '#A1A1AA',
+    fontWeight: '500',
   },
 
   // Footer
