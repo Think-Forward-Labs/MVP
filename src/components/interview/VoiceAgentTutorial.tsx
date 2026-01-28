@@ -94,7 +94,7 @@ export function VoiceAgentTutorial({ onComplete, onSkip }: VoiceAgentTutorialPro
   const [currentStep, setCurrentStep] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isLoading, setIsLoading] = useState(true);
-  const [audioLoaded, setAudioLoaded] = useState<Set<string>>(new Set());
+  const [, setAudioLoaded] = useState<Set<string>>(new Set());
 
   const audioRefs = useRef<Map<string, HTMLAudioElement>>(new Map());
   const currentAudioRef = useRef<HTMLAudioElement | null>(null);
