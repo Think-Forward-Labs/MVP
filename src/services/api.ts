@@ -728,14 +728,18 @@ export const voiceAgentApi = {
   /**
    * Get Voice Agent configuration for a specific question.
    * Returns WebSocket URL, API key, and Settings message.
+   * If previousResponse is provided, Eunice will have context about the prior answer.
    */
   getConfig: async (
     interviewId: string,
     questionId: string,
+    previousResponse?: string,
   ): Promise<VoiceAgentConfigResponse> => {
-    return apiRequest<VoiceAgentConfigResponse>(
-      `/voice-agent/config?interview_id=${interviewId}&question_id=${questionId}`
-    );
+    let url = `/voice-agent/config?interview_id=${interviewId}&question_id=${questionId}`;
+    if (previousResponse) {
+      url += `&previous_response=${encodeURIComponent(previousResponse)}`;
+    }
+    return apiRequest<VoiceAgentConfigResponse>(url);
   },
 
   /**

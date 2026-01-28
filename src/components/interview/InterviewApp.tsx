@@ -15,6 +15,7 @@ import { PercentageInput } from './inputs/PercentageInput';
 // Voice Agent Onboarding Components
 import { DeviceCheck } from './DeviceCheck';
 import { VoiceAgentTutorial } from './VoiceAgentTutorial';
+import { QuestionSidebar } from './QuestionSidebar';
 
 // Voice Agent Onboarding Flow Steps
 type VoiceAgentOnboardingStep = 'device_check' | 'tutorial' | 'ready';
@@ -418,6 +419,7 @@ export function InterviewApp({
   const [voiceAgentReady, setVoiceAgentReady] = useState(false);
   const [voiceAgentMergedText, setVoiceAgentMergedText] = useState('');
   const [voiceAgentSaving, setVoiceAgentSaving] = useState(false);
+  const previousResponseForMergeRef = useRef<string>('');
 
   const voiceAgent = useVoiceAgent({
     onConversationUpdate: () => {
@@ -425,7 +427,15 @@ export function InterviewApp({
     },
     onAgentReady: (mergedTranscript) => {
       setVoiceAgentReady(true);
-      setVoiceAgentMergedText(mergedTranscript);
+      // If revisiting, merge previous response with new conversation content.
+      // Don't clear the ref here — onAgentReady can fire multiple times
+      // as Deepgram sends chunked ConversationText messages.
+      if (previousResponseForMergeRef.current) {
+        const combined = previousResponseForMergeRef.current.trim() + '\n\n' + mergedTranscript.trim();
+        setVoiceAgentMergedText(combined);
+      } else {
+        setVoiceAgentMergedText(mergedTranscript);
+      }
     },
     onError: (err) => {
       setVoiceError(err);
@@ -871,10 +881,20 @@ export function InterviewApp({
   const navigateToQuestion = (targetIndex: number) => {
     // Can only navigate to answered questions or current unanswered
     if (targetIndex > furthestQuestionIndex) return;
+    if (targetIndex === state.currentIndex) return; // Already on this question
 
-    // Save current response before navigating
+    // Save current response before navigating (text/voice modes)
     if (currentQuestion && inputValue.trim()) {
       setSavedResponses(prev => ({ ...prev, [currentQuestion.id]: inputValue }));
+    }
+
+    // Disconnect voice agent when navigating away in voice_agent mode
+    if (mode === 'voice_agent') {
+      voiceAgent.disconnect();
+      setVoiceAgentReady(false);
+      setVoiceAgentMergedText('');
+      setVoiceError(null);
+      previousResponseForMergeRef.current = '';
     }
 
     setSidebarOpen(false);
@@ -900,6 +920,15 @@ export function InterviewApp({
 
       // Load saved response for the target question
       setInputValue(savedResponses[targetQuestionId] || state.answers[targetQuestionId] || '');
+
+      // In voice_agent mode, pre-fill the merged text for revisited questions
+      if (mode === 'voice_agent') {
+        const existingResponse = savedResponses[targetQuestionId] || state.answers[targetQuestionId] || '';
+        setVoiceAgentMergedText(existingResponse);
+        // Mark as "ready" if there's a saved response (revisiting)
+        setVoiceAgentReady(!!existingResponse);
+      }
+
       setShowTransition(false);
     }, 300);
   };
@@ -1046,7 +1075,7 @@ export function InterviewApp({
   };
 
   // Connect voice agent for the current question
-  const connectVoiceAgentForQuestion = useCallback(async () => {
+  const connectVoiceAgentForQuestion = useCallback(async (previousResponse?: string) => {
     if (!state.interviewId || !currentQuestion) return;
 
     setVoiceAgentReady(false);
@@ -1054,7 +1083,11 @@ export function InterviewApp({
     setVoiceError(null);
 
     try {
-      const config = await voiceAgentApi.getConfig(state.interviewId, currentQuestion.id);
+      const config = await voiceAgentApi.getConfig(
+        state.interviewId,
+        currentQuestion.id,
+        previousResponse,
+      );
       await voiceAgent.connect({
         websocket_url: config.websocket_url,
         api_key: config.api_key,
@@ -1066,34 +1099,88 @@ export function InterviewApp({
     }
   }, [state.interviewId, currentQuestion, voiceAgent]);
 
-  // Handle "Next Question" in voice agent mode
-  const handleVoiceAgentNext = useCallback(async () => {
-    if (!state.interviewId || !currentQuestion) return;
+  // Get the response text for the current question (open vs structured)
+  const getVoiceAgentResponseText = useCallback((): string => {
+    if (!currentQuestion) return '';
+    const isStructured = currentQuestion.type !== 'open';
+    return isStructured ? inputValue : voiceAgentMergedText;
+  }, [currentQuestion, inputValue, voiceAgentMergedText]);
+
+  // Handle "Save" in voice agent mode — saves response without advancing
+  const handleVoiceAgentSave = useCallback(async () => {
+    const responseText = getVoiceAgentResponseText();
+    if (!state.interviewId || !currentQuestion || !responseText.trim()) return;
 
     setVoiceAgentSaving(true);
 
     try {
-      // Disconnect current session
-      voiceAgent.disconnect();
+      // Disconnect current session if connected
+      if (voiceAgent.isConnected) {
+        voiceAgent.disconnect();
+      }
+
+      // Save the session
+      await voiceAgentApi.saveSession(
+        state.interviewId,
+        currentQuestion.id,
+        responseText,
+        voiceAgent.conversationHistory,
+      );
+
+      // Track saved response locally
+      setSavedResponses(prev => ({
+        ...prev,
+        [currentQuestion.id]: responseText,
+      }));
+
+      // Clear merge ref — saved response is now the new baseline
+      previousResponseForMergeRef.current = '';
+
+      // Update furthest index to allow navigating to the next question
+      const nextIdx = state.currentIndex + 1;
+      setFurthestQuestionIndex(prev => Math.max(prev, nextIdx));
+    } catch (err) {
+      console.error('Failed to save voice session:', err);
+      setVoiceError(err instanceof Error ? err.message : 'Failed to save session');
+    } finally {
+      setVoiceAgentSaving(false);
+    }
+  }, [state.interviewId, state.currentIndex, currentQuestion, getVoiceAgentResponseText, voiceAgent]);
+
+  // Handle "Next" in voice agent mode — saves response AND advances to next question
+  const handleVoiceAgentNext = useCallback(async () => {
+    const responseText = getVoiceAgentResponseText();
+    if (!state.interviewId || !currentQuestion || !responseText.trim()) return;
+
+    setVoiceAgentSaving(true);
+
+    try {
+      // Disconnect current session if connected
+      if (voiceAgent.isConnected) {
+        voiceAgent.disconnect();
+      }
 
       // Save the session
       const result = await voiceAgentApi.saveSession(
         state.interviewId,
         currentQuestion.id,
-        voiceAgentMergedText,
+        responseText,
         voiceAgent.conversationHistory,
       );
 
-      // Track saved response
+      // Track saved response locally
       setSavedResponses(prev => ({
         ...prev,
-        [currentQuestion.id]: voiceAgentMergedText,
+        [currentQuestion.id]: responseText,
       }));
+
+      // Clear merge ref
+      previousResponseForMergeRef.current = '';
 
       if (result.next_action === 'complete') {
         setState(prev => ({ ...prev, isComplete: true }));
-      } else if (result.next_action === 'next_question') {
-        // Move to next question
+      } else {
+        // Advance to next question
         const nextIdx = state.currentIndex + 1;
         setState(prev => ({
           ...prev,
@@ -1106,6 +1193,7 @@ export function InterviewApp({
         // Reset voice agent state for new question
         setVoiceAgentReady(false);
         setVoiceAgentMergedText('');
+        setInputValue('');
       }
     } catch (err) {
       console.error('Failed to save voice session:', err);
@@ -1113,12 +1201,18 @@ export function InterviewApp({
     } finally {
       setVoiceAgentSaving(false);
     }
-  }, [state.interviewId, state.currentIndex, currentQuestion, voiceAgentMergedText, voiceAgent]);
+  }, [state.interviewId, state.currentIndex, currentQuestion, getVoiceAgentResponseText, voiceAgent]);
 
   // Auto-connect voice agent when question changes in voice_agent mode
+  // Skip auto-connect for already-answered questions (user revisiting via sidebar)
   useEffect(() => {
     if (mode === 'voice_agent' && state.interviewId && currentQuestion && !state.isLoading && !state.showWelcomeScreen) {
-      connectVoiceAgentForQuestion();
+      const hasExistingResponse = !!(savedResponses[currentQuestion.id] || state.answers[currentQuestion.id]);
+      if (!hasExistingResponse) {
+        // New question — auto-connect
+        connectVoiceAgentForQuestion();
+      }
+      // Answered question — don't auto-connect, show pre-filled response instead
     }
     // Only re-run when question or interview changes
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -2405,113 +2499,30 @@ export function InterviewApp({
   // Text Mode
   if (mode === 'text') {
     return (
-      <div style={styles.container}>
-        {/* Sidebar Overlay */}
-        <div
-          style={{
-            ...styles.sidebarOverlay,
-            ...(sidebarOpen ? styles.sidebarOverlayOpen : {}),
-          }}
-          onClick={() => setSidebarOpen(false)}
+      <div style={{ ...styles.container, paddingLeft: '52px' }}>
+        {/* Question Navigation Sidebar */}
+        <QuestionSidebar
+          questions={(state.allQuestions.length > 0 ? state.allQuestions : state.questions).map(q => ({
+            id: q.id,
+            text: q.text,
+            aspect: q.aspect,
+            aspect_code: q.aspect_code,
+          }))}
+          currentIndex={state.currentIndex}
+          furthestIndex={furthestQuestionIndex}
+          isAnswered={isQuestionAnswered}
+          onNavigate={navigateToQuestion}
         />
-
-        {/* Sidebar */}
-        <aside style={{
-          ...styles.sidebar,
-          ...(sidebarOpen ? styles.sidebarOpen : {}),
-        }}>
-          <div style={styles.sidebarHeader}>
-            <span style={styles.sidebarTitle}>Questions</span>
-            <button
-              style={styles.sidebarCloseButton}
-              onClick={() => setSidebarOpen(false)}
-            >
-              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M12 4L4 12M4 4l8 8" strokeLinecap="round" strokeLinejoin="round"/>
-              </svg>
-            </button>
-          </div>
-
-          <div style={styles.sidebarContent}>
-            {/* Progress */}
-            <div style={styles.sidebarProgress}>
-              <div style={styles.sidebarProgressText}>
-                {Object.keys(savedResponses).length + Object.keys(state.answers).length} of {totalQuestions} answered
-              </div>
-              <div style={styles.sidebarProgressBar}>
-                <div style={{
-                  ...styles.sidebarProgressFill,
-                  width: `${((Object.keys(savedResponses).length + Object.keys(state.answers).length) / totalQuestions) * 100}%`,
-                }} />
-              </div>
-            </div>
-
-            {/* Question List */}
-            <div style={styles.sidebarQuestionList}>
-              {(state.allQuestions.length > 0 ? state.allQuestions : state.questions).map((q, index) => {
-                const isAnswered = isQuestionAnswered(index);
-                const isCurrent = index === state.currentIndex;
-                const isFuture = index > furthestQuestionIndex;
-                const canNavigate = !isFuture || isCurrent;
-
-                return (
-                  <button
-                    key={q.id}
-                    style={{
-                      ...styles.sidebarQuestionItem,
-                      ...(isCurrent ? styles.sidebarQuestionItemActive : {}),
-                      ...(isFuture && !isCurrent ? styles.sidebarQuestionItemDisabled : {}),
-                    }}
-                    onClick={() => canNavigate && navigateToQuestion(index)}
-                    disabled={!canNavigate}
-                  >
-                    <div style={{
-                      ...styles.sidebarQuestionNumber,
-                      ...(isAnswered && !isCurrent ? styles.sidebarQuestionNumberAnswered : {}),
-                      ...(isCurrent ? styles.sidebarQuestionNumberCurrent : {}),
-                      ...(isFuture && !isCurrent ? styles.sidebarQuestionNumberFuture : {}),
-                      ...(!isAnswered && !isCurrent && !isFuture ? styles.sidebarQuestionNumberFuture : {}),
-                    }}>
-                      {isAnswered && !isCurrent ? (
-                        <svg width="14" height="14" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="2">
-                          <path d="M3 8l3 3 7-7" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      ) : (
-                        index + 1
-                      )}
-                    </div>
-                    <div style={styles.sidebarQuestionInfo}>
-                      <div style={styles.sidebarQuestionAspect}>{q.aspect}</div>
-                      <div style={styles.sidebarQuestionAspectCode}>{q.aspect_code}</div>
-                    </div>
-                    {isCurrent && (
-                      <div style={styles.sidebarQuestionStatus}>
-                        <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="#18181B" strokeWidth="1.5">
-                          <path d="M6 12l4-4-4-4" strokeLinecap="round" strokeLinejoin="round"/>
-                        </svg>
-                      </div>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
-          </div>
-        </aside>
 
         {/* Header */}
         <header style={styles.header}>
           <div style={styles.headerLeft}>
-            {/* Menu Button - Premium Grid Icon */}
             <button
-              style={styles.menuButton}
-              onClick={() => setSidebarOpen(true)}
-              title="View all questions"
+              style={styles.backButton}
+              onClick={() => onExit ? onExit() : setMode('select')}
             >
-              <svg width="18" height="18" viewBox="0 0 18 18" fill="none">
-                <rect x="2" y="2" width="5" height="5" rx="1.5" fill="currentColor"/>
-                <rect x="11" y="2" width="5" height="5" rx="1.5" fill="currentColor"/>
-                <rect x="2" y="11" width="5" height="5" rx="1.5" fill="currentColor"/>
-                <rect x="11" y="11" width="5" height="5" rx="1.5" fill="currentColor"/>
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M10 12L6 8l4-4" strokeLinecap="round" strokeLinejoin="round"/>
               </svg>
             </button>
             <span style={styles.headerTitle}>CABAS® Discovery Assessment</span>
@@ -2762,7 +2773,21 @@ export function InterviewApp({
   // Voice Mode
   if (mode === 'voice') {
     return (
-      <div style={styles.container}>
+      <div style={{ ...styles.container, paddingLeft: '52px' }}>
+        {/* Question Navigation Sidebar */}
+        <QuestionSidebar
+          questions={(state.allQuestions.length > 0 ? state.allQuestions : state.questions).map(q => ({
+            id: q.id,
+            text: q.text,
+            aspect: q.aspect,
+            aspect_code: q.aspect_code,
+          }))}
+          currentIndex={state.currentIndex}
+          furthestIndex={furthestQuestionIndex}
+          isAnswered={isQuestionAnswered}
+          onNavigate={navigateToQuestion}
+        />
+
         {/* Header */}
         <header style={styles.header}>
           <div style={styles.headerLeft}>
@@ -3055,7 +3080,7 @@ export function InterviewApp({
         case 'listening': return 'Listening...';
         case 'agent_speaking': return 'Eunice is speaking...';
         case 'processing': return 'Processing...';
-        case 'ready': return 'Ready - Review your response and click Next';
+        case 'ready': return 'Ready — review and save your response';
         case 'error': return 'Connection error';
         default: return 'Disconnected';
       }
@@ -3076,7 +3101,21 @@ export function InterviewApp({
     };
 
     return (
-      <div style={styles.container}>
+      <div style={{ ...styles.container, paddingLeft: '52px' }}>
+        {/* Question Navigation Sidebar */}
+        <QuestionSidebar
+          questions={(state.allQuestions.length > 0 ? state.allQuestions : state.questions).map(q => ({
+            id: q.id,
+            text: q.text,
+            aspect: q.aspect,
+            aspect_code: q.aspect_code,
+          }))}
+          currentIndex={state.currentIndex}
+          furthestIndex={furthestQuestionIndex}
+          isAnswered={isQuestionAnswered}
+          onNavigate={navigateToQuestion}
+        />
+
         {/* Header */}
         <header style={styles.header}>
           <div style={styles.headerLeft}>
@@ -3187,182 +3226,213 @@ export function InterviewApp({
             </h2>
           </div>
 
-          {/* Transcript / Merged Response Area */}
-          <div style={{
-            flex: 1,
-            display: 'flex',
-            flexDirection: 'column',
-            backgroundColor: '#FFFFFF',
-            borderRadius: '12px',
-            border: '1px solid #E4E4E7',
-            overflow: 'hidden',
-            marginBottom: '16px',
-          }}>
-            {voiceAgentReady ? (
-              /* Editable merged response - auto-shown when agent confirms */
+          {/* Content Area — structured vs open question */}
+          {currentQuestion.type !== 'open' ? (
+            /* Structured question: input component + conversation */
+            <>
+              {/* Structured input */}
+              <div style={{
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #E4E4E7',
+                padding: '16px',
+                marginBottom: '12px',
+              }}>
+                {currentQuestion.type === 'scale' ? (
+                  <ScaleInput
+                    value={inputValue}
+                    onChange={setInputValue}
+                    scale={currentQuestion.scale!}
+                  />
+                ) : currentQuestion.type === 'single_select' ? (
+                  <SelectInput
+                    value={inputValue}
+                    onChange={setInputValue}
+                    options={currentQuestion.options || []}
+                    multiSelect={false}
+                  />
+                ) : currentQuestion.type === 'multi_select' ? (
+                  <SelectInput
+                    value={inputValue}
+                    onChange={setInputValue}
+                    options={currentQuestion.options || []}
+                    multiSelect={true}
+                    maxSelections={3}
+                  />
+                ) : currentQuestion.type === 'percentage' ? (
+                  <PercentageInput
+                    value={inputValue}
+                    onChange={setInputValue}
+                  />
+                ) : null}
+              </div>
+
+              {/* Conversation area (supplementary for structured) */}
               <div style={{
                 flex: 1,
                 display: 'flex',
                 flexDirection: 'column',
-                padding: '16px',
+                backgroundColor: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #E4E4E7',
+                overflow: 'hidden',
+                marginBottom: '16px',
+                maxHeight: '200px',
               }}>
                 <div style={{
+                  flex: 1,
+                  overflowY: 'auto',
+                  padding: '12px',
                   display: 'flex',
-                  alignItems: 'center',
-                  gap: '8px',
-                  marginBottom: '12px',
+                  flexDirection: 'column',
+                  gap: '10px',
                 }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2">
-                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                    <polyline points="22 4 12 14.01 9 11.01"/>
-                  </svg>
-                  <span style={{
-                    fontSize: '13px',
-                    fontWeight: '600',
-                    color: '#22C55E',
-                  }}>
-                    Review your response — edit if needed, then click Next
-                  </span>
-                </div>
-                <textarea
-                  style={{
-                    flex: 1,
-                    minHeight: '200px',
-                    padding: '12px',
-                    fontSize: '15px',
-                    lineHeight: '1.6',
-                    color: '#18181B',
-                    backgroundColor: '#FAFAFA',
-                    border: '1px solid #E4E4E7',
-                    borderRadius: '8px',
-                    outline: 'none',
-                    resize: 'vertical',
-                    fontFamily: 'inherit',
-                  }}
-                  value={voiceAgentMergedText}
-                  onChange={(e) => setVoiceAgentMergedText(e.target.value)}
-                />
-              </div>
-            ) : (
-              /* Conversation view */
-              <div style={{
-                flex: 1,
-                overflowY: 'auto',
-                padding: '16px',
-                display: 'flex',
-                flexDirection: 'column',
-                gap: '12px',
-                minHeight: '250px',
-              }}>
-                {voiceAgent.conversationHistory.length === 0 ? (
-                  <div style={{
-                    flex: 1,
-                    display: 'flex',
-                    flexDirection: 'column',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    color: '#A1A1AA',
-                    gap: '12px',
-                  }}>
-                    {voiceAgent.status === 'connecting' || voiceAgent.status === 'connected' ? (
-                      <>
-                        <div style={styles.connectingSpinner} />
-                        <span style={{ fontSize: '14px' }}>Connecting to Eunice...</span>
-                      </>
-                    ) : voiceAgent.status === 'error' ? (
-                      <>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2">
-                          <circle cx="12" cy="12" r="10"/>
-                          <line x1="12" y1="8" x2="12" y2="12"/>
-                          <line x1="12" y1="16" x2="12.01" y2="16"/>
-                        </svg>
-                        <span style={{ fontSize: '14px', color: '#DC2626' }}>{voiceAgent.error || 'Connection error'}</span>
-                        <button
-                          style={{
-                            padding: '8px 16px',
-                            fontSize: '13px',
-                            fontWeight: '500',
-                            backgroundColor: '#18181B',
-                            color: '#FFFFFF',
-                            border: 'none',
-                            borderRadius: '8px',
-                            cursor: 'pointer',
-                          }}
-                          onClick={connectVoiceAgentForQuestion}
-                        >
-                          Retry
-                        </button>
-                      </>
-                    ) : (
-                      <>
-                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="1.5">
-                          <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
-                          <path d="M19 10v2a7 7 0 01-14 0v-2"/>
-                        </svg>
-                        <span style={{ fontSize: '14px' }}>Waiting for conversation to begin...</span>
-                      </>
-                    )}
-                  </div>
-                ) : (
-                  voiceAgent.conversationHistory.map((turn, idx) => (
-                    <div
-                      key={idx}
-                      style={{
-                        display: 'flex',
-                        gap: '10px',
-                        alignItems: 'flex-start',
-                      }}
-                    >
-                      <div style={{
-                        width: '28px',
-                        height: '28px',
-                        borderRadius: '50%',
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        flexShrink: 0,
-                        background: turn.role === 'agent'
-                          ? 'linear-gradient(135deg, #6366F1, #8B5CF6)'
-                          : '#18181B',
-                        color: '#FFFFFF',
-                        fontSize: '12px',
-                        fontWeight: '600',
-                      }}>
-                        {turn.role === 'agent' ? 'T' : 'Y'}
-                      </div>
-                      <div style={{
-                        flex: 1,
-                        fontSize: '14px',
-                        lineHeight: '1.5',
-                        color: turn.role === 'agent' ? '#52525B' : '#18181B',
-                        fontWeight: turn.role === 'user' ? '500' : '400',
-                      }}>
-                        <span style={{
-                          display: 'block',
-                          fontSize: '11px',
-                          fontWeight: '600',
-                          color: turn.role === 'agent' ? '#6366F1' : '#18181B',
-                          marginBottom: '2px',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.5px',
-                        }}>
-                          {turn.role === 'agent' ? 'Eunice' : 'You'}
-                        </span>
-                        {turn.text}
-                      </div>
+                  {voiceAgent.conversationHistory.length === 0 ? (
+                    <div style={{
+                      flex: 1,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      color: '#A1A1AA',
+                      gap: '8px',
+                      padding: '12px',
+                    }}>
+                      {voiceAgent.status === 'connecting' || voiceAgent.status === 'connected' ? (
+                        <>
+                          <div style={styles.connectingSpinner} />
+                          <span style={{ fontSize: '13px' }}>Connecting to Eunice...</span>
+                        </>
+                      ) : voiceAgent.status === 'error' ? (
+                        <>
+                          <span style={{ fontSize: '13px', color: '#DC2626' }}>{voiceAgent.error || 'Connection error'}</span>
+                          <button
+                            style={{ padding: '4px 12px', fontSize: '12px', fontWeight: '500', backgroundColor: '#18181B', color: '#FFFFFF', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
+                            onClick={connectVoiceAgentForQuestion}
+                          >
+                            Retry
+                          </button>
+                        </>
+                      ) : !voiceAgent.isConnected ? (
+                        <span style={{ fontSize: '13px' }}>Eunice can help explain the options — click Ask Eunice below</span>
+                      ) : (
+                        <span style={{ fontSize: '13px' }}>Eunice is reading the question...</span>
+                      )}
                     </div>
-                  ))
-                )}
+                  ) : (
+                    voiceAgent.conversationHistory.map((turn, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: '8px', alignItems: 'flex-start' }}>
+                        <div style={{
+                          width: '24px', height: '24px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          background: turn.role === 'agent' ? 'linear-gradient(135deg, #6366F1, #8B5CF6)' : '#18181B',
+                          color: '#FFFFFF', fontSize: '10px', fontWeight: '600',
+                        }}>
+                          {turn.role === 'agent' ? 'E' : 'Y'}
+                        </div>
+                        <div style={{ flex: 1, fontSize: '13px', lineHeight: '1.4', color: turn.role === 'agent' ? '#52525B' : '#18181B' }}>
+                          {turn.text}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
               </div>
-            )}
-          </div>
+            </>
+          ) : (
+            /* Open-ended question: conversation ↔ merged response toggle */
+            <div style={{
+              flex: 1,
+              display: 'flex',
+              flexDirection: 'column',
+              backgroundColor: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #E4E4E7',
+              overflow: 'hidden',
+              marginBottom: '16px',
+            }}>
+              {voiceAgentReady ? (
+                /* Editable merged response */
+                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2">
+                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                      <polyline points="22 4 12 14.01 9 11.01"/>
+                    </svg>
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: '#22C55E' }}>
+                      Review your response — edit if needed, then save
+                    </span>
+                  </div>
+                  <textarea
+                    style={{
+                      flex: 1, minHeight: '200px', padding: '12px', fontSize: '15px', lineHeight: '1.6',
+                      color: '#18181B', backgroundColor: '#FAFAFA', border: '1px solid #E4E4E7',
+                      borderRadius: '8px', outline: 'none', resize: 'vertical', fontFamily: 'inherit',
+                    }}
+                    value={voiceAgentMergedText}
+                    onChange={(e) => setVoiceAgentMergedText(e.target.value)}
+                  />
+                </div>
+              ) : (
+                /* Conversation view */
+                <div style={{ flex: 1, overflowY: 'auto', padding: '16px', display: 'flex', flexDirection: 'column', gap: '12px', minHeight: '250px' }}>
+                  {voiceAgent.conversationHistory.length === 0 ? (
+                    <div style={{ flex: 1, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', color: '#A1A1AA', gap: '12px' }}>
+                      {voiceAgent.status === 'connecting' || voiceAgent.status === 'connected' ? (
+                        <>
+                          <div style={styles.connectingSpinner} />
+                          <span style={{ fontSize: '14px' }}>Connecting to Eunice...</span>
+                        </>
+                      ) : voiceAgent.status === 'error' ? (
+                        <>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2">
+                            <circle cx="12" cy="12" r="10"/>
+                            <line x1="12" y1="8" x2="12" y2="12"/>
+                            <line x1="12" y1="16" x2="12.01" y2="16"/>
+                          </svg>
+                          <span style={{ fontSize: '14px', color: '#DC2626' }}>{voiceAgent.error || 'Connection error'}</span>
+                          <button
+                            style={{ padding: '8px 16px', fontSize: '13px', fontWeight: '500', backgroundColor: '#18181B', color: '#FFFFFF', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
+                            onClick={connectVoiceAgentForQuestion}
+                          >
+                            Retry
+                          </button>
+                        </>
+                      ) : (
+                        <>
+                          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="1.5">
+                            <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+                            <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+                          </svg>
+                          <span style={{ fontSize: '14px' }}>Waiting for conversation to begin...</span>
+                        </>
+                      )}
+                    </div>
+                  ) : (
+                    voiceAgent.conversationHistory.map((turn, idx) => (
+                      <div key={idx} style={{ display: 'flex', gap: '10px', alignItems: 'flex-start' }}>
+                        <div style={{
+                          width: '28px', height: '28px', borderRadius: '50%', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0,
+                          background: turn.role === 'agent' ? 'linear-gradient(135deg, #6366F1, #8B5CF6)' : '#18181B',
+                          color: '#FFFFFF', fontSize: '12px', fontWeight: '600',
+                        }}>
+                          {turn.role === 'agent' ? 'E' : 'Y'}
+                        </div>
+                        <div style={{ flex: 1, fontSize: '14px', lineHeight: '1.5', color: turn.role === 'agent' ? '#52525B' : '#18181B', fontWeight: turn.role === 'user' ? '500' : '400' }}>
+                          <span style={{ display: 'block', fontSize: '11px', fontWeight: '600', color: turn.role === 'agent' ? '#6366F1' : '#18181B', marginBottom: '2px', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                            {turn.role === 'agent' ? 'Eunice' : 'You'}
+                          </span>
+                          {turn.text}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              )}
+            </div>
+          )}
 
           {/* Voice Error */}
           {voiceError && (
-            <div style={{
-              ...styles.voiceError,
-              marginBottom: '12px',
-            }}>
+            <div style={{ ...styles.voiceError, marginBottom: '12px' }}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2">
                 <circle cx="12" cy="12" r="10"/>
                 <line x1="12" y1="8" x2="12" y2="12"/>
@@ -3380,7 +3450,7 @@ export function InterviewApp({
           margin: '0 auto',
           width: '100%',
         }}>
-          {/* Agent Status */}
+          {/* Agent Status Row */}
           <div style={{
             display: 'flex',
             alignItems: 'center',
@@ -3392,20 +3462,63 @@ export function InterviewApp({
               alignItems: 'center',
               gap: '8px',
             }}>
-              <div style={{
-                width: '8px',
-                height: '8px',
-                borderRadius: '50%',
-                backgroundColor: agentStatusColor(),
-                boxShadow: `0 0 6px ${agentStatusColor()}40`,
-              }} />
-              <span style={{
-                fontSize: '13px',
-                color: '#71717A',
-                fontWeight: '500',
-              }}>
-                {agentStatusLabel()}
-              </span>
+              {voiceAgent.isConnected || voiceAgent.status === 'connecting' || voiceAgent.status === 'error' ? (
+                <>
+                  <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: agentStatusColor(),
+                    boxShadow: `0 0 6px ${agentStatusColor()}40`,
+                  }} />
+                  <span style={{
+                    fontSize: '13px',
+                    color: '#71717A',
+                    fontWeight: '500',
+                  }}>
+                    {agentStatusLabel()}
+                  </span>
+                </>
+              ) : voiceAgentReady && !!(savedResponses[currentQuestion.id] || state.answers[currentQuestion.id]) ? (
+                <>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                  </svg>
+                  <span style={{
+                    fontSize: '13px',
+                    color: '#22C55E',
+                    fontWeight: '500',
+                  }}>
+                    Response saved — use sidebar to navigate
+                  </span>
+                </>
+              ) : voiceAgentReady ? (
+                <>
+                  <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    backgroundColor: '#22C55E',
+                    boxShadow: '0 0 6px #22C55E40',
+                  }} />
+                  <span style={{
+                    fontSize: '13px',
+                    color: '#71717A',
+                    fontWeight: '500',
+                  }}>
+                    Ready — review and save your response
+                  </span>
+                </>
+              ) : (
+                <span style={{
+                  fontSize: '13px',
+                  color: '#A1A1AA',
+                  fontWeight: '500',
+                }}>
+                  Waiting...
+                </span>
+              )}
             </div>
 
             {/* Mute/Unmute button */}
@@ -3448,50 +3561,143 @@ export function InterviewApp({
             )}
           </div>
 
-          {/* Next Question / Complete button */}
-          <button
-            style={{
-              width: '100%',
-              padding: '14px 24px',
-              fontSize: '15px',
-              fontWeight: '600',
-              color: '#FFFFFF',
-              backgroundColor: voiceAgentReady ? '#18181B' : '#A1A1AA',
-              border: 'none',
-              borderRadius: '12px',
-              cursor: voiceAgentReady && !voiceAgentSaving ? 'pointer' : 'not-allowed',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '8px',
-              opacity: voiceAgentSaving ? 0.7 : 1,
-              transition: 'background-color 0.2s, opacity 0.2s',
-            }}
-            onClick={handleVoiceAgentNext}
-            disabled={!voiceAgentReady || voiceAgentSaving}
-          >
-            {voiceAgentSaving ? (
-              <>
-                <div style={styles.buttonSpinner} />
-                Saving...
-              </>
-            ) : state.currentIndex === totalQuestions - 1 ? (
-              <>
-                Complete Assessment
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
-                  <polyline points="22 4 12 14.01 9 11.01"/>
-                </svg>
-              </>
-            ) : (
-              <>
-                Next Question
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
-                </svg>
-              </>
-            )}
-          </button>
+          {/* Action Buttons — Next for forward flow, Save+Ask Eunice for revisits */}
+          {(() => {
+            const isStructured = currentQuestion.type !== 'open';
+            const isAnsweredQuestion = !!(savedResponses[currentQuestion.id] || state.answers[currentQuestion.id]);
+            const responseText = isStructured ? inputValue : voiceAgentMergedText;
+            const canProceed = isStructured
+              ? !!inputValue.trim()
+              : (voiceAgentReady && !!voiceAgentMergedText.trim());
+
+            if (!isAnsweredQuestion) {
+              // Forward flow — "Next" button (save + advance)
+              return (
+                <button
+                  style={{
+                    width: '100%',
+                    padding: '14px 24px',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    color: '#FFFFFF',
+                    backgroundColor: canProceed && !voiceAgentSaving ? '#18181B' : '#A1A1AA',
+                    border: 'none',
+                    borderRadius: '12px',
+                    cursor: canProceed && !voiceAgentSaving ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    opacity: voiceAgentSaving ? 0.7 : 1,
+                    transition: 'background-color 0.2s, opacity 0.2s',
+                  }}
+                  onClick={handleVoiceAgentNext}
+                  disabled={!canProceed || voiceAgentSaving}
+                >
+                  {voiceAgentSaving ? (
+                    <>
+                      <div style={styles.buttonSpinner} />
+                      Saving...
+                    </>
+                  ) : state.currentIndex === totalQuestions - 1 ? (
+                    <>
+                      Complete Assessment
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                        <polyline points="22 4 12 14.01 9 11.01"/>
+                      </svg>
+                    </>
+                  ) : (
+                    <>
+                      Next Question
+                      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                    </>
+                  )}
+                </button>
+              );
+            }
+
+            // Revisiting — "Ask Eunice" + "Save" buttons
+            return (
+              <div style={{ display: 'flex', gap: '10px' }}>
+                {/* Ask Eunice button — when agent is not connected */}
+                {!voiceAgent.isConnected && (
+                  <button
+                    style={{
+                      flex: 1,
+                      padding: '14px 24px',
+                      fontSize: '15px',
+                      fontWeight: '600',
+                      color: '#6366F1',
+                      backgroundColor: '#FFFFFF',
+                      border: '2px solid #6366F1',
+                      borderRadius: '12px',
+                      cursor: 'pointer',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: '8px',
+                      transition: 'background-color 0.2s',
+                    }}
+                    onClick={() => {
+                      const previousResponse = savedResponses[currentQuestion.id] || state.answers[currentQuestion.id] || '';
+                      previousResponseForMergeRef.current = previousResponse;
+                      connectVoiceAgentForQuestion(previousResponse || undefined);
+                    }}
+                  >
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                      <line x1="12" y1="19" x2="12" y2="23"/>
+                      <line x1="8" y1="23" x2="16" y2="23"/>
+                    </svg>
+                    Ask Eunice
+                  </button>
+                )}
+
+                {/* Save button */}
+                <button
+                  style={{
+                    flex: 1,
+                    padding: '14px 24px',
+                    fontSize: '15px',
+                    fontWeight: '600',
+                    color: '#FFFFFF',
+                    backgroundColor: responseText.trim() && !voiceAgentSaving ? '#18181B' : '#A1A1AA',
+                    border: 'none',
+                    borderRadius: '12px',
+                    cursor: responseText.trim() && !voiceAgentSaving ? 'pointer' : 'not-allowed',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    gap: '8px',
+                    opacity: voiceAgentSaving ? 0.7 : 1,
+                    transition: 'background-color 0.2s, opacity 0.2s',
+                  }}
+                  onClick={handleVoiceAgentSave}
+                  disabled={!responseText.trim() || voiceAgentSaving}
+                >
+                  {voiceAgentSaving ? (
+                    <>
+                      <div style={styles.buttonSpinner} />
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M19 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h11l5 5v11a2 2 0 0 1-2 2z"/>
+                        <polyline points="17 21 17 13 7 13 7 21"/>
+                        <polyline points="7 3 7 8 15 8"/>
+                      </svg>
+                      Save
+                    </>
+                  )}
+                </button>
+              </div>
+            );
+          })()}
         </footer>
       </div>
     );
