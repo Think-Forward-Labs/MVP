@@ -2,7 +2,7 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { CSSProperties } from 'react';
 import type { Question, InterviewMode, InterviewAppProps } from '../../types/interview';
 import { DEMO_QUESTIONS } from '../../types/interview';
-import { interviewApi, voiceApi, voiceAgentApi, interviewResponsesApi, type InterviewResponseItem, type AllQuestionsQuestion, type ConversationTurn } from '../../services/api';
+import { interviewApi, voiceApi, voiceAgentApi, interviewResponsesApi, authApi, type InterviewResponseItem, type AllQuestionsQuestion, type ConversationTurn } from '../../services/api';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
 import { useVoiceAgent, type AgentStatus } from '../../hooks/useVoiceAgent';
 
@@ -11,6 +11,13 @@ import { TextInput } from './inputs/TextInput';
 import { ScaleInput } from './inputs/ScaleInput';
 import { SelectInput } from './inputs/SelectInput';
 import { PercentageInput } from './inputs/PercentageInput';
+
+// Voice Agent Onboarding Components
+import { DeviceCheck } from './DeviceCheck';
+import { VoiceAgentTutorial } from './VoiceAgentTutorial';
+
+// Voice Agent Onboarding Flow Steps
+type VoiceAgentOnboardingStep = 'device_check' | 'tutorial' | 'ready';
 
 // Review Response Card Component
 function ReviewResponseCard({
@@ -370,6 +377,11 @@ export function InterviewApp({
   const [furthestQuestionIndex, setFurthestQuestionIndex] = useState(0);
   const [savedResponses, setSavedResponses] = useState<Record<string, string>>({});
   const [voiceError, setVoiceError] = useState<string | null>(null);
+
+  // Voice Agent Onboarding state
+  const [voiceAgentOnboardingStep, setVoiceAgentOnboardingStep] = useState<VoiceAgentOnboardingStep | null>(null);
+  const [hasCompletedTutorial, setHasCompletedTutorial] = useState<boolean | null>(null);
+  const [showTutorialOption, setShowTutorialOption] = useState(false);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -910,10 +922,126 @@ export function InterviewApp({
     }
   };
 
-  const handleModeSelect = (selectedMode: InterviewMode) => {
+  const handleModeSelect = async (selectedMode: InterviewMode) => {
+    // For voice_agent mode, go through device check and tutorial first
+    if (selectedMode === 'voice_agent') {
+      setMode(selectedMode);
+      setVoiceAgentOnboardingStep('device_check');
+      return;
+    }
+
     setMode(selectedMode);
     if (!isDemoMode) {
       startInterview(selectedMode);
+    }
+  };
+
+  // Handle device check completion
+  const handleDeviceCheckComplete = () => {
+    console.log('Device check complete, isDemoMode:', isDemoMode);
+
+    // In demo mode, just show tutorial (no user preferences to check)
+    if (isDemoMode) {
+      console.log('Demo mode - going to tutorial');
+      setVoiceAgentOnboardingStep('tutorial');
+      return;
+    }
+
+    // Check if user has completed tutorial before
+    if (hasCompletedTutorial === null) {
+      // Fetch user preferences
+      authApi.getMe()
+        .then((meResponse) => {
+          const tutorialCompleted = meResponse.user.preferences?.voice_agent_tutorial_completed === true;
+          console.log('Tutorial completed before:', tutorialCompleted);
+          setHasCompletedTutorial(tutorialCompleted);
+
+          if (tutorialCompleted) {
+            // Show option to view tutorial again or skip
+            // Clear onboarding step so device_check condition doesn't match
+            setVoiceAgentOnboardingStep(null);
+            setShowTutorialOption(true);
+          } else {
+            // First time - show tutorial
+            setVoiceAgentOnboardingStep('tutorial');
+          }
+        })
+        .catch((err) => {
+          console.error('Failed to fetch preferences:', err);
+          // If we can't fetch preferences, show tutorial
+          setVoiceAgentOnboardingStep('tutorial');
+        });
+    } else if (hasCompletedTutorial) {
+      // Clear onboarding step so device_check condition doesn't match
+      setVoiceAgentOnboardingStep(null);
+      setShowTutorialOption(true);
+    } else {
+      setVoiceAgentOnboardingStep('tutorial');
+    }
+  };
+
+  // Handle switching to text mode from device check failure
+  const handleUseTextMode = () => {
+    setVoiceAgentOnboardingStep(null);
+    setMode('text');
+    if (!isDemoMode) {
+      startInterview('text');
+    }
+  };
+
+  // Handle going back from device check
+  const handleDeviceCheckBack = () => {
+    setVoiceAgentOnboardingStep(null);
+    setMode('select');
+  };
+
+  // Handle tutorial completion
+  const handleTutorialComplete = async () => {
+    // Mark tutorial as completed in user preferences
+    try {
+      await authApi.updatePreferences({ voice_agent_tutorial_completed: true });
+      setHasCompletedTutorial(true);
+    } catch (err) {
+      console.warn('Could not save tutorial completion:', err);
+    }
+
+    // Proceed to interview
+    setVoiceAgentOnboardingStep('ready');
+    setShowTutorialOption(false);
+    if (!isDemoMode) {
+      startInterview('voice_agent');
+    }
+  };
+
+  // Handle tutorial skip
+  const handleTutorialSkip = async () => {
+    // Mark as completed even if skipped
+    try {
+      await authApi.updatePreferences({ voice_agent_tutorial_completed: true });
+      setHasCompletedTutorial(true);
+    } catch (err) {
+      console.warn('Could not save tutorial completion:', err);
+    }
+
+    setVoiceAgentOnboardingStep('ready');
+    setShowTutorialOption(false);
+    if (!isDemoMode) {
+      startInterview('voice_agent');
+    }
+  };
+
+  // Handle view tutorial again (for returning users)
+  const handleViewTutorialAgain = () => {
+    setShowTutorialOption(false);
+    setVoiceAgentOnboardingStep('tutorial');
+  };
+
+  // Handle skip tutorial for returning users
+  const handleSkipTutorialForReturning = () => {
+    setShowTutorialOption(false);
+    setVoiceAgentOnboardingStep('ready');
+    if (!isDemoMode) {
+      startInterview('voice_agent');
     }
   };
 
@@ -1867,6 +1995,117 @@ export function InterviewApp({
     );
   }
 
+  // Voice Agent Onboarding: Device Check Screen
+  if (mode === 'voice_agent' && voiceAgentOnboardingStep === 'device_check') {
+    return (
+      <DeviceCheck
+        onComplete={handleDeviceCheckComplete}
+        onUseTextMode={handleUseTextMode}
+        onBack={handleDeviceCheckBack}
+      />
+    );
+  }
+
+  // Voice Agent Onboarding: Tutorial Option for Returning Users
+  if (mode === 'voice_agent' && showTutorialOption) {
+    return (
+      <div style={styles.selectScreenContainer}>
+        <div style={styles.selectBackground} />
+        <div style={styles.selectOrb1} />
+        <div style={styles.selectOrb2} />
+
+        <div style={{
+          ...styles.selectContent,
+          display: 'flex',
+          flexDirection: 'column',
+          alignItems: 'center',
+          justifyContent: 'center',
+          textAlign: 'center',
+          minHeight: '60vh',
+        }}>
+          <div style={{
+            width: '80px',
+            height: '80px',
+            borderRadius: '50%',
+            background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            marginBottom: '24px',
+          }}>
+            <span style={{ fontSize: '36px', fontWeight: '600', color: '#FFFFFF' }}>E</span>
+          </div>
+
+          <h2 style={{ fontSize: '24px', fontWeight: '700', color: '#18181B', marginBottom: '12px' }}>
+            Welcome Back!
+          </h2>
+          <p style={{ fontSize: '15px', color: '#71717A', maxWidth: '360px', marginBottom: '32px', lineHeight: 1.6 }}>
+            You've completed the tutorial before. Would you like to view it again or start the interview?
+          </p>
+
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '12px', width: '100%', maxWidth: '320px' }}>
+            <button
+              style={{
+                padding: '16px 24px',
+                fontSize: '15px',
+                fontWeight: '600',
+                color: '#FFFFFF',
+                background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                border: 'none',
+                borderRadius: '12px',
+                cursor: 'pointer',
+                boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
+              }}
+              onClick={handleSkipTutorialForReturning}
+            >
+              Start Interview
+            </button>
+            <button
+              style={{
+                padding: '14px 20px',
+                fontSize: '14px',
+                fontWeight: '500',
+                color: '#71717A',
+                backgroundColor: '#F4F4F5',
+                border: 'none',
+                borderRadius: '10px',
+                cursor: 'pointer',
+              }}
+              onClick={handleViewTutorialAgain}
+            >
+              View Tutorial Again
+            </button>
+            <button
+              style={{
+                padding: '12px 16px',
+                fontSize: '13px',
+                fontWeight: '500',
+                color: '#71717A',
+                backgroundColor: 'transparent',
+                border: 'none',
+                cursor: 'pointer',
+                marginTop: '8px',
+              }}
+              onClick={handleDeviceCheckBack}
+            >
+              Back to Mode Selection
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Voice Agent Onboarding: Tutorial Screen
+  if (mode === 'voice_agent' && voiceAgentOnboardingStep === 'tutorial') {
+    return (
+      <VoiceAgentTutorial
+        onComplete={handleTutorialComplete}
+        onSkip={handleTutorialSkip}
+      />
+    );
+  }
+
   // Mode Selection Screen - Glass Effect UI
   if (mode === 'select') {
     return (
@@ -1937,27 +2176,6 @@ export function InterviewApp({
 
             <button
               style={styles.secondaryAction}
-              onClick={() => handleModeSelect('voice')}
-            >
-              <div style={styles.secondaryActionIcon}>
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                  <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
-                  <path d="M19 10v2a7 7 0 01-14 0v-2" />
-                  <line x1="12" y1="19" x2="12" y2="23" />
-                  <line x1="8" y1="23" x2="16" y2="23" />
-                </svg>
-              </div>
-              <div style={styles.actionContent}>
-                <span style={styles.secondaryActionTitle}>Voice Interview</span>
-                <span style={styles.secondaryActionDesc}>Speak naturally, we'll transcribe</span>
-              </div>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'rgba(60, 60, 67, 0.3)' }}>
-                <path d="M9 18l6-6-6-6" />
-              </svg>
-            </button>
-
-            <button
-              style={styles.secondaryAction}
               onClick={() => handleModeSelect('voice_agent')}
             >
               <div style={{
@@ -1973,7 +2191,7 @@ export function InterviewApp({
               </div>
               <div style={styles.actionContent}>
                 <span style={styles.secondaryActionTitle}>Voice Agent Interview</span>
-                <span style={styles.secondaryActionDesc}>Conversational AI guides you through</span>
+                <span style={styles.secondaryActionDesc}>Talk naturally with Eunice, your AI guide</span>
               </div>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'rgba(60, 60, 67, 0.3)' }}>
                 <path d="M9 18l6-6-6-6" />
@@ -2835,7 +3053,7 @@ export function InterviewApp({
         case 'connecting': return 'Connecting...';
         case 'connected': return 'Initializing...';
         case 'listening': return 'Listening...';
-        case 'agent_speaking': return 'Theia is speaking...';
+        case 'agent_speaking': return 'Eunice is speaking...';
         case 'processing': return 'Processing...';
         case 'ready': return 'Ready - Review your response and click Next';
         case 'error': return 'Connection error';
@@ -3049,7 +3267,7 @@ export function InterviewApp({
                     {voiceAgent.status === 'connecting' || voiceAgent.status === 'connected' ? (
                       <>
                         <div style={styles.connectingSpinner} />
-                        <span style={{ fontSize: '14px' }}>Connecting to Theia...</span>
+                        <span style={{ fontSize: '14px' }}>Connecting to Eunice...</span>
                       </>
                     ) : voiceAgent.status === 'error' ? (
                       <>
@@ -3128,7 +3346,7 @@ export function InterviewApp({
                           textTransform: 'uppercase',
                           letterSpacing: '0.5px',
                         }}>
-                          {turn.role === 'agent' ? 'Theia' : 'You'}
+                          {turn.role === 'agent' ? 'Eunice' : 'You'}
                         </span>
                         {turn.text}
                       </div>

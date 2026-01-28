@@ -163,7 +163,7 @@ export function BusinessOnboardingModal({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [isAnimating, setIsAnimating] = useState(false);
-  const [animationDirection, setAnimationDirection] = useState<'forward' | 'backward'>('forward');
+  const [, setAnimationDirection] = useState<'forward' | 'backward'>('forward');
 
   const totalSteps = 3;
 

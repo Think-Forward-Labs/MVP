@@ -363,6 +363,7 @@ export interface UserResponse {
   business_id?: string;
   level?: string | null;
   created_at?: string;
+  preferences?: Record<string, unknown>;
 }
 
 export interface BusinessResponse {
@@ -430,6 +431,16 @@ export const authApi = {
    */
   getMe: async (): Promise<MeResponse> => {
     return apiRequest<MeResponse>('/business/me');
+  },
+
+  /**
+   * Update user preferences (merge with existing)
+   */
+  updatePreferences: async (preferences: Record<string, unknown>): Promise<{ message: string; preferences: Record<string, unknown> }> => {
+    return apiRequest<{ message: string; preferences: Record<string, unknown> }>('/business/me/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify({ preferences }),
+    });
   },
 
   /**
