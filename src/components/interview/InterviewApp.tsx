@@ -2,9 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { CSSProperties } from 'react';
 import type { Question, InterviewMode, InterviewAppProps } from '../../types/interview';
 import { DEMO_QUESTIONS } from '../../types/interview';
-import { interviewApi, voiceApi, voiceAgentApi, interviewResponsesApi, authApi, type InterviewResponseItem, type AllQuestionsQuestion, type ConversationTurn } from '../../services/api';
+import { interviewApi, voiceApi, voiceAgentApi, interviewResponsesApi, authApi, type InterviewResponseItem, type AllQuestionsQuestion } from '../../services/api';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
-import { useVoiceAgent, type AgentStatus } from '../../hooks/useVoiceAgent';
+import { useVoiceAgent } from '../../hooks/useVoiceAgent';
 
 // Question Input Components
 import { TextInput } from './inputs/TextInput';
@@ -374,7 +374,7 @@ export function InterviewApp({
   const [isPlayingQuestion, setIsPlayingQuestion] = useState(false);
   const [editableMergedResponse, setEditableMergedResponse] = useState<string>('');
   const [reviewingState, setReviewingState] = useState<'idle' | 'reviewing' | 'success' | 'followup'>('idle');
-  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [, setSidebarOpen] = useState(false);
   const [furthestQuestionIndex, setFurthestQuestionIndex] = useState(0);
   const [savedResponses, setSavedResponses] = useState<Record<string, string>>({});
   const [voiceError, setVoiceError] = useState<string | null>(null);
@@ -3307,7 +3307,7 @@ export function InterviewApp({
                           <span style={{ fontSize: '13px', color: '#DC2626' }}>{voiceAgent.error || 'Connection error'}</span>
                           <button
                             style={{ padding: '4px 12px', fontSize: '12px', fontWeight: '500', backgroundColor: '#18181B', color: '#FFFFFF', border: 'none', borderRadius: '6px', cursor: 'pointer' }}
-                            onClick={connectVoiceAgentForQuestion}
+                            onClick={() => connectVoiceAgentForQuestion()}
                           >
                             Retry
                           </button>
@@ -3391,7 +3391,7 @@ export function InterviewApp({
                           <span style={{ fontSize: '14px', color: '#DC2626' }}>{voiceAgent.error || 'Connection error'}</span>
                           <button
                             style={{ padding: '8px 16px', fontSize: '13px', fontWeight: '500', backgroundColor: '#18181B', color: '#FFFFFF', border: 'none', borderRadius: '8px', cursor: 'pointer' }}
-                            onClick={connectVoiceAgentForQuestion}
+                            onClick={() => connectVoiceAgentForQuestion()}
                           >
                             Retry
                           </button>
