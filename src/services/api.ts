@@ -76,13 +76,13 @@ export interface SubmitResponseResult {
     merged_response?: string;
     checklist_results?: ChecklistResultItem[];
   };
-  next_action: 'complete' | 'next_question' | 'followup' | 'approve_merged';
+  next_action: 'complete' | 'next_question' | 'followup' | 'approve_merged' | 'stay';
   interview_status: 'in_progress' | 'completed';
 }
 
 export interface ApproveMergedResult {
   approved: boolean;
-  next_action: 'complete' | 'next_question';
+  next_action: 'complete' | 'next_question' | 'stay';
   interview_status: 'in_progress' | 'completed';
 }
 
@@ -293,6 +293,12 @@ export interface TTSResponse {
   voice: string;
 }
 
+export interface VoiceConfigResponse {
+  websocket_url: string;
+  api_key: string;
+  available_voices: string[];
+}
+
 export const voiceApi = {
   /**
    * Convert text to speech and return base64 audio (demo endpoint - no auth required)
@@ -309,6 +315,13 @@ export const voiceApi = {
    */
   getVoices: async (): Promise<{ voices: Array<{ id: string; model: string; gender: string }>; default: string }> => {
     return apiRequest('/voice/voices');
+  },
+
+  /**
+   * Get voice configuration for real-time STT (WebSocket URL + API key)
+   */
+  getConfig: async (): Promise<VoiceConfigResponse> => {
+    return apiRequest<VoiceConfigResponse>('/voice/config');
   },
 };
 
@@ -350,6 +363,7 @@ export interface UserResponse {
   business_id?: string;
   level?: string | null;
   created_at?: string;
+  preferences?: Record<string, unknown>;
 }
 
 export interface BusinessResponse {
@@ -417,6 +431,16 @@ export const authApi = {
    */
   getMe: async (): Promise<MeResponse> => {
     return apiRequest<MeResponse>('/business/me');
+  },
+
+  /**
+   * Update user preferences (merge with existing)
+   */
+  updatePreferences: async (preferences: Record<string, unknown>): Promise<{ message: string; preferences: Record<string, unknown> }> => {
+    return apiRequest<{ message: string; preferences: Record<string, unknown> }>('/business/me/preferences', {
+      method: 'PATCH',
+      body: JSON.stringify({ preferences }),
+    });
   },
 
   /**
@@ -679,11 +703,74 @@ export const interviewResponsesApi = {
   },
 };
 
+// Voice Agent API - Deepgram Voice Agent mode
+export interface VoiceAgentConfigResponse {
+  websocket_url: string;
+  api_key: string;
+  settings_message: Record<string, any>;
+}
+
+export interface ConversationTurn {
+  role: 'agent' | 'user';
+  text: string;
+  timestamp?: number;
+}
+
+export interface SaveVoiceSessionResponse {
+  success: boolean;
+  response_id: string;
+  next_action: 'complete' | 'next_question' | 'stay';
+  interview_status: 'in_progress' | 'completed';
+  next_question_id?: string;
+}
+
+export const voiceAgentApi = {
+  /**
+   * Get Voice Agent configuration for a specific question.
+   * Returns WebSocket URL, API key, and Settings message.
+   * If previousResponse is provided, Eunice will have context about the prior answer.
+   */
+  getConfig: async (
+    interviewId: string,
+    questionId: string,
+    previousResponse?: string,
+  ): Promise<VoiceAgentConfigResponse> => {
+    let url = `/voice-agent/config?interview_id=${interviewId}&question_id=${questionId}`;
+    if (previousResponse) {
+      url += `&previous_response=${encodeURIComponent(previousResponse)}`;
+    }
+    return apiRequest<VoiceAgentConfigResponse>(url);
+  },
+
+  /**
+   * Save a voice agent session transcript and move to next question.
+   */
+  saveSession: async (
+    interviewId: string,
+    questionId: string,
+    userTranscript: string,
+    conversationHistory: ConversationTurn[] = [],
+  ): Promise<SaveVoiceSessionResponse> => {
+    return apiRequest<SaveVoiceSessionResponse>(
+      `/interviews/${interviewId}/save-voice-session`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          question_id: questionId,
+          user_transcript: userTranscript,
+          conversation_history: conversationHistory,
+        }),
+      }
+    );
+  },
+};
+
 export default {
   interview: interviewApi,
   interviewResponses: interviewResponsesApi,
   questions: questionsApi,
   voice: voiceApi,
+  voiceAgent: voiceAgentApi,
   auth: authApi,
   reviews: reviewsApi,
   playBase64Audio,

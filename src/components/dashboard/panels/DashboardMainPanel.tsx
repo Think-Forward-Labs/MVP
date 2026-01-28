@@ -6,8 +6,9 @@ import type { User } from '../../../types/app';
 interface DashboardMainPanelProps {
   user: User | null;
   onCreateAssessment: () => void;
-  onSelectAssessment: (reviewId: string) => void;
   onStartInterview: (reviewId: string, participantId: string) => void;
+  onViewInterview?: (reviewId: string, participantId: string, interviewId: string) => void;
+  onEditInterview?: (reviewId: string, participantId: string, interviewId: string) => void;
   stats: {
     totalAssessments: number;
     totalParticipants: number;
@@ -19,26 +20,33 @@ interface DashboardMainPanelProps {
 export function DashboardMainPanel({
   user,
   onCreateAssessment,
-  onSelectAssessment,
   onStartInterview,
+  onViewInterview,
+  onEditInterview,
   stats,
 }: DashboardMainPanelProps) {
   const [pendingAssessments, setPendingAssessments] = useState<MyAssessmentResponse[]>([]);
+  const [completedAssessments, setCompletedAssessments] = useState<MyAssessmentResponse[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    const fetchPending = async () => {
+    const fetchAssessments = async () => {
       try {
         const data = await reviewsApi.myAssessments();
-        // Filter to only show incomplete ones
-        setPendingAssessments(data.filter(a => a.participant_status !== 'completed'));
+        // Filter into pending and completed
+        setPendingAssessments(data.filter(a =>
+          a.participant_status !== 'completed' && a.participant_status !== 'submitted'
+        ));
+        setCompletedAssessments(data.filter(a =>
+          a.participant_status === 'completed' || a.participant_status === 'submitted'
+        ));
       } catch (error) {
-        console.error('Failed to fetch pending assessments:', error);
+        console.error('Failed to fetch assessments:', error);
       } finally {
         setLoading(false);
       }
     };
-    fetchPending();
+    fetchAssessments();
   }, []);
 
   const getGreeting = () => {
@@ -178,6 +186,90 @@ export function DashboardMainPanel({
                   </div>
                 </button>
               ))}
+            </div>
+          </div>
+        )}
+
+        {/* Completed Assessments */}
+        {completedAssessments.length > 0 && (
+          <div style={styles.completedSection}>
+            <div style={styles.sectionHeader}>
+              <h3 style={styles.sectionTitle}>Completed Assessments</h3>
+              <span style={styles.completedCount}>{completedAssessments.length}</span>
+            </div>
+            <div style={styles.completedList}>
+              {completedAssessments.map((assessment) => {
+                const isSubmitted = assessment.participant_status === 'submitted';
+                const canEdit = !isSubmitted;
+
+                return (
+                  <div
+                    key={assessment.participant_id}
+                    style={styles.completedCard}
+                  >
+                    <div style={styles.completedIconWrapper}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke={isSubmitted ? '#34C759' : '#007AFF'} strokeWidth="2">
+                        <path d="M22 11.08V12a10 10 0 11-5.93-9.14" />
+                        <polyline points="22 4 12 14.01 9 11.01" />
+                      </svg>
+                    </div>
+                    <div style={styles.completedContent}>
+                      <span style={styles.completedName}>{assessment.review_name}</span>
+                      <div style={styles.completedMeta}>
+                        <span style={{
+                          ...styles.statusBadge,
+                          backgroundColor: isSubmitted ? 'rgba(52, 199, 89, 0.12)' : 'rgba(0, 122, 255, 0.12)',
+                          color: isSubmitted ? '#059669' : '#007AFF',
+                        }}>
+                          {isSubmitted ? 'Submitted' : 'Completed'}
+                        </span>
+                        <span style={styles.completedDate}>
+                          {new Date(assessment.created_at).toLocaleDateString('en-US', {
+                            month: 'short',
+                            day: 'numeric',
+                            year: 'numeric'
+                          })}
+                        </span>
+                      </div>
+                    </div>
+                    <div style={styles.completedActions}>
+                      <button
+                        style={styles.viewButton}
+                        onClick={() => {
+                          if (onViewInterview && assessment.interview_id) {
+                            onViewInterview(assessment.review_id, assessment.participant_id, assessment.interview_id);
+                          }
+                        }}
+                        title="View responses"
+                        disabled={!assessment.interview_id}
+                      >
+                        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                          <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                          <circle cx="12" cy="12" r="3" />
+                        </svg>
+                        View
+                      </button>
+                      {canEdit && assessment.interview_id && (
+                        <button
+                          style={styles.editButton}
+                          onClick={() => {
+                            if (onEditInterview && assessment.interview_id) {
+                              onEditInterview(assessment.review_id, assessment.participant_id, assessment.interview_id);
+                            }
+                          }}
+                          title="Edit responses"
+                        >
+                          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                            <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                            <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                          </svg>
+                          Edit
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           </div>
         )}
@@ -451,6 +543,105 @@ const styles: Record<string, CSSProperties> = {
   startLabel: {
     fontSize: '13px',
     fontWeight: '500',
+  },
+
+  // Completed Section
+  completedSection: {
+    marginBottom: '32px',
+  },
+  completedCount: {
+    fontSize: '12px',
+    fontWeight: '600',
+    color: '#34C759',
+    backgroundColor: 'rgba(52, 199, 89, 0.12)',
+    padding: '2px 8px',
+    borderRadius: '10px',
+  },
+  completedList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  completedCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+    padding: '16px 18px',
+    backgroundColor: 'rgba(255, 255, 255, 0.85)',
+    backdropFilter: 'blur(20px) saturate(180%)',
+    WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+    borderRadius: '14px',
+    border: '1px solid rgba(0, 0, 0, 0.06)',
+    boxShadow: '0 2px 12px rgba(0, 0, 0, 0.04)',
+  },
+  completedIconWrapper: {
+    width: '40px',
+    height: '40px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: 'rgba(52, 199, 89, 0.1)',
+    borderRadius: '10px',
+    flexShrink: 0,
+  },
+  completedContent: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+  },
+  completedName: {
+    fontSize: '15px',
+    fontWeight: '500',
+    color: '#1D1D1F',
+  },
+  completedMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  statusBadge: {
+    fontSize: '11px',
+    fontWeight: '600',
+    padding: '2px 8px',
+    borderRadius: '6px',
+  },
+  completedDate: {
+    fontSize: '13px',
+    color: 'rgba(60, 60, 67, 0.6)',
+  },
+  completedActions: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  viewButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 14px',
+    fontSize: '13px',
+    fontWeight: '500',
+    color: '#71717A',
+    backgroundColor: 'rgba(118, 118, 128, 0.08)',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+  },
+  editButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 14px',
+    fontSize: '13px',
+    fontWeight: '500',
+    color: '#007AFF',
+    backgroundColor: 'rgba(0, 122, 255, 0.08)',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
   },
 
   // Empty State

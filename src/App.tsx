@@ -14,6 +14,9 @@ interface InterviewContext {
   mode: InterviewMode;
   reviewId?: string;
   participantId?: string;
+  viewOnly?: boolean;
+  editMode?: boolean;
+  interviewId?: string;
 }
 
 function App() {
@@ -89,6 +92,14 @@ function App() {
     setInterviewMode({ mode, reviewId, participantId });
   };
 
+  const handleViewInterview = (reviewId: string, participantId: string, interviewId: string) => {
+    setInterviewMode({ mode: 'text', reviewId, participantId, viewOnly: true, interviewId });
+  };
+
+  const handleEditInterview = (reviewId: string, participantId: string, interviewId: string) => {
+    setInterviewMode({ mode: 'text', reviewId, participantId, editMode: true, interviewId });
+  };
+
   const handleExitInterview = () => {
     setInterviewMode(null);
     // Refresh review detail if we were in one
@@ -134,10 +145,14 @@ function App() {
         initialMode={interviewMode.mode}
         reviewId={interviewMode.reviewId}
         participantId={interviewMode.participantId}
+        viewOnly={interviewMode.viewOnly}
+        editMode={interviewMode.editMode}
+        interviewId={interviewMode.interviewId}
         onExit={handleExitInterview}
         onComplete={(interviewId) => {
           console.log('Interview completed:', interviewId);
-          handleExitInterview();
+          // Don't exit immediately - let the completion screen show
+          // User will click "Return to Dashboard" which calls onExit
         }}
       />
     );
@@ -187,6 +202,8 @@ function App() {
           setSection={setDashboardSection}
           onLogout={handleLogout}
           onStartInterview={(mode, reviewId, participantId) => handleStartInterview(mode, reviewId, participantId)}
+          onViewInterview={handleViewInterview}
+          onEditInterview={handleEditInterview}
           onSelectReview={handleSelectReview}
           onCreateReview={() => setShowCreateReview(true)}
         />

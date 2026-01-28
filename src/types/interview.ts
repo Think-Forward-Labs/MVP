@@ -26,7 +26,7 @@ export interface Question {
 }
 
 // Interview modes
-export type InterviewMode = 'select' | 'text' | 'voice';
+export type InterviewMode = 'select' | 'text' | 'voice' | 'voice_agent';
 
 // Interview status from backend
 export type InterviewStatus = 'pending' | 'in_progress' | 'completed' | 'abandoned';
@@ -84,6 +84,9 @@ export interface InterviewAppProps {
   initialMode?: InterviewMode;
   reviewId?: string;
   participantId?: string;
+  viewOnly?: boolean; // When true, shows review mode with all responses (for viewing completed assessments)
+  editMode?: boolean; // When true, loads existing interview in edit mode (can navigate and edit responses)
+  interviewId?: string; // When provided with viewOnly/editMode, loads this specific interview's responses
   onExit?: () => void;
   onComplete?: (interviewId: string) => void;
 }
