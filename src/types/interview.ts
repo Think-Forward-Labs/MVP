@@ -26,7 +26,7 @@ export interface Question {
 }
 
 // Interview modes
-export type InterviewMode = 'select' | 'text' | 'voice';
+export type InterviewMode = 'select' | 'text' | 'voice' | 'voice_agent';
 
 // Interview status from backend
 export type InterviewStatus = 'pending' | 'in_progress' | 'completed' | 'abandoned';

@@ -2,8 +2,9 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 import type { CSSProperties } from 'react';
 import type { Question, InterviewMode, InterviewAppProps } from '../../types/interview';
 import { DEMO_QUESTIONS } from '../../types/interview';
-import { interviewApi, voiceApi, interviewResponsesApi, type InterviewResponseItem, type AllQuestionsQuestion } from '../../services/api';
+import { interviewApi, voiceApi, voiceAgentApi, interviewResponsesApi, type InterviewResponseItem, type AllQuestionsQuestion, type ConversationTurn } from '../../services/api';
 import { useVoiceRecording } from '../../hooks/useVoiceRecording';
+import { useVoiceAgent, type AgentStatus } from '../../hooks/useVoiceAgent';
 
 // Question Input Components
 import { TextInput } from './inputs/TextInput';
@@ -401,6 +402,24 @@ export function InterviewApp({
     },
   });
 
+  // Voice Agent hook
+  const [voiceAgentReady, setVoiceAgentReady] = useState(false);
+  const [voiceAgentMergedText, setVoiceAgentMergedText] = useState('');
+  const [voiceAgentSaving, setVoiceAgentSaving] = useState(false);
+
+  const voiceAgent = useVoiceAgent({
+    onConversationUpdate: () => {
+      // conversation updates are tracked via voiceAgent.conversationHistory
+    },
+    onAgentReady: (mergedTranscript) => {
+      setVoiceAgentReady(true);
+      setVoiceAgentMergedText(mergedTranscript);
+    },
+    onError: (err) => {
+      setVoiceError(err);
+    },
+  });
+
   // Use demo mode if no reviewId/participantId provided
   const isDemoMode = !reviewId || !participantId;
 
@@ -518,10 +537,11 @@ export function InterviewApp({
     setState(prev => ({ ...prev, isLoading: true, error: null }));
 
     try {
+      const backendMode = selectedMode === 'voice' ? 'voice' : selectedMode === 'voice_agent' ? 'voice_agent' : 'text';
       const response = await interviewApi.start(
         reviewId!,
         participantId!,
-        selectedMode === 'voice' ? 'voice' : 'text'
+        backendMode as any
       );
 
       // Fetch all questions upfront
@@ -896,6 +916,85 @@ export function InterviewApp({
       startInterview(selectedMode);
     }
   };
+
+  // Connect voice agent for the current question
+  const connectVoiceAgentForQuestion = useCallback(async () => {
+    if (!state.interviewId || !currentQuestion) return;
+
+    setVoiceAgentReady(false);
+    setVoiceAgentMergedText('');
+    setVoiceError(null);
+
+    try {
+      const config = await voiceAgentApi.getConfig(state.interviewId, currentQuestion.id);
+      await voiceAgent.connect({
+        websocket_url: config.websocket_url,
+        api_key: config.api_key,
+        settings_message: config.settings_message,
+      });
+    } catch (err) {
+      console.error('Failed to connect voice agent:', err);
+      setVoiceError(err instanceof Error ? err.message : 'Failed to connect voice agent');
+    }
+  }, [state.interviewId, currentQuestion, voiceAgent]);
+
+  // Handle "Next Question" in voice agent mode
+  const handleVoiceAgentNext = useCallback(async () => {
+    if (!state.interviewId || !currentQuestion) return;
+
+    setVoiceAgentSaving(true);
+
+    try {
+      // Disconnect current session
+      voiceAgent.disconnect();
+
+      // Save the session
+      const result = await voiceAgentApi.saveSession(
+        state.interviewId,
+        currentQuestion.id,
+        voiceAgentMergedText,
+        voiceAgent.conversationHistory,
+      );
+
+      // Track saved response
+      setSavedResponses(prev => ({
+        ...prev,
+        [currentQuestion.id]: voiceAgentMergedText,
+      }));
+
+      if (result.next_action === 'complete') {
+        setState(prev => ({ ...prev, isComplete: true }));
+      } else if (result.next_action === 'next_question') {
+        // Move to next question
+        const nextIdx = state.currentIndex + 1;
+        setState(prev => ({
+          ...prev,
+          currentIndex: nextIdx,
+          checklist: prev.allQuestions[nextIdx]?.checklist || [],
+          followupQuestion: null,
+        }));
+        setFurthestQuestionIndex(prev => Math.max(prev, nextIdx));
+
+        // Reset voice agent state for new question
+        setVoiceAgentReady(false);
+        setVoiceAgentMergedText('');
+      }
+    } catch (err) {
+      console.error('Failed to save voice session:', err);
+      setVoiceError(err instanceof Error ? err.message : 'Failed to save session');
+    } finally {
+      setVoiceAgentSaving(false);
+    }
+  }, [state.interviewId, state.currentIndex, currentQuestion, voiceAgentMergedText, voiceAgent]);
+
+  // Auto-connect voice agent when question changes in voice_agent mode
+  useEffect(() => {
+    if (mode === 'voice_agent' && state.interviewId && currentQuestion && !state.isLoading && !state.showWelcomeScreen) {
+      connectVoiceAgentForQuestion();
+    }
+    // Only re-run when question or interview changes
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [mode, state.interviewId, currentQuestion?.id, state.isLoading, state.showWelcomeScreen]);
 
   // Play question using TTS
   const playQuestion = async () => {
@@ -1856,6 +1955,30 @@ export function InterviewApp({
                 <path d="M9 18l6-6-6-6" />
               </svg>
             </button>
+
+            <button
+              style={styles.secondaryAction}
+              onClick={() => handleModeSelect('voice_agent')}
+            >
+              <div style={{
+                ...styles.secondaryActionIcon,
+                background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+              }}>
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5">
+                  <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                  <path d="M19 10v2a7 7 0 01-14 0v-2" />
+                  <circle cx="18" cy="5" r="3" fill="white" stroke="none"/>
+                  <path d="M17 5h2M18 4v2" stroke="#6366F1" strokeWidth="1.5" strokeLinecap="round"/>
+                </svg>
+              </div>
+              <div style={styles.actionContent}>
+                <span style={styles.secondaryActionTitle}>Voice Agent Interview</span>
+                <span style={styles.secondaryActionDesc}>Conversational AI guides you through</span>
+              </div>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ color: 'rgba(60, 60, 67, 0.3)' }}>
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
           </div>
 
           {/* Assessment Info - Glass Card */}
@@ -2701,6 +2824,457 @@ export function InterviewApp({
           </span>
         </footer>
 
+      </div>
+    );
+  }
+
+  // Voice Agent Mode
+  if (mode === 'voice_agent') {
+    const agentStatusLabel = (): string => {
+      switch (voiceAgent.status) {
+        case 'connecting': return 'Connecting...';
+        case 'connected': return 'Initializing...';
+        case 'listening': return 'Listening...';
+        case 'agent_speaking': return 'Theia is speaking...';
+        case 'processing': return 'Processing...';
+        case 'ready': return 'Ready - Review your response and click Next';
+        case 'error': return 'Connection error';
+        default: return 'Disconnected';
+      }
+    };
+
+    const agentStatusColor = (): string => {
+      switch (voiceAgent.status) {
+        case 'listening': return '#22C55E';
+        case 'agent_speaking': return '#6366F1';
+        case 'ready': return '#22C55E';
+        case 'error': return '#DC2626';
+        case 'connecting':
+        case 'connected':
+        case 'processing':
+          return '#F59E0B';
+        default: return '#71717A';
+      }
+    };
+
+    return (
+      <div style={styles.container}>
+        {/* Header */}
+        <header style={styles.header}>
+          <div style={styles.headerLeft}>
+            <button
+              style={styles.backButton}
+              onClick={() => {
+                voiceAgent.disconnect();
+                onExit ? onExit() : setMode('select');
+              }}
+            >
+              <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M10 12L6 8l4-4" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+            <span style={styles.headerTitle}>CABAS® Discovery Assessment</span>
+            <span style={{
+              ...styles.voiceBadge,
+              background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+              color: '#FFFFFF',
+            }}>
+              <span style={{ ...styles.voiceDot, background: '#FFFFFF' }} />
+              Voice Agent
+            </span>
+          </div>
+          <div style={styles.headerRight}>
+            <span style={styles.progressText}>{state.currentIndex + 1} of {totalQuestions}</span>
+            <button
+              style={styles.exitButton}
+              onClick={() => setShowExitConfirm(true)}
+              title="Exit assessment"
+            >
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" strokeLinecap="round" strokeLinejoin="round"/>
+              </svg>
+            </button>
+          </div>
+        </header>
+
+        {/* Exit Confirmation Dialog */}
+        {showExitConfirm && (
+          <div style={styles.exitOverlay}>
+            <div style={styles.exitDialog}>
+              <div style={styles.exitIcon}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#71717A" strokeWidth="1.5">
+                  <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+                  <polyline points="16 17 21 12 16 7" />
+                  <line x1="21" y1="12" x2="9" y2="12" />
+                </svg>
+              </div>
+              <h3 style={styles.exitTitle}>Exit assessment?</h3>
+              <p style={styles.exitMessage}>
+                Your progress is saved automatically.
+              </p>
+              <div style={styles.exitActions}>
+                <button
+                  style={styles.exitCancelButton}
+                  onClick={() => setShowExitConfirm(false)}
+                >
+                  Continue
+                </button>
+                <button
+                  style={styles.exitConfirmButton}
+                  onClick={() => {
+                    voiceAgent.disconnect();
+                    setShowExitConfirm(false);
+                    onExit?.();
+                  }}
+                >
+                  Exit
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Progress Bar */}
+        <div style={styles.progressContainer}>
+          <div style={{...styles.progressBar, width: `${progress}%`}} />
+        </div>
+
+        {/* Main Content */}
+        <main style={{
+          flex: 1,
+          display: 'flex',
+          flexDirection: 'column',
+          padding: '24px 24px 0',
+          maxWidth: '720px',
+          margin: '0 auto',
+          width: '100%',
+        }}>
+          {/* Question */}
+          <div style={{
+            opacity: showTransition ? 0 : 1,
+            transform: showTransition ? 'translateY(10px)' : 'translateY(0)',
+            transition: 'opacity 0.3s, transform 0.3s',
+          }}>
+            <div style={styles.categoryBadge}>
+              {currentQuestion.aspect_code} · {currentQuestion.aspect}
+            </div>
+            <h2 style={{
+              fontSize: '18px',
+              fontWeight: '600',
+              lineHeight: '1.5',
+              margin: '0 0 20px',
+              color: '#18181B',
+            }}>
+              {currentQuestion.text}
+            </h2>
+          </div>
+
+          {/* Transcript / Merged Response Area */}
+          <div style={{
+            flex: 1,
+            display: 'flex',
+            flexDirection: 'column',
+            backgroundColor: '#FFFFFF',
+            borderRadius: '12px',
+            border: '1px solid #E4E4E7',
+            overflow: 'hidden',
+            marginBottom: '16px',
+          }}>
+            {voiceAgentReady ? (
+              /* Editable merged response - auto-shown when agent confirms */
+              <div style={{
+                flex: 1,
+                display: 'flex',
+                flexDirection: 'column',
+                padding: '16px',
+              }}>
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '8px',
+                  marginBottom: '12px',
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2">
+                    <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                    <polyline points="22 4 12 14.01 9 11.01"/>
+                  </svg>
+                  <span style={{
+                    fontSize: '13px',
+                    fontWeight: '600',
+                    color: '#22C55E',
+                  }}>
+                    Review your response — edit if needed, then click Next
+                  </span>
+                </div>
+                <textarea
+                  style={{
+                    flex: 1,
+                    minHeight: '200px',
+                    padding: '12px',
+                    fontSize: '15px',
+                    lineHeight: '1.6',
+                    color: '#18181B',
+                    backgroundColor: '#FAFAFA',
+                    border: '1px solid #E4E4E7',
+                    borderRadius: '8px',
+                    outline: 'none',
+                    resize: 'vertical',
+                    fontFamily: 'inherit',
+                  }}
+                  value={voiceAgentMergedText}
+                  onChange={(e) => setVoiceAgentMergedText(e.target.value)}
+                />
+              </div>
+            ) : (
+              /* Conversation view */
+              <div style={{
+                flex: 1,
+                overflowY: 'auto',
+                padding: '16px',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: '12px',
+                minHeight: '250px',
+              }}>
+                {voiceAgent.conversationHistory.length === 0 ? (
+                  <div style={{
+                    flex: 1,
+                    display: 'flex',
+                    flexDirection: 'column',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    color: '#A1A1AA',
+                    gap: '12px',
+                  }}>
+                    {voiceAgent.status === 'connecting' || voiceAgent.status === 'connected' ? (
+                      <>
+                        <div style={styles.connectingSpinner} />
+                        <span style={{ fontSize: '14px' }}>Connecting to Theia...</span>
+                      </>
+                    ) : voiceAgent.status === 'error' ? (
+                      <>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2">
+                          <circle cx="12" cy="12" r="10"/>
+                          <line x1="12" y1="8" x2="12" y2="12"/>
+                          <line x1="12" y1="16" x2="12.01" y2="16"/>
+                        </svg>
+                        <span style={{ fontSize: '14px', color: '#DC2626' }}>{voiceAgent.error || 'Connection error'}</span>
+                        <button
+                          style={{
+                            padding: '8px 16px',
+                            fontSize: '13px',
+                            fontWeight: '500',
+                            backgroundColor: '#18181B',
+                            color: '#FFFFFF',
+                            border: 'none',
+                            borderRadius: '8px',
+                            cursor: 'pointer',
+                          }}
+                          onClick={connectVoiceAgentForQuestion}
+                        >
+                          Retry
+                        </button>
+                      </>
+                    ) : (
+                      <>
+                        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#A1A1AA" strokeWidth="1.5">
+                          <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z"/>
+                          <path d="M19 10v2a7 7 0 01-14 0v-2"/>
+                        </svg>
+                        <span style={{ fontSize: '14px' }}>Waiting for conversation to begin...</span>
+                      </>
+                    )}
+                  </div>
+                ) : (
+                  voiceAgent.conversationHistory.map((turn, idx) => (
+                    <div
+                      key={idx}
+                      style={{
+                        display: 'flex',
+                        gap: '10px',
+                        alignItems: 'flex-start',
+                      }}
+                    >
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '50%',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        flexShrink: 0,
+                        background: turn.role === 'agent'
+                          ? 'linear-gradient(135deg, #6366F1, #8B5CF6)'
+                          : '#18181B',
+                        color: '#FFFFFF',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                      }}>
+                        {turn.role === 'agent' ? 'T' : 'Y'}
+                      </div>
+                      <div style={{
+                        flex: 1,
+                        fontSize: '14px',
+                        lineHeight: '1.5',
+                        color: turn.role === 'agent' ? '#52525B' : '#18181B',
+                        fontWeight: turn.role === 'user' ? '500' : '400',
+                      }}>
+                        <span style={{
+                          display: 'block',
+                          fontSize: '11px',
+                          fontWeight: '600',
+                          color: turn.role === 'agent' ? '#6366F1' : '#18181B',
+                          marginBottom: '2px',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.5px',
+                        }}>
+                          {turn.role === 'agent' ? 'Theia' : 'You'}
+                        </span>
+                        {turn.text}
+                      </div>
+                    </div>
+                  ))
+                )}
+              </div>
+            )}
+          </div>
+
+          {/* Voice Error */}
+          {voiceError && (
+            <div style={{
+              ...styles.voiceError,
+              marginBottom: '12px',
+            }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2">
+                <circle cx="12" cy="12" r="10"/>
+                <line x1="12" y1="8" x2="12" y2="12"/>
+                <line x1="12" y1="16" x2="12.01" y2="16"/>
+              </svg>
+              {voiceError}
+            </div>
+          )}
+        </main>
+
+        {/* Footer - Agent Status + Controls */}
+        <footer style={{
+          padding: '12px 24px 24px',
+          maxWidth: '720px',
+          margin: '0 auto',
+          width: '100%',
+        }}>
+          {/* Agent Status */}
+          <div style={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            marginBottom: '12px',
+          }}>
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              <div style={{
+                width: '8px',
+                height: '8px',
+                borderRadius: '50%',
+                backgroundColor: agentStatusColor(),
+                boxShadow: `0 0 6px ${agentStatusColor()}40`,
+              }} />
+              <span style={{
+                fontSize: '13px',
+                color: '#71717A',
+                fontWeight: '500',
+              }}>
+                {agentStatusLabel()}
+              </span>
+            </div>
+
+            {/* Mute/Unmute button */}
+            {voiceAgent.isConnected && (
+              <button
+                style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '6px 12px',
+                  fontSize: '12px',
+                  fontWeight: '500',
+                  color: voiceAgent.isMuted ? '#DC2626' : '#71717A',
+                  backgroundColor: voiceAgent.isMuted ? '#FEE2E2' : '#F4F4F5',
+                  border: 'none',
+                  borderRadius: '6px',
+                  cursor: 'pointer',
+                }}
+                onClick={voiceAgent.isMuted ? voiceAgent.unmute : voiceAgent.mute}
+              >
+                {voiceAgent.isMuted ? (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <line x1="1" y1="1" x2="23" y2="23"/>
+                      <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
+                      <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.13 1.49-.36 2.18"/>
+                    </svg>
+                    Muted
+                  </>
+                ) : (
+                  <>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/>
+                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                    </svg>
+                    Mic On
+                  </>
+                )}
+              </button>
+            )}
+          </div>
+
+          {/* Next Question / Complete button */}
+          <button
+            style={{
+              width: '100%',
+              padding: '14px 24px',
+              fontSize: '15px',
+              fontWeight: '600',
+              color: '#FFFFFF',
+              backgroundColor: voiceAgentReady ? '#18181B' : '#A1A1AA',
+              border: 'none',
+              borderRadius: '12px',
+              cursor: voiceAgentReady && !voiceAgentSaving ? 'pointer' : 'not-allowed',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '8px',
+              opacity: voiceAgentSaving ? 0.7 : 1,
+              transition: 'background-color 0.2s, opacity 0.2s',
+            }}
+            onClick={handleVoiceAgentNext}
+            disabled={!voiceAgentReady || voiceAgentSaving}
+          >
+            {voiceAgentSaving ? (
+              <>
+                <div style={styles.buttonSpinner} />
+                Saving...
+              </>
+            ) : state.currentIndex === totalQuestions - 1 ? (
+              <>
+                Complete Assessment
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
+                  <polyline points="22 4 12 14.01 9 11.01"/>
+                </svg>
+              </>
+            ) : (
+              <>
+                Next Question
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
+                </svg>
+              </>
+            )}
+          </button>
+        </footer>
       </div>
     );
   }

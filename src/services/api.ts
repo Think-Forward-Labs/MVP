@@ -692,11 +692,70 @@ export const interviewResponsesApi = {
   },
 };
 
+// Voice Agent API - Deepgram Voice Agent mode
+export interface VoiceAgentConfigResponse {
+  websocket_url: string;
+  api_key: string;
+  settings_message: Record<string, any>;
+}
+
+export interface ConversationTurn {
+  role: 'agent' | 'user';
+  text: string;
+  timestamp?: number;
+}
+
+export interface SaveVoiceSessionResponse {
+  success: boolean;
+  response_id: string;
+  next_action: 'complete' | 'next_question' | 'stay';
+  interview_status: 'in_progress' | 'completed';
+  next_question_id?: string;
+}
+
+export const voiceAgentApi = {
+  /**
+   * Get Voice Agent configuration for a specific question.
+   * Returns WebSocket URL, API key, and Settings message.
+   */
+  getConfig: async (
+    interviewId: string,
+    questionId: string,
+  ): Promise<VoiceAgentConfigResponse> => {
+    return apiRequest<VoiceAgentConfigResponse>(
+      `/voice-agent/config?interview_id=${interviewId}&question_id=${questionId}`
+    );
+  },
+
+  /**
+   * Save a voice agent session transcript and move to next question.
+   */
+  saveSession: async (
+    interviewId: string,
+    questionId: string,
+    userTranscript: string,
+    conversationHistory: ConversationTurn[] = [],
+  ): Promise<SaveVoiceSessionResponse> => {
+    return apiRequest<SaveVoiceSessionResponse>(
+      `/interviews/${interviewId}/save-voice-session`,
+      {
+        method: 'POST',
+        body: JSON.stringify({
+          question_id: questionId,
+          user_transcript: userTranscript,
+          conversation_history: conversationHistory,
+        }),
+      }
+    );
+  },
+};
+
 export default {
   interview: interviewApi,
   interviewResponses: interviewResponsesApi,
   questions: questionsApi,
   voice: voiceApi,
+  voiceAgent: voiceAgentApi,
   auth: authApi,
   reviews: reviewsApi,
   playBase64Audio,
