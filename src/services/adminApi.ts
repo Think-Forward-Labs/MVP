@@ -15,6 +15,11 @@ import type {
   QuestionWeightConfig,
   DerivedMetricSource,
   MetricCategory,
+  ReviewOverview,
+  ReviewDetail,
+  InterviewResponse,
+  BusinessWithReviews,
+  BusinessReviewsResponse,
 } from '../types/admin';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -273,6 +278,61 @@ export const adminApi = {
   deleteMetric: async (metricId: string): Promise<{ message: string }> => {
     return adminRequest(`/admin/metrics/${metricId}`, {
       method: 'DELETE',
+    });
+  },
+
+  // ============ Reviews API (Admin View) ============
+
+  /**
+   * List all submitted reviews for admin viewing
+   */
+  getReviews: async (): Promise<ReviewOverview[]> => {
+    return adminRequest<ReviewOverview[]>('/admin/reviews');
+  },
+
+  /**
+   * Get full review details including interviews
+   */
+  getReview: async (reviewId: string): Promise<ReviewDetail> => {
+    return adminRequest<ReviewDetail>(`/admin/reviews/${reviewId}`);
+  },
+
+  /**
+   * Get all responses for an interview
+   */
+  getInterviewResponses: async (interviewId: string): Promise<InterviewResponse[]> => {
+    return adminRequest<InterviewResponse[]>(`/admin/interviews/${interviewId}/responses`);
+  },
+
+  /**
+   * Get businesses with reviews (for admin review board)
+   */
+  getBusinessesWithReviews: async (): Promise<BusinessWithReviews[]> => {
+    return adminRequest<BusinessWithReviews[]>('/admin/businesses-with-reviews');
+  },
+
+  /**
+   * Get all reviews for a specific business
+   */
+  getBusinessReviews: async (businessId: string): Promise<BusinessReviewsResponse> => {
+    return adminRequest<BusinessReviewsResponse>(`/admin/businesses/${businessId}/reviews`);
+  },
+
+  /**
+   * Approve a submitted review
+   */
+  approveReview: async (reviewId: string): Promise<{ message: string }> => {
+    return adminRequest(`/admin/reviews/${reviewId}/approve`, {
+      method: 'POST',
+    });
+  },
+
+  /**
+   * Revoke approval of a review
+   */
+  revokeReview: async (reviewId: string): Promise<{ message: string }> => {
+    return adminRequest(`/admin/reviews/${reviewId}/revoke`, {
+      method: 'POST',
     });
   },
 };

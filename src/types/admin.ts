@@ -52,7 +52,7 @@ export interface AdminListItem {
   created_at: string;
 }
 
-export type AdminSection = 'businesses' | 'question-sets' | 'admins' | 'metrics';
+export type AdminSection = 'businesses' | 'question-sets' | 'admins' | 'metrics' | 'reviews';
 
 // Question Types
 export type QuestionType = 'open' | 'scale' | 'percentage' | 'single_select' | 'multi_select';
@@ -181,4 +181,169 @@ export interface MetricOverview {
   status: MetricStatus;
   question_count: number;
   order: number;
+}
+
+// Review Types (Admin View)
+export type ReviewStatus = 'draft' | 'ongoing' | 'submitted' | 'reviewed' | 'evaluated' | 'archived';
+export type InterviewStatus = 'pending' | 'in_progress' | 'completed' | 'submitted' | 'abandoned';
+export type InterviewMode = 'text' | 'voice' | 'voice_agent';
+export type ResponseStatus = 'pending' | 'complete' | 'needs_followup' | 'skipped';
+
+export interface ReviewStats {
+  total_invited: number;
+  total_started: number;
+  total_completed: number;
+  total_submitted: number;
+}
+
+export interface ReviewOverview {
+  id: string;
+  name: string;
+  goal?: string;
+  status: ReviewStatus;
+  business_id: string;
+  business_name: string;
+  question_set_id: string;
+  question_set_name: string;
+  stats: ReviewStats;
+  submitted_at?: string;
+  submitted_by?: string;
+  evaluated_at?: string;
+  created_at: string;
+  interview_count: number;
+}
+
+export interface InterviewProgress {
+  current_question: number;
+  total_questions: number;
+  percentage: number;
+}
+
+export interface InterviewSummary {
+  id: string;
+  participant_id: string;
+  user_id?: string;
+  participant_email?: string;
+  participant_name: string;
+  status: InterviewStatus;
+  mode: InterviewMode;
+  progress: InterviewProgress;
+  response_count: number;
+  started_at?: string;
+  completed_at?: string;
+  submitted_at?: string;
+  duration_seconds: number;
+}
+
+export interface ReviewDetail {
+  id: string;
+  name: string;
+  description?: string;
+  goal?: string;
+  focus_areas: string[];
+  additional_context?: string;
+  status: ReviewStatus;
+  business: {
+    id: string;
+    name: string;
+  };
+  question_set: {
+    id: string;
+    name: string;
+    total_questions: number;
+  };
+  settings: {
+    anonymous_responses: boolean;
+    show_progress_to_participants: boolean;
+    allow_save_and_continue: boolean;
+    deadline?: string;
+  };
+  stats: ReviewStats;
+  interviews: InterviewSummary[];
+  submitted_at?: string;
+  submitted_by?: string;
+  evaluated_at?: string;
+  created_at: string;
+  created_by: string;
+}
+
+export interface ChecklistItemResult {
+  item_id: string;
+  item_text: string;
+  satisfied: boolean;
+  extracted_value?: string;
+}
+
+export interface LLMEvaluation {
+  evaluated_at: string;
+  model_used: string;
+  checklist_results: ChecklistItemResult[];
+  all_satisfied: boolean;
+  suggested_followup?: string;
+  merged_response?: string;
+  confidence_score: number;
+  raw_response?: string;
+}
+
+export interface VoiceData {
+  audio_duration_seconds: number;
+  transcription_confidence: number;
+  language_detected?: string;
+}
+
+export interface InterviewResponse {
+  id: string;
+  question_id: string;
+  question_number: number;
+  question_text: string;
+  question_aspect?: string;
+  question_aspect_code?: string;
+  text: string;
+  is_voice: boolean;
+  voice_data?: VoiceData;
+  status: ResponseStatus;
+  evaluation?: LLMEvaluation;
+  is_followup: boolean;
+  parent_response_id?: string;
+  followup_count: number;
+  time_spent_seconds: number;
+  started_at?: string;
+  submitted_at?: string;
+}
+
+// Business with Reviews (Admin Board View)
+export interface BusinessWithReviews {
+  id: string;
+  name: string;
+  slug: string;
+  status: string;
+  pending_reviews: number;
+  completed_reviews: number;
+  total_reviews: number;
+  most_recent_pending?: string;
+  has_pending: boolean;
+}
+
+export interface BusinessReviewItem {
+  id: string;
+  name: string;
+  goal?: string;
+  status: ReviewStatus;
+  question_set_id: string;
+  question_set_name: string;
+  stats: ReviewStats;
+  interview_count: number;
+  submitted_at?: string;
+  evaluated_at?: string;
+  created_at: string;
+}
+
+export interface BusinessReviewsResponse {
+  business: {
+    id: string;
+    name: string;
+    slug: string;
+  };
+  pending: BusinessReviewItem[];
+  completed: BusinessReviewItem[];
 }
