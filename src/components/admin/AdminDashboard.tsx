@@ -9,6 +9,7 @@ import { AdminSidebar } from './AdminSidebar';
 import { BusinessesSection } from './sections/BusinessesSection';
 import { QuestionSetsSection } from './sections/QuestionSetsSection';
 import { AdminsSection } from './sections/AdminsSection';
+import { MetricsSection } from './sections/MetricsSection';
 
 interface AdminDashboardProps {
   admin: Admin;
@@ -18,12 +19,21 @@ interface AdminDashboardProps {
 export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
   const [activeSection, setActiveSection] = useState<AdminSection>('businesses');
 
+  const [error, setError] = useState<string | null>(null);
+
+  const handleError = (message: string) => {
+    setError(message);
+    setTimeout(() => setError(null), 5000);
+  };
+
   const renderSection = () => {
     switch (activeSection) {
       case 'businesses':
         return <BusinessesSection />;
       case 'question-sets':
         return <QuestionSetsSection />;
+      case 'metrics':
+        return <MetricsSection onError={handleError} />;
       case 'admins':
         return admin.role === 'super_admin' ? <AdminsSection /> : null;
       default:
@@ -40,6 +50,17 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
       <div style={styles.backgroundOrb1} />
       <div style={styles.backgroundOrb2} />
       <div style={styles.backgroundOrb3} />
+
+      {/* Error Toast */}
+      {error && (
+        <div style={styles.errorToast}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4M12 16h.01" />
+          </svg>
+          {error}
+        </div>
+      )}
 
       {/* Main layout */}
       <div style={styles.layout}>
@@ -117,6 +138,23 @@ const styles: Record<string, React.CSSProperties> = {
     overflow: 'auto',
     position: 'relative',
     zIndex: 1,
+  },
+  errorToast: {
+    position: 'fixed',
+    top: '20px',
+    right: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '14px 20px',
+    background: 'rgba(220, 38, 38, 0.95)',
+    color: 'white',
+    borderRadius: '12px',
+    fontSize: '14px',
+    fontWeight: 500,
+    boxShadow: '0 4px 20px rgba(220, 38, 38, 0.3)',
+    zIndex: 1000,
+    animation: 'slideIn 0.3s ease',
   },
 };
 

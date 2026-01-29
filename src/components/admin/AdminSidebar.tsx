@@ -41,6 +41,15 @@ const navItems: NavItem[] = [
     ),
   },
   {
+    id: 'metrics',
+    label: 'Metrics',
+    icon: (
+      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <path d="M18 20V10M12 20V4M6 20v-6" />
+      </svg>
+    ),
+  },
+  {
     id: 'admins',
     label: 'Team',
     requiresRole: 'super_admin',

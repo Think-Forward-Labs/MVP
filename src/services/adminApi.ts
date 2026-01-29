@@ -11,6 +11,10 @@ import type {
   QuestionSetDetail,
   Question,
   AdminListItem,
+  Metric,
+  QuestionWeightConfig,
+  DerivedMetricSource,
+  MetricCategory,
 } from '../types/admin';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -214,6 +218,61 @@ export const adminApi = {
     return adminRequest('/admin/admins', {
       method: 'POST',
       body: JSON.stringify(data),
+    });
+  },
+
+  // ============ Metrics API ============
+
+  /**
+   * List all metrics
+   */
+  getMetrics: async (): Promise<Metric[]> => {
+    return adminRequest<Metric[]>('/admin/metrics');
+  },
+
+  /**
+   * Get a single metric by ID
+   */
+  getMetric: async (metricId: string): Promise<Metric> => {
+    return adminRequest<Metric>(`/admin/metrics/${metricId}`);
+  },
+
+  /**
+   * Create a new metric
+   */
+  createMetric: async (data: {
+    code: string;
+    name: string;
+    academic_term?: string;
+    description?: string;
+    interpretation_guide?: string;
+    category?: MetricCategory;
+    question_weights?: QuestionWeightConfig[];
+    source_metrics?: DerivedMetricSource[];
+    order?: number;
+  }): Promise<{ id: string; code: string; message: string }> => {
+    return adminRequest('/admin/metrics', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Update a metric
+   */
+  updateMetric: async (metricId: string, data: Partial<Metric>): Promise<{ message: string }> => {
+    return adminRequest(`/admin/metrics/${metricId}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Delete a metric
+   */
+  deleteMetric: async (metricId: string): Promise<{ message: string }> => {
+    return adminRequest(`/admin/metrics/${metricId}`, {
+      method: 'DELETE',
     });
   },
 };

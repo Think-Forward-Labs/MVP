@@ -52,7 +52,7 @@ export interface AdminListItem {
   created_at: string;
 }
 
-export type AdminSection = 'businesses' | 'question-sets' | 'admins';
+export type AdminSection = 'businesses' | 'question-sets' | 'admins' | 'metrics';
 
 // Question Types
 export type QuestionType = 'open' | 'scale' | 'percentage' | 'single_select' | 'multi_select';
@@ -137,4 +137,48 @@ export interface QuestionSetDetail {
   questions: Question[];
   created_at: string;
   created_by?: string;
+}
+
+// Metric Types
+export type MetricCategory = 'core' | 'derived';
+export type MetricStatus = 'active' | 'draft' | 'archived';
+
+export interface QuestionWeightConfig {
+  question_id: string;
+  question_code: string;
+  question_text: string;
+  weight: number;
+}
+
+export interface DerivedMetricSource {
+  metric_id: string;
+  metric_code: string;
+  metric_name: string;
+  weight: number;
+}
+
+export interface Metric {
+  id: string;
+  code: string;
+  name: string;
+  academic_term?: string;
+  description?: string;
+  interpretation_guide?: string;
+  category: MetricCategory;
+  status: MetricStatus;
+  question_weights: QuestionWeightConfig[];
+  source_metrics: DerivedMetricSource[];
+  order: number;
+  created_at: string;
+  created_by?: string;
+}
+
+export interface MetricOverview {
+  id: string;
+  code: string;
+  name: string;
+  category: MetricCategory;
+  status: MetricStatus;
+  question_count: number;
+  order: number;
 }
