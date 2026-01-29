@@ -88,6 +88,13 @@ export interface ExampleAnswer {
   answer: string;
 }
 
+export interface Interdependency {
+  linked_question_id: string;
+  linked_question_code: string;
+  description: string;
+  scoring_impact: string;
+}
+
 export interface Question {
   id: string;
   question_set_id: string;
@@ -107,7 +114,7 @@ export interface Question {
   metrics_weights?: MetricWeight[];
   scoring_instruction?: string;
   detection_keywords?: string[];
-  interdependencies?: string;
+  interdependencies?: Interdependency[];
   score_anchors?: ScoreAnchor[];
   scoring_note?: string;
   example_answers?: ExampleAnswer[];

@@ -6,7 +6,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { adminApi } from '../../../services/adminApi';
-import type { QuestionSetDetail, Question, MetricWeight, ScoreAnchor, ChecklistItem, ExampleAnswer } from '../../../types/admin';
+import type { QuestionSetDetail, Question, MetricWeight, ScoreAnchor, ChecklistItem, ExampleAnswer, Interdependency } from '../../../types/admin';
 
 interface QuestionSetDetailViewProps {
   questionSetId: string;
@@ -26,6 +26,10 @@ export function QuestionSetDetailView({ questionSetId, onBack }: QuestionSetDeta
   const [isSaving, setIsSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const numberStripRef = useRef<HTMLDivElement>(null);
+
+  // Modal states for add/delete
+  const [showAddModal, setShowAddModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
 
   useEffect(() => {
     loadQuestionSet();
@@ -122,6 +126,20 @@ export function QuestionSetDetailView({ questionSetId, onBack }: QuestionSetDeta
     }
   };
 
+  const handleAddSuccess = () => {
+    setShowAddModal(false);
+    loadQuestionSet();
+  };
+
+  const handleDeleteSuccess = () => {
+    setShowDeleteModal(false);
+    // If we deleted the last question, go to the previous one
+    if (questionSet && currentQuestionIndex >= questionSet.questions.length - 1) {
+      setCurrentQuestionIndex(Math.max(0, currentQuestionIndex - 1));
+    }
+    loadQuestionSet();
+  };
+
   const getTypeLabel = (type: string) => {
     const labels: Record<string, string> = {
       open: 'Open Text',
@@ -200,14 +218,22 @@ export function QuestionSetDetailView({ questionSetId, onBack }: QuestionSetDeta
           </svg>
           Back to Question Sets
         </button>
-        <div style={styles.headerInfo}>
-          <h1 style={styles.title}>{questionSet.name}</h1>
-          <div style={styles.headerMeta}>
-            <span style={styles.versionBadge}>v{questionSet.version}</span>
-            <span style={styles.metaText}>{questionSet.total_questions} questions</span>
-            <span style={styles.metaDot}>·</span>
-            <span style={styles.metaText}>{questionSet.estimated_duration_minutes} min</span>
+        <div style={styles.headerRow}>
+          <div style={styles.headerInfo}>
+            <h1 style={styles.title}>{questionSet.name}</h1>
+            <div style={styles.headerMeta}>
+              <span style={styles.versionBadge}>v{questionSet.version}</span>
+              <span style={styles.metaText}>{questionSet.total_questions} questions</span>
+              <span style={styles.metaDot}>·</span>
+              <span style={styles.metaText}>{questionSet.estimated_duration_minutes} min</span>
+            </div>
           </div>
+          <button onClick={() => setShowAddModal(true)} style={styles.addQuestionButton}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add Question
+          </button>
         </div>
       </div>
 
@@ -305,13 +331,21 @@ export function QuestionSetDetailView({ questionSetId, onBack }: QuestionSetDeta
                   </button>
                 </>
               ) : (
-                <button onClick={startEditing} style={styles.editButton}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                    <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-                  </svg>
-                  Edit
-                </button>
+                <>
+                  <button onClick={startEditing} style={styles.editButton}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                      <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                    </svg>
+                    Edit
+                  </button>
+                  <button onClick={() => setShowDeleteModal(true)} style={styles.deleteButton}>
+                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                    </svg>
+                    Delete
+                  </button>
+                </>
               )}
             </div>
           </div>
@@ -458,10 +492,469 @@ export function QuestionSetDetailView({ questionSetId, onBack }: QuestionSetDeta
         </div>
       )}
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+      {/* Add Question Modal */}
+      {showAddModal && questionSet && (
+        <AddQuestionModal
+          questionSetId={questionSet.id}
+          nextQuestionNumber={questionSet.questions.length + 1}
+          onClose={() => setShowAddModal(false)}
+          onSuccess={handleAddSuccess}
+        />
+      )}
+
+      {/* Delete Question Modal */}
+      {showDeleteModal && currentQuestion && (
+        <DeleteQuestionModal
+          question={currentQuestion}
+          onClose={() => setShowDeleteModal(false)}
+          onSuccess={handleDeleteSuccess}
+        />
+      )}
+
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes modalFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes modalSlideIn {
+          from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+      `}</style>
     </div>
   );
 }
+
+// Add Question Modal
+function AddQuestionModal({
+  questionSetId,
+  nextQuestionNumber,
+  onClose,
+  onSuccess,
+}: {
+  questionSetId: string;
+  nextQuestionNumber: number;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [questionNumber, setQuestionNumber] = useState(nextQuestionNumber);
+  const [text, setText] = useState('');
+  const [type, setType] = useState<string>('open');
+  const [aspect, setAspect] = useState('');
+  const [aspectCode, setAspectCode] = useState('');
+  const [description, setDescription] = useState('');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!text.trim()) {
+      setError('Question text is required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await adminApi.addQuestion(questionSetId, {
+        question_number: questionNumber,
+        text: text.trim(),
+        type,
+        aspect: aspect.trim() || undefined,
+        aspect_code: aspectCode.trim() || undefined,
+        description: description.trim() || undefined,
+      });
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to add question');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={modalStyles.overlay} onClick={onClose}>
+      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={modalStyles.header}>
+          <h2 style={modalStyles.title}>Add Question</h2>
+          <button onClick={onClose} style={modalStyles.closeButton}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div style={modalStyles.body}>
+            {error && (
+              <div style={modalStyles.errorBanner}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                {error}
+              </div>
+            )}
+
+            <div style={modalStyles.row}>
+              <div style={{ ...modalStyles.field, flex: '0 0 100px' }}>
+                <label style={modalStyles.label}>Number</label>
+                <input
+                  type="number"
+                  value={questionNumber}
+                  onChange={(e) => setQuestionNumber(parseInt(e.target.value) || 1)}
+                  style={modalStyles.input}
+                  min={1}
+                />
+              </div>
+              <div style={{ ...modalStyles.field, flex: 1 }}>
+                <label style={modalStyles.label}>Type *</label>
+                <select
+                  value={type}
+                  onChange={(e) => setType(e.target.value)}
+                  style={modalStyles.select}
+                >
+                  <option value="open">Open Text</option>
+                  <option value="scale">Scale</option>
+                  <option value="percentage">Percentage</option>
+                  <option value="single_select">Single Select</option>
+                  <option value="multi_select">Multi Select</option>
+                </select>
+              </div>
+            </div>
+
+            <div style={modalStyles.field}>
+              <label style={modalStyles.label}>Question Text *</label>
+              <textarea
+                value={text}
+                onChange={(e) => setText(e.target.value)}
+                placeholder="Enter the question text..."
+                style={modalStyles.textarea}
+                rows={3}
+                autoFocus
+              />
+            </div>
+
+            <div style={modalStyles.row}>
+              <div style={{ ...modalStyles.field, flex: 1 }}>
+                <label style={modalStyles.label}>Aspect</label>
+                <input
+                  type="text"
+                  value={aspect}
+                  onChange={(e) => setAspect(e.target.value)}
+                  placeholder="e.g., Background"
+                  style={modalStyles.input}
+                />
+              </div>
+              <div style={{ ...modalStyles.field, flex: '0 0 100px' }}>
+                <label style={modalStyles.label}>Aspect Code</label>
+                <input
+                  type="text"
+                  value={aspectCode}
+                  onChange={(e) => setAspectCode(e.target.value)}
+                  placeholder="e.g., B1"
+                  style={modalStyles.input}
+                />
+              </div>
+            </div>
+
+            <div style={modalStyles.field}>
+              <label style={modalStyles.label}>Description (optional)</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Helper text or context..."
+                style={modalStyles.textarea}
+                rows={2}
+              />
+            </div>
+          </div>
+
+          <div style={modalStyles.footer}>
+            <button type="button" onClick={onClose} style={modalStyles.cancelButton} disabled={isSubmitting}>
+              Cancel
+            </button>
+            <button type="submit" style={modalStyles.submitButton} disabled={isSubmitting}>
+              {isSubmitting ? 'Adding...' : 'Add Question'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Delete Question Modal
+function DeleteQuestionModal({
+  question,
+  onClose,
+  onSuccess,
+}: {
+  question: Question;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      await adminApi.deleteQuestion(question.id);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete question');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <div style={modalStyles.overlay} onClick={onClose}>
+      <div style={{ ...modalStyles.modal, ...modalStyles.dangerModal }} onClick={(e) => e.stopPropagation()}>
+        <div style={modalStyles.header}>
+          <div style={modalStyles.dangerIconWrapper}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+          </div>
+          <button onClick={onClose} style={modalStyles.closeButton}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div style={modalStyles.body}>
+          <h2 style={modalStyles.dangerTitle}>Delete Question</h2>
+          <p style={modalStyles.dangerText}>
+            Are you sure you want to delete question <strong>#{question.question_number || question.order}</strong>?
+          </p>
+          <div style={modalStyles.questionPreview}>
+            "{question.text.length > 100 ? question.text.substring(0, 100) + '...' : question.text}"
+          </div>
+
+          {error && (
+            <div style={modalStyles.errorBanner}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              {error}
+            </div>
+          )}
+        </div>
+
+        <div style={modalStyles.footer}>
+          <button onClick={onClose} style={modalStyles.cancelButton} disabled={isDeleting}>
+            Cancel
+          </button>
+          <button onClick={handleDelete} style={modalStyles.dangerButton} disabled={isDeleting}>
+            {isDeleting ? 'Deleting...' : 'Delete Question'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+const modalStyles: Record<string, React.CSSProperties> = {
+  overlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 0, 0, 0.5)',
+    backdropFilter: 'blur(4px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    animation: 'modalFadeIn 0.2s ease-out',
+  },
+  modal: {
+    background: 'white',
+    borderRadius: '20px',
+    width: '100%',
+    maxWidth: '520px',
+    maxHeight: '90vh',
+    overflow: 'auto',
+    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+    animation: 'modalSlideIn 0.2s ease-out',
+  },
+  dangerModal: {
+    borderTop: '4px solid #DC2626',
+    maxWidth: '440px',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '20px 24px 0',
+  },
+  title: {
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#1D1D1F',
+    margin: 0,
+  },
+  closeButton: {
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '8px',
+    border: 'none',
+    background: 'rgba(0, 0, 0, 0.05)',
+    color: 'rgba(60, 60, 67, 0.6)',
+    cursor: 'pointer',
+  },
+  body: {
+    padding: '20px 24px',
+  },
+  row: {
+    display: 'flex',
+    gap: '12px',
+  },
+  field: {
+    marginBottom: '16px',
+  },
+  label: {
+    display: 'block',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: 'rgba(60, 60, 67, 0.8)',
+    marginBottom: '6px',
+  },
+  input: {
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: '10px',
+    border: '1px solid rgba(0, 0, 0, 0.1)',
+    background: 'white',
+    fontSize: '14px',
+    color: '#1D1D1F',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  select: {
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: '10px',
+    border: '1px solid rgba(0, 0, 0, 0.1)',
+    background: 'white',
+    fontSize: '14px',
+    color: '#1D1D1F',
+    outline: 'none',
+    boxSizing: 'border-box',
+    cursor: 'pointer',
+  },
+  textarea: {
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: '10px',
+    border: '1px solid rgba(0, 0, 0, 0.1)',
+    background: 'white',
+    fontSize: '14px',
+    color: '#1D1D1F',
+    outline: 'none',
+    resize: 'vertical',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    padding: '16px 24px 24px',
+  },
+  cancelButton: {
+    padding: '10px 18px',
+    borderRadius: '10px',
+    border: '1px solid rgba(0, 0, 0, 0.1)',
+    background: 'white',
+    color: 'rgba(60, 60, 67, 0.8)',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  submitButton: {
+    padding: '10px 20px',
+    borderRadius: '10px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #1D1D1F 0%, #3A3A3C 100%)',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+  },
+  errorBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '12px 14px',
+    marginBottom: '16px',
+    borderRadius: '10px',
+    background: 'rgba(220, 38, 38, 0.06)',
+    border: '1px solid rgba(220, 38, 38, 0.1)',
+    color: '#DC2626',
+    fontSize: '13px',
+  },
+  dangerIconWrapper: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '12px',
+    background: 'rgba(220, 38, 38, 0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#DC2626',
+  },
+  dangerTitle: {
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#1D1D1F',
+    margin: '0 0 8px 0',
+  },
+  dangerText: {
+    fontSize: '14px',
+    color: 'rgba(60, 60, 67, 0.8)',
+    lineHeight: 1.6,
+    margin: '0 0 16px 0',
+  },
+  questionPreview: {
+    padding: '14px 16px',
+    borderRadius: '10px',
+    background: 'rgba(0, 0, 0, 0.03)',
+    fontSize: '14px',
+    color: 'rgba(60, 60, 67, 0.8)',
+    fontStyle: 'italic',
+    lineHeight: 1.5,
+    marginBottom: '16px',
+  },
+  dangerButton: {
+    padding: '10px 20px',
+    borderRadius: '10px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)',
+  },
+};
 
 // Scale Editor Component
 function ScaleEditor({ scale, onChange }: { scale?: { min: number; max: number; min_label: string; max_label: string }; onChange: (scale: { min: number; max: number; min_label: string; max_label: string }) => void }) {
@@ -615,16 +1108,34 @@ function OverviewTab({ question, isEditing, editedQuestion, updateField }: TabPr
       {/* Interdependencies */}
       <div style={styles.section}>
         <h4 style={styles.sectionTitle}>Interdependencies</h4>
+        <p style={styles.sectionSubtitle}>Links to other questions that affect scoring</p>
         {isEditing ? (
-          <textarea
-            value={editedQuestion?.interdependencies || ''}
-            onChange={(e) => updateField('interdependencies', e.target.value)}
-            style={styles.editTextarea}
-            rows={2}
-            placeholder="Related questions or pathology triggers..."
+          <InterdependenciesEditor
+            interdependencies={editedQuestion?.interdependencies || question.interdependencies || []}
+            onChange={(deps) => updateField('interdependencies', deps)}
+            currentQuestionId={question.id}
           />
-        ) : question.interdependencies ? (
-          <p style={styles.sectionText}>{question.interdependencies}</p>
+        ) : question.interdependencies && question.interdependencies.length > 0 ? (
+          <div style={styles.interdependenciesGrid}>
+            {question.interdependencies.map((dep, i) => (
+              <div key={i} style={styles.interdependencyCard}>
+                <div style={styles.interdependencyHeader}>
+                  <span style={styles.interdependencyCode}>{dep.linked_question_code}</span>
+                  <span style={styles.interdependencyLink}>Linked Question</span>
+                </div>
+                <div style={styles.interdependencyContent}>
+                  <div style={styles.interdependencyField}>
+                    <span style={styles.interdependencyLabel}>Relationship:</span>
+                    <p style={styles.interdependencyText}>{dep.description}</p>
+                  </div>
+                  <div style={styles.interdependencyField}>
+                    <span style={styles.interdependencyLabel}>Scoring Impact:</span>
+                    <p style={styles.interdependencyImpact}>{dep.scoring_impact}</p>
+                  </div>
+                </div>
+              </div>
+            ))}
+          </div>
         ) : (
           <p style={styles.emptyText}>No interdependencies defined</p>
         )}
@@ -933,6 +1444,106 @@ function ChecklistEditor({ checklist, onChange }: { checklist: ChecklistItem[]; 
   );
 }
 
+function InterdependenciesEditor({
+  interdependencies,
+  onChange,
+  currentQuestionId: _currentQuestionId
+}: {
+  interdependencies: Interdependency[];
+  onChange: (deps: Interdependency[]) => void;
+  currentQuestionId: string;
+}) {
+  // Note: _currentQuestionId can be used to prevent self-references in future validation
+  const addInterdependency = () => onChange([...interdependencies, {
+    linked_question_id: '',
+    linked_question_code: '',
+    description: '',
+    scoring_impact: ''
+  }]);
+
+  const removeInterdependency = (i: number) => onChange(interdependencies.filter((_, idx) => idx !== i));
+
+  const updateInterdependency = (i: number, field: keyof Interdependency, value: string) => {
+    const updated = [...interdependencies];
+    updated[i] = { ...updated[i], [field]: value };
+    onChange(updated);
+  };
+
+  return (
+    <div style={styles.editorList}>
+      {interdependencies.map((dep, i) => (
+        <div key={i} style={styles.interdependencyEditorCard}>
+          <div style={styles.interdependencyEditorHeader}>
+            <div style={styles.interdependencyEditorRow}>
+              <div style={{ flex: '0 0 100px' }}>
+                <label style={styles.smallLabel}>Question Code</label>
+                <input
+                  type="text"
+                  value={dep.linked_question_code}
+                  onChange={(e) => {
+                    updateInterdependency(i, 'linked_question_code', e.target.value);
+                    // Auto-generate question ID from code
+                    const code = e.target.value.toLowerCase();
+                    updateInterdependency(i, 'linked_question_id', `q_cabas_${code}`);
+                  }}
+                  placeholder="e.g., M4"
+                  style={styles.editInputSmall}
+                />
+              </div>
+              <div style={{ flex: 1 }}>
+                <label style={styles.smallLabel}>Question ID</label>
+                <input
+                  type="text"
+                  value={dep.linked_question_id}
+                  onChange={(e) => updateInterdependency(i, 'linked_question_id', e.target.value)}
+                  placeholder="q_cabas_m4"
+                  style={styles.editInput}
+                />
+              </div>
+              <button
+                onClick={() => removeInterdependency(i)}
+                style={{ ...styles.removeButtonSmall, alignSelf: 'flex-end', marginBottom: '4px' }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+          <div style={styles.interdependencyEditorFields}>
+            <div style={styles.interdependencyEditorField}>
+              <label style={styles.smallLabel}>Description (what is the relationship?)</label>
+              <input
+                type="text"
+                value={dep.description}
+                onChange={(e) => updateInterdependency(i, 'description', e.target.value)}
+                placeholder="Compare sense-making with cross-team effectiveness"
+                style={styles.editInput}
+              />
+            </div>
+            <div style={styles.interdependencyEditorField}>
+              <label style={styles.smallLabel}>Scoring Impact (how does it affect scoring?)</label>
+              <input
+                type="text"
+                value={dep.scoring_impact}
+                onChange={(e) => updateInterdependency(i, 'scoring_impact', e.target.value)}
+                placeholder="If values contradict, flag and reduce scores"
+                style={styles.editInput}
+              />
+            </div>
+          </div>
+        </div>
+      ))}
+      <button onClick={addInterdependency} style={styles.addButtonSmall}>
+        <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        Add Interdependency
+      </button>
+    </div>
+  );
+}
+
 const styles: Record<string, React.CSSProperties> = {
   container: { padding: '32px 40px', maxWidth: '1000px' },
   loadingContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '120px 0', gap: '16px' },
@@ -944,8 +1555,10 @@ const styles: Record<string, React.CSSProperties> = {
   backButtonError: { marginTop: '8px', padding: '10px 20px', borderRadius: '10px', border: 'none', background: '#1D1D1F', color: 'white', fontSize: '14px', fontWeight: 500, cursor: 'pointer' },
   header: { marginBottom: '24px' },
   backButton: { display: 'inline-flex', alignItems: 'center', gap: '8px', padding: '8px 12px', marginBottom: '16px', borderRadius: '8px', border: 'none', background: 'transparent', color: 'rgba(60, 60, 67, 0.8)', fontSize: '13px', fontWeight: 500, cursor: 'pointer' },
+  headerRow: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start' },
   headerInfo: {},
   title: { fontSize: '28px', fontWeight: 600, color: '#1D1D1F', margin: '0 0 8px 0', letterSpacing: '-0.02em' },
+  addQuestionButton: { display: 'flex', alignItems: 'center', gap: '8px', padding: '10px 18px', borderRadius: '10px', border: 'none', background: 'linear-gradient(135deg, #1D1D1F 0%, #3A3A3C 100%)', color: 'white', fontSize: '14px', fontWeight: 500, cursor: 'pointer', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)' },
   headerMeta: { display: 'flex', alignItems: 'center', gap: '12px' },
   versionBadge: { padding: '4px 10px', borderRadius: '6px', background: 'rgba(99, 102, 241, 0.1)', color: '#4F46E5', fontSize: '12px', fontWeight: 600 },
   metaText: { fontSize: '14px', color: 'rgba(60, 60, 67, 0.6)' },
@@ -964,6 +1577,7 @@ const styles: Record<string, React.CSSProperties> = {
   statusBadge: { padding: '6px 12px', borderRadius: '8px', fontSize: '12px', fontWeight: 500, textTransform: 'capitalize' },
   editActions: { display: 'flex', gap: '8px' },
   editButton: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.08)', background: 'white', color: '#1D1D1F', fontSize: '13px', fontWeight: 500, cursor: 'pointer' },
+  deleteButton: { display: 'flex', alignItems: 'center', gap: '6px', padding: '8px 14px', borderRadius: '8px', border: 'none', background: 'rgba(220, 38, 38, 0.08)', color: '#DC2626', fontSize: '13px', fontWeight: 500, cursor: 'pointer' },
   cancelButton: { padding: '8px 14px', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.08)', background: 'white', color: 'rgba(60, 60, 67, 0.8)', fontSize: '13px', fontWeight: 500, cursor: 'pointer' },
   saveButton: { padding: '8px 16px', borderRadius: '8px', border: 'none', background: 'linear-gradient(135deg, #16A34A 0%, #15803D 100%)', color: 'white', fontSize: '13px', fontWeight: 500, cursor: 'pointer', boxShadow: '0 2px 6px rgba(22, 163, 74, 0.3)' },
   saveErrorBanner: { display: 'flex', alignItems: 'center', gap: '10px', margin: '16px 28px 0', padding: '12px 14px', borderRadius: '10px', background: 'rgba(220, 38, 38, 0.06)', border: '1px solid rgba(220, 38, 38, 0.1)', color: '#DC2626', fontSize: '13px' },
@@ -1042,6 +1656,22 @@ const styles: Record<string, React.CSSProperties> = {
   checklistEditorHeader: { display: 'flex', gap: '8px', alignItems: 'center' },
   editorList: { display: 'flex', flexDirection: 'column', gap: '8px' },
   editorRow: { display: 'flex', gap: '8px', alignItems: 'center' },
+  // Interdependency styles
+  interdependenciesGrid: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  interdependencyCard: { padding: '16px', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.04)', border: '1px solid rgba(139, 92, 246, 0.12)' },
+  interdependencyHeader: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '12px' },
+  interdependencyCode: { fontSize: '12px', fontWeight: 700, color: '#7C3AED', background: 'rgba(139, 92, 246, 0.15)', padding: '4px 10px', borderRadius: '6px', textTransform: 'uppercase', letterSpacing: '0.02em' },
+  interdependencyLink: { fontSize: '11px', color: 'rgba(60, 60, 67, 0.5)', fontWeight: 500 },
+  interdependencyContent: { display: 'flex', flexDirection: 'column', gap: '10px' },
+  interdependencyField: {},
+  interdependencyLabel: { fontSize: '11px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em', display: 'block', marginBottom: '4px' },
+  interdependencyText: { fontSize: '13px', color: 'rgba(60, 60, 67, 0.8)', lineHeight: 1.5, margin: 0 },
+  interdependencyImpact: { fontSize: '13px', color: '#7C3AED', lineHeight: 1.5, margin: 0, fontWeight: 500 },
+  interdependencyEditorCard: { padding: '16px', borderRadius: '12px', background: 'rgba(139, 92, 246, 0.04)', border: '1px solid rgba(139, 92, 246, 0.12)', marginBottom: '12px' },
+  interdependencyEditorHeader: { marginBottom: '12px' },
+  interdependencyEditorRow: { display: 'flex', gap: '12px', alignItems: 'flex-end' },
+  interdependencyEditorFields: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  interdependencyEditorField: { display: 'flex', flexDirection: 'column', gap: '4px' },
 };
 
 export default QuestionSetDetailView;

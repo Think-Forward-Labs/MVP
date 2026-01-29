@@ -145,6 +145,56 @@ export const adminApi = {
   },
 
   /**
+   * Create a new question set
+   */
+  createQuestionSet: async (data: {
+    name: string;
+    description?: string;
+    version?: string;
+  }): Promise<{ id: string; name: string; message: string }> => {
+    return adminRequest('/admin/question-sets', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Delete a question set
+   */
+  deleteQuestionSet: async (questionSetId: string): Promise<{ message: string; deleted_questions: number }> => {
+    return adminRequest(`/admin/question-sets/${questionSetId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Add a question to a question set
+   */
+  addQuestion: async (questionSetId: string, data: {
+    question_number: number;
+    text: string;
+    type: string;
+    aspect?: string;
+    aspect_code?: string;
+    description?: string;
+    options?: string[];
+  }): Promise<{ id: string; order: number; message: string }> => {
+    return adminRequest(`/admin/question-sets/${questionSetId}/questions`, {
+      method: 'POST',
+      body: JSON.stringify(data),
+    });
+  },
+
+  /**
+   * Delete a question
+   */
+  deleteQuestion: async (questionId: string): Promise<{ message: string }> => {
+    return adminRequest(`/admin/questions/${questionId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
    * List all admins (super_admin only)
    */
   getAdmins: async (): Promise<AdminListItem[]> => {

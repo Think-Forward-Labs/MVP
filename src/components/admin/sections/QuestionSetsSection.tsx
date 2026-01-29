@@ -1,6 +1,7 @@
 /**
  * Question Sets Section
  * Premium light theme with glass cards - Apple HIG inspired
+ * Includes create/delete functionality with modals
  */
 
 import { useState, useEffect } from 'react';
@@ -14,6 +15,11 @@ export function QuestionSetsSection() {
   const [error, setError] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedQuestionSetId, setSelectedQuestionSetId] = useState<string | null>(null);
+
+  // Modal states
+  const [showCreateModal, setShowCreateModal] = useState(false);
+  const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<QuestionSetOverview | null>(null);
 
   useEffect(() => {
     loadQuestionSets();
@@ -29,6 +35,23 @@ export function QuestionSetsSection() {
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const handleCreateSuccess = () => {
+    setShowCreateModal(false);
+    loadQuestionSets();
+  };
+
+  const handleDeleteSuccess = () => {
+    setShowDeleteModal(false);
+    setDeleteTarget(null);
+    loadQuestionSets();
+  };
+
+  const openDeleteModal = (qs: QuestionSetOverview, e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDeleteTarget(qs);
+    setShowDeleteModal(true);
   };
 
   const filteredSets = questionSets.filter(
@@ -54,7 +77,10 @@ export function QuestionSetsSection() {
     return (
       <QuestionSetDetailView
         questionSetId={selectedQuestionSetId}
-        onBack={() => setSelectedQuestionSetId(null)}
+        onBack={() => {
+          setSelectedQuestionSetId(null);
+          loadQuestionSets(); // Refresh list when coming back
+        }}
       />
     );
   }
@@ -69,6 +95,12 @@ export function QuestionSetsSection() {
             Manage assessment question sets
           </p>
         </div>
+        <button onClick={() => setShowCreateModal(true)} style={styles.createButton}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M12 5v14M5 12h14" />
+          </svg>
+          New Question Set
+        </button>
       </div>
 
       {/* Search */}
@@ -122,6 +154,14 @@ export function QuestionSetsSection() {
           <p style={styles.emptyText}>
             {searchQuery ? 'Try adjusting your search' : 'Create your first question set to get started'}
           </p>
+          {!searchQuery && (
+            <button onClick={() => setShowCreateModal(true)} style={styles.emptyCreateButton}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M12 5v14M5 12h14" />
+              </svg>
+              Create Question Set
+            </button>
+          )}
         </div>
       ) : (
         <div style={styles.grid}>
@@ -136,13 +176,24 @@ export function QuestionSetsSection() {
                       <path d="M14 2v6h6" />
                     </svg>
                   </div>
-                  <span style={{
-                    ...styles.statusBadge,
-                    background: statusStyle.bg,
-                    color: statusStyle.color,
-                  }}>
-                    {qs.status}
-                  </span>
+                  <div style={styles.cardHeaderRight}>
+                    <span style={{
+                      ...styles.statusBadge,
+                      background: statusStyle.bg,
+                      color: statusStyle.color,
+                    }}>
+                      {qs.status}
+                    </span>
+                    <button
+                      onClick={(e) => openDeleteModal(qs, e)}
+                      style={styles.deleteIconButton}
+                      title="Delete question set"
+                    >
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+                      </svg>
+                    </button>
+                  </div>
                 </div>
 
                 <h3 style={styles.cardTitle}>{qs.name}</h3>
@@ -186,11 +237,270 @@ export function QuestionSetsSection() {
         </div>
       )}
 
+      {/* Create Modal */}
+      {showCreateModal && (
+        <CreateQuestionSetModal
+          onClose={() => setShowCreateModal(false)}
+          onSuccess={handleCreateSuccess}
+        />
+      )}
+
+      {/* Delete Modal */}
+      {showDeleteModal && deleteTarget && (
+        <DeleteQuestionSetModal
+          questionSet={deleteTarget}
+          onClose={() => {
+            setShowDeleteModal(false);
+            setDeleteTarget(null);
+          }}
+          onSuccess={handleDeleteSuccess}
+        />
+      )}
+
       <style>{`
         @keyframes spin {
           to { transform: rotate(360deg); }
         }
+        @keyframes modalFadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes modalSlideIn {
+          from { opacity: 0; transform: translateY(-20px) scale(0.95); }
+          to { opacity: 1; transform: translateY(0) scale(1); }
+        }
+        @keyframes shake {
+          0%, 100% { transform: translateX(0); }
+          25% { transform: translateX(-8px); }
+          75% { transform: translateX(8px); }
+        }
       `}</style>
+    </div>
+  );
+}
+
+// Create Question Set Modal
+function CreateQuestionSetModal({ onClose, onSuccess }: { onClose: () => void; onSuccess: () => void }) {
+  const [name, setName] = useState('');
+  const [description, setDescription] = useState('');
+  const [version, setVersion] = useState('1.0');
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!name.trim()) {
+      setError('Name is required');
+      return;
+    }
+
+    setIsSubmitting(true);
+    setError(null);
+
+    try {
+      await adminApi.createQuestionSet({
+        name: name.trim(),
+        description: description.trim() || undefined,
+        version: version.trim() || '1.0',
+      });
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to create question set');
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  return (
+    <div style={modalStyles.overlay} onClick={onClose}>
+      <div style={modalStyles.modal} onClick={(e) => e.stopPropagation()}>
+        <div style={modalStyles.header}>
+          <h2 style={modalStyles.title}>Create Question Set</h2>
+          <button onClick={onClose} style={modalStyles.closeButton}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <form onSubmit={handleSubmit}>
+          <div style={modalStyles.body}>
+            {error && (
+              <div style={modalStyles.errorBanner}>
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <circle cx="12" cy="12" r="10" />
+                  <line x1="12" y1="8" x2="12" y2="12" />
+                  <line x1="12" y1="16" x2="12.01" y2="16" />
+                </svg>
+                {error}
+              </div>
+            )}
+
+            <div style={modalStyles.field}>
+              <label style={modalStyles.label}>Name *</label>
+              <input
+                type="text"
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="e.g., CABAS Readiness Assessment"
+                style={modalStyles.input}
+                autoFocus
+              />
+            </div>
+
+            <div style={modalStyles.field}>
+              <label style={modalStyles.label}>Description</label>
+              <textarea
+                value={description}
+                onChange={(e) => setDescription(e.target.value)}
+                placeholder="Brief description of this question set..."
+                style={modalStyles.textarea}
+                rows={3}
+              />
+            </div>
+
+            <div style={modalStyles.field}>
+              <label style={modalStyles.label}>Version</label>
+              <input
+                type="text"
+                value={version}
+                onChange={(e) => setVersion(e.target.value)}
+                placeholder="1.0"
+                style={{ ...modalStyles.input, maxWidth: '120px' }}
+              />
+            </div>
+          </div>
+
+          <div style={modalStyles.footer}>
+            <button type="button" onClick={onClose} style={modalStyles.cancelButton} disabled={isSubmitting}>
+              Cancel
+            </button>
+            <button type="submit" style={modalStyles.submitButton} disabled={isSubmitting}>
+              {isSubmitting ? 'Creating...' : 'Create Question Set'}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+  );
+}
+
+// Delete Question Set Modal with name confirmation
+function DeleteQuestionSetModal({
+  questionSet,
+  onClose,
+  onSuccess,
+}: {
+  questionSet: QuestionSetOverview;
+  onClose: () => void;
+  onSuccess: () => void;
+}) {
+  const [confirmName, setConfirmName] = useState('');
+  const [isDeleting, setIsDeleting] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [showShake, setShowShake] = useState(false);
+
+  const isConfirmed = confirmName === questionSet.name;
+
+  const handleDelete = async () => {
+    if (!isConfirmed) {
+      setShowShake(true);
+      setTimeout(() => setShowShake(false), 500);
+      return;
+    }
+
+    setIsDeleting(true);
+    setError(null);
+
+    try {
+      await adminApi.deleteQuestionSet(questionSet.id);
+      onSuccess();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete question set');
+    } finally {
+      setIsDeleting(false);
+    }
+  };
+
+  return (
+    <div style={modalStyles.overlay} onClick={onClose}>
+      <div
+        style={{
+          ...modalStyles.modal,
+          ...modalStyles.dangerModal,
+          animation: showShake ? 'shake 0.4s ease-in-out' : 'modalSlideIn 0.2s ease-out',
+        }}
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div style={modalStyles.header}>
+          <div style={modalStyles.dangerIconWrapper}>
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6M8 6V4a2 2 0 012-2h4a2 2 0 012 2v2" />
+              <line x1="10" y1="11" x2="10" y2="17" />
+              <line x1="14" y1="11" x2="14" y2="17" />
+            </svg>
+          </div>
+          <button onClick={onClose} style={modalStyles.closeButton}>
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        <div style={modalStyles.body}>
+          <h2 style={modalStyles.dangerTitle}>Delete Question Set</h2>
+          <p style={modalStyles.dangerText}>
+            This action cannot be undone. This will permanently delete the question set
+            <strong style={{ color: '#1D1D1F' }}> "{questionSet.name}" </strong>
+            and all <strong style={{ color: '#1D1D1F' }}>{questionSet.total_questions} questions</strong> within it.
+          </p>
+
+          {error && (
+            <div style={modalStyles.errorBanner}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              {error}
+            </div>
+          )}
+
+          <div style={modalStyles.field}>
+            <label style={modalStyles.label}>
+              Type <strong style={{ color: '#DC2626' }}>{questionSet.name}</strong> to confirm
+            </label>
+            <input
+              type="text"
+              value={confirmName}
+              onChange={(e) => setConfirmName(e.target.value)}
+              placeholder="Enter question set name"
+              style={{
+                ...modalStyles.input,
+                borderColor: confirmName && !isConfirmed ? 'rgba(220, 38, 38, 0.5)' : undefined,
+              }}
+              autoFocus
+            />
+          </div>
+        </div>
+
+        <div style={modalStyles.footer}>
+          <button onClick={onClose} style={modalStyles.cancelButton} disabled={isDeleting}>
+            Cancel
+          </button>
+          <button
+            onClick={handleDelete}
+            style={{
+              ...modalStyles.dangerButton,
+              opacity: isConfirmed ? 1 : 0.5,
+              cursor: isConfirmed ? 'pointer' : 'not-allowed',
+            }}
+            disabled={isDeleting || !isConfirmed}
+          >
+            {isDeleting ? 'Deleting...' : 'Delete Question Set'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }
@@ -201,6 +511,9 @@ const styles: Record<string, React.CSSProperties> = {
     maxWidth: '1100px',
   },
   header: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
     marginBottom: '28px',
   },
   title: {
@@ -214,6 +527,20 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '14px',
     color: 'rgba(60, 60, 67, 0.6)',
     margin: '4px 0 0 0',
+  },
+  createButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '10px 18px',
+    borderRadius: '10px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #1D1D1F 0%, #3A3A3C 100%)',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
   },
   searchContainer: {
     marginBottom: '24px',
@@ -320,6 +647,20 @@ const styles: Record<string, React.CSSProperties> = {
     color: 'rgba(60, 60, 67, 0.6)',
     margin: 0,
   },
+  emptyCreateButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    marginTop: '16px',
+    padding: '10px 18px',
+    borderRadius: '10px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #1D1D1F 0%, #3A3A3C 100%)',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
   grid: {
     display: 'grid',
     gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))',
@@ -341,6 +682,11 @@ const styles: Record<string, React.CSSProperties> = {
     justifyContent: 'space-between',
     marginBottom: '16px',
   },
+  cardHeaderRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
   cardIcon: {
     width: '40px',
     height: '40px',
@@ -357,6 +703,20 @@ const styles: Record<string, React.CSSProperties> = {
     fontSize: '11px',
     fontWeight: 500,
     textTransform: 'capitalize',
+  },
+  deleteIconButton: {
+    width: '28px',
+    height: '28px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '6px',
+    border: 'none',
+    background: 'rgba(220, 38, 38, 0.08)',
+    color: '#DC2626',
+    cursor: 'pointer',
+    opacity: 0.7,
+    transition: 'opacity 0.15s ease',
   },
   cardTitle: {
     fontSize: '16px',
@@ -426,6 +786,169 @@ const styles: Record<string, React.CSSProperties> = {
     cursor: 'pointer',
     transition: 'all 0.15s ease',
     boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)',
+  },
+};
+
+const modalStyles: Record<string, React.CSSProperties> = {
+  overlay: {
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: 'rgba(0, 0, 0, 0.5)',
+    backdropFilter: 'blur(4px)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    zIndex: 1000,
+    animation: 'modalFadeIn 0.2s ease-out',
+  },
+  modal: {
+    background: 'white',
+    borderRadius: '20px',
+    width: '100%',
+    maxWidth: '480px',
+    maxHeight: '90vh',
+    overflow: 'hidden',
+    boxShadow: '0 20px 60px rgba(0, 0, 0, 0.3)',
+    animation: 'modalSlideIn 0.2s ease-out',
+  },
+  dangerModal: {
+    borderTop: '4px solid #DC2626',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '20px 24px 0',
+  },
+  title: {
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#1D1D1F',
+    margin: 0,
+  },
+  closeButton: {
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    borderRadius: '8px',
+    border: 'none',
+    background: 'rgba(0, 0, 0, 0.05)',
+    color: 'rgba(60, 60, 67, 0.6)',
+    cursor: 'pointer',
+  },
+  body: {
+    padding: '20px 24px',
+  },
+  field: {
+    marginBottom: '16px',
+  },
+  label: {
+    display: 'block',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: 'rgba(60, 60, 67, 0.8)',
+    marginBottom: '6px',
+  },
+  input: {
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: '10px',
+    border: '1px solid rgba(0, 0, 0, 0.1)',
+    background: 'white',
+    fontSize: '14px',
+    color: '#1D1D1F',
+    outline: 'none',
+    boxSizing: 'border-box',
+  },
+  textarea: {
+    width: '100%',
+    padding: '12px 14px',
+    borderRadius: '10px',
+    border: '1px solid rgba(0, 0, 0, 0.1)',
+    background: 'white',
+    fontSize: '14px',
+    color: '#1D1D1F',
+    outline: 'none',
+    resize: 'vertical',
+    fontFamily: 'inherit',
+    boxSizing: 'border-box',
+  },
+  footer: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '12px',
+    padding: '16px 24px 24px',
+  },
+  cancelButton: {
+    padding: '10px 18px',
+    borderRadius: '10px',
+    border: '1px solid rgba(0, 0, 0, 0.1)',
+    background: 'white',
+    color: 'rgba(60, 60, 67, 0.8)',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+  },
+  submitButton: {
+    padding: '10px 20px',
+    borderRadius: '10px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #1D1D1F 0%, #3A3A3C 100%)',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.15)',
+  },
+  errorBanner: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    padding: '12px 14px',
+    marginBottom: '16px',
+    borderRadius: '10px',
+    background: 'rgba(220, 38, 38, 0.06)',
+    border: '1px solid rgba(220, 38, 38, 0.1)',
+    color: '#DC2626',
+    fontSize: '13px',
+  },
+  dangerIconWrapper: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '12px',
+    background: 'rgba(220, 38, 38, 0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#DC2626',
+  },
+  dangerTitle: {
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#1D1D1F',
+    margin: '0 0 8px 0',
+  },
+  dangerText: {
+    fontSize: '14px',
+    color: 'rgba(60, 60, 67, 0.8)',
+    lineHeight: 1.6,
+    margin: '0 0 20px 0',
+  },
+  dangerButton: {
+    padding: '10px 20px',
+    borderRadius: '10px',
+    border: 'none',
+    background: 'linear-gradient(135deg, #DC2626 0%, #B91C1C 100%)',
+    color: 'white',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    boxShadow: '0 2px 8px rgba(220, 38, 38, 0.3)',
   },
 };
 
