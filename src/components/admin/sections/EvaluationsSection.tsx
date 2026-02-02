@@ -113,11 +113,12 @@ function timeAgo(dateString?: string): string {
   return formatDate(dateString);
 }
 
+// Institutional RAG status colors
 function getScoreColor(score: number): string {
-  if (score >= 80) return '#16A34A';
-  if (score >= 60) return '#2563EB';
-  if (score >= 40) return '#D97706';
-  return '#DC2626';
+  if (score >= 80) return '#1A7F37'; // Green - Success
+  if (score >= 70) return '#0969DA'; // Blue - Good
+  if (score >= 60) return '#9A6700'; // Amber - Moderate
+  return '#CF222E'; // Red - Attention
 }
 
 function getStatusColor(status: string): { bg: string; text: string } {
@@ -1091,6 +1092,29 @@ function InterviewBreakdownView({
 
 // ============ Interview Detail View ============
 
+// Format interview ID: assessment_1768663930241_om0qsig → INT-1768663
+function formatInterviewId(sourceId: string): string {
+  const match = sourceId.match(/(\d{7})/);
+  return match ? `INT-${match[1]}` : `INT-${sourceId.slice(0, 7).toUpperCase()}`;
+}
+
+// Get RAG status based on score
+function getRAGStatus(score: number): { status: 'green' | 'amber' | 'red'; color: string; bg: string } {
+  if (score >= 80) return { status: 'green', color: '#1A7F37', bg: 'rgba(26, 127, 55, 0.1)' };
+  if (score >= 60) return { status: 'amber', color: '#9A6700', bg: 'rgba(154, 103, 0, 0.1)' };
+  return { status: 'red', color: '#CF222E', bg: 'rgba(207, 34, 46, 0.1)' };
+}
+
+// Calculate confidence level
+function getConfidenceLevel(metrics: MetricScoreDetail[]): 'High' | 'Medium' | 'Low' {
+  if (metrics.length === 0) return 'Low';
+  const highCount = metrics.filter(m => m.confidence?.toLowerCase() === 'high').length;
+  const ratio = highCount / metrics.length;
+  if (ratio >= 0.7) return 'High';
+  if (ratio >= 0.4) return 'Medium';
+  return 'Low';
+}
+
 function InterviewDetailView({
   run,
   scores,
@@ -1132,73 +1156,124 @@ function InterviewDetailView({
     ? Math.round(sortedInterviewMetrics.reduce((sum, m) => sum + (m.overall_score || 0), 0) / sortedInterviewMetrics.length)
     : 0;
 
+  // Anonymous ID format
+  const formattedId = formatInterviewId(sourceId);
+  const ragStatus = getRAGStatus(avgScore);
+  const confidence = getConfidenceLevel(sortedInterviewMetrics);
+
   return (
     <>
-      {/* Header */}
-      <div style={styles.detailHeader}>
-        <button onClick={onBack} style={styles.backButton}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-          Back to Breakdown
-        </button>
-
-        <div style={styles.detailTitle}>
-          <h1 style={styles.title}>{sourceName}</h1>
-          <span style={{ ...styles.scoreBadgeLarge, color: getScoreColor(avgScore) }}>
-            {avgScore} avg
-          </span>
+      {/* Institutional Header */}
+      <div style={institutionalStyles.headerContainer}>
+        {/* Top Bar with Breadcrumb */}
+        <div style={institutionalStyles.headerTop}>
+          <nav style={institutionalStyles.breadcrumb}>
+            <button onClick={onBack} style={institutionalStyles.breadcrumbLink}>Evaluations</button>
+            <span style={institutionalStyles.breadcrumbSep}>/</span>
+            <span style={institutionalStyles.breadcrumbLink}>Run #{run.run_number}</span>
+            <span style={institutionalStyles.breadcrumbSep}>/</span>
+            <span style={institutionalStyles.breadcrumbCurrent}>{formattedId}</span>
+          </nav>
         </div>
 
-        <p style={styles.detailMeta}>
-          {interviewQuestions.length} questions • {sortedInterviewMetrics.length} metrics • {interviewFlags.length} flag{interviewFlags.length !== 1 ? 's' : ''}
-        </p>
+        {/* Main Header */}
+        <div style={institutionalStyles.headerMain}>
+          <div style={institutionalStyles.candidateInfo}>
+            <div style={institutionalStyles.avatar}>
+              {formattedId.slice(-3)}
+            </div>
+            <div>
+              <h1 style={institutionalStyles.candidateName}>{formattedId}</h1>
+              <div style={institutionalStyles.candidateMeta}>
+                <span>{sourceName}</span>
+                <span style={institutionalStyles.metaDot} />
+                <span style={institutionalStyles.methodBadge}>
+                  {source?.source_type || 'Interview'}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          {/* Score Panel */}
+          <div style={institutionalStyles.scorePanel}>
+            <div style={institutionalStyles.scoreMain}>
+              <span style={{ ...institutionalStyles.scoreValue, color: ragStatus.color }}>
+                {avgScore}
+              </span>
+              <span style={institutionalStyles.scoreMax}>/100</span>
+            </div>
+            <div style={institutionalStyles.scoreBar}>
+              <div style={{
+                ...institutionalStyles.scoreBarFill,
+                width: `${avgScore}%`,
+                backgroundColor: ragStatus.color,
+              }} />
+            </div>
+            <span style={institutionalStyles.scoreLabel}>Overall Assessment Score</span>
+          </div>
+        </div>
+
+        {/* Metadata Bar */}
+        <div style={institutionalStyles.headerMeta}>
+          <div style={institutionalStyles.metaItem}>
+            <span style={institutionalStyles.metaLabel}>Evaluated</span>
+            <span style={institutionalStyles.metaValue}>{formatDate(run.started_at)}</span>
+          </div>
+          <div style={institutionalStyles.metaItem}>
+            <span style={institutionalStyles.metaLabel}>Questions</span>
+            <span style={institutionalStyles.metaValue}>{interviewQuestions.length}</span>
+          </div>
+          <div style={institutionalStyles.metaItem}>
+            <span style={institutionalStyles.metaLabel}>Metrics</span>
+            <span style={institutionalStyles.metaValue}>{sortedInterviewMetrics.length}</span>
+          </div>
+          <div style={institutionalStyles.metaItem}>
+            <span style={institutionalStyles.metaLabel}>Flags</span>
+            <span style={{
+              ...institutionalStyles.metaValue,
+              color: totalFlags.length > 0 ? '#9A6700' : '#1A7F37',
+            }}>
+              {totalFlags.length}
+            </span>
+          </div>
+          <div style={institutionalStyles.metaItem}>
+            <span style={institutionalStyles.metaLabel}>Confidence</span>
+            <span style={institutionalStyles.metaValue}>{confidence}</span>
+          </div>
+        </div>
       </div>
 
-      {/* Summary Stats */}
-      <div style={styles.summaryGrid}>
-        <div style={styles.summaryCard}>
-          <span style={styles.summaryValue}>{interviewQuestions.length}</span>
-          <span style={styles.summaryLabel}>Questions</span>
+      {/* Navigation Tabs */}
+      <nav style={institutionalStyles.nav}>
+        <div style={institutionalStyles.navInner}>
+          {([
+            { id: 'metrics' as const, label: 'Metrics', count: sortedInterviewMetrics.length },
+            { id: 'questions' as const, label: 'Questions', count: interviewQuestions.length },
+            { id: 'flags' as const, label: 'Flags', count: totalFlags.length, alert: totalFlags.length > 0 },
+          ]).map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id)}
+              style={{
+                ...institutionalStyles.navTab,
+                ...(activeTab === tab.id ? institutionalStyles.navTabActive : {}),
+              }}
+            >
+              {tab.label}
+              <span style={{
+                ...institutionalStyles.navCount,
+                ...(activeTab === tab.id ? institutionalStyles.navCountActive : {}),
+                ...(tab.alert && activeTab !== tab.id ? institutionalStyles.navCountAlert : {}),
+              }}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
         </div>
-        <div style={styles.summaryCard}>
-          <span style={styles.summaryValue}>{sortedInterviewMetrics.length}</span>
-          <span style={styles.summaryLabel}>Metrics</span>
-        </div>
-        <div style={styles.summaryCard}>
-          <span style={{ ...styles.summaryValue, color: totalFlags.length > 0 ? '#DC2626' : '#16A34A' }}>
-            {totalFlags.length}
-          </span>
-          <span style={styles.summaryLabel}>Flags</span>
-        </div>
-        <div style={styles.summaryCard}>
-          <span style={{ ...styles.summaryValue, color: getScoreColor(avgScore) }}>
-            {avgScore}
-          </span>
-          <span style={styles.summaryLabel}>Avg Score</span>
-        </div>
-      </div>
-
-      {/* Tabs */}
-      <div style={styles.tabs}>
-        {(['metrics', 'questions', 'flags'] as const).map((tab) => (
-          <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            style={{
-              ...styles.tab,
-              ...(activeTab === tab ? styles.tabActive : {}),
-            }}
-          >
-            {tab === 'metrics' && `Metrics (${sortedInterviewMetrics.length})`}
-            {tab === 'questions' && `Questions (${interviewQuestions.length})`}
-            {tab === 'flags' && `Flags ${totalFlags.length > 0 ? `(${totalFlags.length})` : ''}`}
-          </button>
-        ))}
-      </div>
+      </nav>
 
       {/* Tab Content */}
-      <div style={styles.tabContent}>
+      <div style={institutionalStyles.main}>
         {activeTab === 'metrics' && (
           <InterviewMetricsTab
             metrics={sortedInterviewMetrics}
@@ -1216,6 +1291,218 @@ function InterviewDetailView({
     </>
   );
 }
+
+// Institutional Design System Styles
+const institutionalStyles: Record<string, React.CSSProperties> = {
+  // Colors
+  trustBlue: { color: '#0969DA' },
+
+  // Header Container
+  headerContainer: {
+    borderBottom: '1px solid #D0D7DE',
+    backgroundColor: '#FFFFFF',
+    marginBottom: '0',
+  },
+  headerTop: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '12px 24px',
+    borderBottom: '1px solid #D8DEE4',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '14px',
+  },
+  breadcrumbLink: {
+    color: '#0969DA',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '14px',
+    padding: 0,
+  },
+  breadcrumbSep: {
+    color: '#8C959F',
+  },
+  breadcrumbCurrent: {
+    color: '#24292F',
+    fontWeight: 600,
+  },
+  headerMain: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '20px 24px',
+  },
+  candidateInfo: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+  },
+  avatar: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '6px',
+    backgroundColor: '#DDF4FF',
+    color: '#0969DA',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+    fontWeight: 600,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  candidateName: {
+    fontSize: '20px',
+    fontWeight: 600,
+    color: '#24292F',
+    margin: '0 0 4px 0',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  candidateMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '14px',
+    color: '#57606A',
+  },
+  metaDot: {
+    width: '3px',
+    height: '3px',
+    borderRadius: '50%',
+    backgroundColor: '#AFB8C1',
+  },
+  methodBadge: {
+    padding: '2px 8px',
+    backgroundColor: '#F6F8FA',
+    borderRadius: '4px',
+    fontSize: '12px',
+    color: '#57606A',
+  },
+  scorePanel: {
+    textAlign: 'right' as const,
+  },
+  scoreMain: {
+    display: 'flex',
+    alignItems: 'baseline',
+    justifyContent: 'flex-end',
+    gap: '2px',
+    marginBottom: '8px',
+  },
+  scoreValue: {
+    fontSize: '36px',
+    fontWeight: 600,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+    lineHeight: 1,
+  },
+  scoreMax: {
+    fontSize: '16px',
+    color: '#8C959F',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  scoreBar: {
+    width: '120px',
+    height: '4px',
+    backgroundColor: '#D8DEE4',
+    borderRadius: '2px',
+    overflow: 'hidden',
+    marginLeft: 'auto',
+    marginBottom: '4px',
+  },
+  scoreBarFill: {
+    height: '100%',
+    borderRadius: '2px',
+    transition: 'width 0.4s ease',
+  },
+  scoreLabel: {
+    fontSize: '12px',
+    color: '#8C959F',
+  },
+  headerMeta: {
+    display: 'flex',
+    gap: '32px',
+    padding: '12px 24px',
+    borderTop: '1px solid #D8DEE4',
+    backgroundColor: '#F6F8FA',
+  },
+  metaItem: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '2px',
+  },
+  metaLabel: {
+    fontSize: '11px',
+    fontWeight: 500,
+    color: '#8C959F',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  metaValue: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#24292F',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+
+  // Navigation
+  nav: {
+    borderBottom: '1px solid #D0D7DE',
+    backgroundColor: '#FFFFFF',
+  },
+  navInner: {
+    display: 'flex',
+    padding: '0 24px',
+  },
+  navTab: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '12px 16px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    marginBottom: '-1px',
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#57606A',
+    cursor: 'pointer',
+    transition: 'color 0.15s ease, border-color 0.15s ease',
+  },
+  navTabActive: {
+    color: '#24292F',
+    borderBottomColor: '#0969DA',
+  },
+  navCount: {
+    padding: '0 8px',
+    minWidth: '20px',
+    height: '20px',
+    borderRadius: '10px',
+    backgroundColor: '#F6F8FA',
+    color: '#8C959F',
+    fontSize: '12px',
+    fontWeight: 500,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  navCountActive: {
+    backgroundColor: '#0969DA',
+    color: '#FFFFFF',
+  },
+  navCountAlert: {
+    backgroundColor: '#FFF8C5',
+    color: '#9A6700',
+  },
+
+  // Main Content
+  main: {
+    padding: '24px',
+  },
+};
 
 // ============ Interview Metrics Tab (Expandable) ============
 
@@ -1253,15 +1540,34 @@ function InterviewMetricsTab({
 
   return (
     <div style={styles.expandableMetricsList}>
-      {metrics.map((metric) => {
+      {/* Table Header - Institutional Style */}
+      <div style={{
+        display: 'flex',
+        alignItems: 'center',
+        padding: '8px 16px',
+        backgroundColor: '#F6F8FA',
+        border: '1px solid #D0D7DE',
+        borderRadius: '6px 6px 0 0',
+      }}>
+        <span style={{ flex: 2, fontSize: '11px', fontWeight: 600, color: '#8C959F', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>Metric</span>
+        <span style={{ width: '100px', fontSize: '11px', fontWeight: 600, color: '#8C959F', textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'center' as const }}>Score</span>
+        <span style={{ width: '80px', fontSize: '11px', fontWeight: 600, color: '#8C959F', textTransform: 'uppercase' as const, letterSpacing: '0.5px', textAlign: 'center' as const }}>Confidence</span>
+        <span style={{ width: '40px' }} />
+      </div>
+
+      {metrics.map((metric, index) => {
         const isExpanded = expandedMetric === metric.id;
         const scoreColor = getScoreColor(metric.overall_score || 0);
         const displayName = getMetricDisplayName(metric.metric_code, metric.metric_name);
         const contributions = metric.question_contributions || [];
         const metricFlags = getFlagsForMetric(metric);
+        const isLast = index === metrics.length - 1;
 
         return (
-          <div key={metric.id} style={styles.expandableMetricCard}>
+          <div key={metric.id} style={{
+            ...styles.expandableMetricCard,
+            borderRadius: isLast && !isExpanded ? '0 0 6px 6px' : '0',
+          }}>
             {/* Metric Header (clickable) */}
             <button
               onClick={() => setExpandedMetric(isExpanded ? null : metric.id)}
@@ -1269,15 +1575,14 @@ function InterviewMetricsTab({
             >
               <div style={styles.expandableMetricLeft}>
                 <svg
-                  width="16" height="16" viewBox="0 0 24 24" fill="none"
-                  stroke="currentColor" strokeWidth="2"
+                  width="16" height="16" viewBox="0 0 16 16" fill="#8C959F"
                   style={{
-                    transform: isExpanded ? 'rotate(90deg)' : 'rotate(0deg)',
-                    transition: 'transform 0.2s',
+                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
+                    transition: 'transform 0.15s ease',
                     flexShrink: 0
                   }}
                 >
-                  <path d="M9 18l6-6-6-6" />
+                  <path d="M4.427 5.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 5H4.604a.25.25 0 00-.177.427z" />
                 </svg>
                 <span style={styles.expandableMetricCode}>{metric.metric_code}</span>
                 <span style={styles.expandableMetricName}>{displayName}</span>
@@ -2171,67 +2476,67 @@ const styles: Record<string, React.CSSProperties> = {
   contributionScore: { fontSize: '13px', fontWeight: 600, color: '#1D1D1F', width: '30px', textAlign: 'right' },
   contributionWeight: { fontSize: '11px', color: 'rgba(60, 60, 67, 0.5)', width: '40px' },
 
-  // Questions tab
-  questionsGrid: { display: 'flex', flexDirection: 'column', gap: '12px' },
-  questionCard: { background: 'white', borderRadius: '14px', border: '1px solid rgba(0, 0, 0, 0.06)', overflow: 'hidden' },
-  questionHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '16px 20px', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' },
+  // Questions tab (Institutional)
+  questionsGrid: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  questionCard: { background: '#FFFFFF', borderRadius: '6px', border: '1px solid #D0D7DE', overflow: 'hidden' },
+  questionHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', padding: '12px 16px', width: '100%', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' },
   questionInfo: { display: 'flex', alignItems: 'center', gap: '10px' },
   questionInfoExpanded: { display: 'flex', flexDirection: 'column', gap: '6px', flex: 1, minWidth: 0 },
   questionCodeRow: { display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' },
-  questionNumber: { fontSize: '12px', fontWeight: 600, color: '#6366F1', background: 'rgba(99, 102, 241, 0.1)', padding: '2px 8px', borderRadius: '4px' },
-  questionCode: { fontSize: '13px', fontWeight: 700, color: '#1D1D1F' },
-  questionConfidence: { fontSize: '11px', color: 'rgba(60, 60, 67, 0.5)', textTransform: 'capitalize' },
-  questionPreviewText: { fontSize: '13px', color: 'rgba(60, 60, 67, 0.6)', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' },
-  reviewBadge: { fontSize: '10px', fontWeight: 600, color: '#DC2626', background: 'rgba(220, 38, 38, 0.1)', padding: '2px 8px', borderRadius: '4px' },
-  questionScoreContainer: { display: 'flex', alignItems: 'center', marginLeft: '16px', flexShrink: 0 },
-  questionScore: { fontSize: '18px', fontWeight: 700 },
-  questionDetail: { padding: '0 20px 20px', borderTop: '1px solid rgba(0, 0, 0, 0.06)' },
-  questionTextBox: { marginTop: '16px', padding: '14px', background: 'rgba(0, 0, 0, 0.02)', borderRadius: '10px', marginBottom: '16px' },
-  questionTextLabel: { fontSize: '11px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.5)', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
-  questionText: { fontSize: '14px', color: '#1D1D1F', lineHeight: 1.6, margin: 0 },
-  userResponseBox: { padding: '14px', background: 'rgba(22, 163, 74, 0.04)', borderRadius: '10px', marginBottom: '16px', borderLeft: '3px solid #16A34A' },
-  userResponseLabel: { fontSize: '11px', fontWeight: 600, color: '#16A34A', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
-  userResponseText: { fontSize: '14px', color: 'rgba(60, 60, 67, 0.9)', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' },
+  questionNumber: { fontSize: '12px', fontWeight: 600, color: '#57606A', background: '#F6F8FA', padding: '4px 8px', borderRadius: '4px', fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' },
+  questionCode: { fontSize: '14px', fontWeight: 600, color: '#24292F', fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' },
+  questionConfidence: { fontSize: '12px', color: '#8C959F', padding: '2px 8px', background: '#F6F8FA', borderRadius: '4px' },
+  questionPreviewText: { fontSize: '13px', color: '#57606A', lineHeight: 1.4, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', maxWidth: '100%' },
+  reviewBadge: { fontSize: '11px', fontWeight: 600, color: '#9A6700', background: '#FFF8C5', padding: '2px 8px', borderRadius: '4px' },
+  questionScoreContainer: { display: 'flex', alignItems: 'center', marginLeft: '16px', flexShrink: 0, gap: '8px' },
+  questionScore: { fontSize: '18px', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' },
+  questionDetail: { padding: '16px', borderTop: '1px solid #D8DEE4' },
+  questionTextBox: { marginTop: '0', padding: '12px', background: '#F6F8FA', borderRadius: '6px', marginBottom: '16px' },
+  questionTextLabel: { fontSize: '11px', fontWeight: 600, color: '#8C959F', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  questionText: { fontSize: '14px', color: '#24292F', lineHeight: 1.6, margin: 0 },
+  userResponseBox: { padding: '12px', background: '#F6F8FA', borderRadius: '6px', marginBottom: '16px', borderLeft: '3px solid #0969DA' },
+  userResponseLabel: { fontSize: '11px', fontWeight: 600, color: '#0969DA', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  userResponseText: { fontSize: '14px', color: '#57606A', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap' },
   qualityRow: { display: 'flex', gap: '8px', marginBottom: '12px' },
-  qualityLabel: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.5)' },
-  qualityValue: { fontSize: '12px', fontWeight: 500, color: '#1D1D1F', textTransform: 'capitalize' },
-  reasoningBox: { padding: '14px', background: 'rgba(99, 102, 241, 0.04)', borderRadius: '10px', marginBottom: '16px' },
-  reasoningTitle: { fontSize: '12px', fontWeight: 600, color: '#6366F1', margin: '0 0 8px 0' },
-  reasoningText: { fontSize: '13px', color: 'rgba(60, 60, 67, 0.8)', lineHeight: 1.6, margin: 0 },
+  qualityLabel: { fontSize: '12px', color: '#8C959F' },
+  qualityValue: { fontSize: '12px', fontWeight: 500, color: '#24292F' },
+  reasoningBox: { padding: '12px', background: '#DDF4FF', borderRadius: '6px', marginBottom: '16px' },
+  reasoningTitle: { fontSize: '11px', fontWeight: 600, color: '#0969DA', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  reasoningText: { fontSize: '13px', color: '#57606A', lineHeight: 1.6, margin: 0 },
   dimensionsContainer: { marginTop: '16px' },
-  dimensionsTitle: { fontSize: '13px', fontWeight: 600, color: '#1D1D1F', margin: '0 0 12px 0' },
-  dimensionsList: { display: 'flex', flexDirection: 'column', gap: '10px' },
-  dimensionItem: { padding: '12px', background: 'rgba(0, 0, 0, 0.02)', borderRadius: '8px' },
+  dimensionsTitle: { fontSize: '11px', fontWeight: 600, color: '#8C959F', margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  dimensionsList: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  dimensionItem: { padding: '10px 12px', background: '#FFFFFF', borderRadius: '4px', border: '1px solid #D0D7DE' },
   dimensionHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' },
-  dimensionName: { fontSize: '13px', fontWeight: 500, color: '#1D1D1F' },
-  dimensionScore: { fontSize: '14px', fontWeight: 700 },
-  dimensionReasoning: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.7)', lineHeight: 1.5, margin: 0 },
+  dimensionName: { fontSize: '14px', fontWeight: 500, color: '#24292F' },
+  dimensionScore: { fontSize: '14px', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' },
+  dimensionReasoning: { fontSize: '13px', color: '#57606A', lineHeight: 1.5, margin: 0 },
 
-  // Flags tab
-  noFlagsContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '60px 0', gap: '16px' },
-  noFlagsText: { fontSize: '14px', color: '#16A34A', margin: 0 },
-  flagsContainer: { display: 'flex', flexDirection: 'column', gap: '32px' },
+  // Flags tab (Institutional)
+  noFlagsContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', padding: '64px 0', gap: '16px', textAlign: 'center' },
+  noFlagsText: { fontSize: '14px', color: '#1A7F37', margin: 0 },
+  flagsContainer: { display: 'flex', flexDirection: 'column', gap: '24px' },
   flagsSection: {},
-  flagsSectionTitle: { fontSize: '14px', fontWeight: 600, color: '#1D1D1F', margin: '0 0 16px 0' },
-  flagsList: { display: 'flex', flexDirection: 'column', gap: '12px' },
-  flagCard: { padding: '20px', background: 'white', borderRadius: '14px', border: '1px solid rgba(0, 0, 0, 0.06)' },
-  flagHeader: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '10px' },
-  severityBadge: { padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' },
-  flagType: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.5)', textTransform: 'capitalize' },
-  flagTitle: { fontSize: '15px', fontWeight: 600, color: '#1D1D1F', margin: '0 0 8px 0' },
-  flagDescription: { fontSize: '14px', color: 'rgba(60, 60, 67, 0.8)', lineHeight: 1.5, margin: '0 0 12px 0' },
-  aiExplanation: { padding: '12px', background: 'rgba(99, 102, 241, 0.04)', borderRadius: '8px', marginBottom: '12px' },
-  aiLabel: { fontSize: '11px', fontWeight: 600, color: '#6366F1', display: 'block', marginBottom: '6px' },
-  aiText: { fontSize: '13px', color: 'rgba(60, 60, 67, 0.8)', lineHeight: 1.5, margin: 0 },
-  resolveButton: { padding: '10px 16px', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.1)', background: 'white', color: '#1D1D1F', fontSize: '13px', fontWeight: 500, cursor: 'pointer' },
-  resolveForm: { marginTop: '12px' },
-  resolveTextarea: { width: '100%', padding: '12px', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.1)', fontSize: '13px', resize: 'vertical', fontFamily: 'inherit', marginBottom: '10px', boxSizing: 'border-box' },
+  flagsSectionTitle: { fontSize: '11px', fontWeight: 600, color: '#8C959F', margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  flagsList: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  flagCard: { padding: '16px', background: '#FFFFFF', borderRadius: '6px', border: '1px solid #D0D7DE', borderLeft: '3px solid #9A6700' },
+  flagHeader: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' },
+  severityBadge: { padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, textTransform: 'uppercase' },
+  flagType: { fontSize: '12px', color: '#8C959F' },
+  flagTitle: { fontSize: '16px', fontWeight: 600, color: '#24292F', margin: '0 0 8px 0' },
+  flagDescription: { fontSize: '14px', color: '#57606A', lineHeight: 1.6, margin: '0 0 16px 0' },
+  aiExplanation: { padding: '12px', background: '#F6F8FA', borderRadius: '6px', marginBottom: '16px' },
+  aiLabel: { fontSize: '11px', fontWeight: 600, color: '#8C959F', display: 'block', marginBottom: '6px', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  aiText: { fontSize: '13px', color: '#57606A', lineHeight: 1.6, margin: 0 },
+  resolveButton: { padding: '8px 12px', borderRadius: '6px', border: '1px solid #D0D7DE', background: '#FFFFFF', color: '#24292F', fontSize: '13px', fontWeight: 500, cursor: 'pointer', transition: 'background 0.15s' },
+  resolveForm: { marginTop: '16px' },
+  resolveTextarea: { width: '100%', padding: '12px', borderRadius: '6px', border: '1px solid #D0D7DE', fontSize: '14px', resize: 'vertical', fontFamily: 'inherit', marginBottom: '12px', boxSizing: 'border-box' },
   resolveActions: { display: 'flex', gap: '8px', justifyContent: 'flex-end' },
-  cancelButton: { padding: '8px 14px', borderRadius: '6px', border: '1px solid rgba(0, 0, 0, 0.1)', background: 'white', color: 'rgba(60, 60, 67, 0.8)', fontSize: '13px', fontWeight: 500, cursor: 'pointer' },
-  confirmButton: { padding: '8px 14px', borderRadius: '6px', border: 'none', background: '#16A34A', color: 'white', fontSize: '13px', fontWeight: 500, cursor: 'pointer' },
-  resolvedBadge: { padding: '4px 10px', borderRadius: '6px', fontSize: '11px', fontWeight: 600, background: 'rgba(22, 163, 74, 0.1)', color: '#16A34A' },
-  resolutionText: { fontSize: '13px', color: 'rgba(60, 60, 67, 0.8)', margin: '8px 0' },
-  resolvedBy: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.5)' },
+  cancelButton: { padding: '8px 12px', borderRadius: '6px', border: '1px solid #D0D7DE', background: '#FFFFFF', color: '#57606A', fontSize: '13px', fontWeight: 500, cursor: 'pointer' },
+  confirmButton: { padding: '8px 12px', borderRadius: '6px', border: 'none', background: '#1A7F37', color: 'white', fontSize: '13px', fontWeight: 500, cursor: 'pointer' },
+  resolvedBadge: { padding: '2px 8px', borderRadius: '4px', fontSize: '11px', fontWeight: 600, background: '#DAFBE1', color: '#1A7F37' },
+  resolutionText: { fontSize: '13px', color: '#57606A', margin: '8px 0' },
+  resolvedBy: { fontSize: '12px', color: '#8C959F' },
 
   // Modal
   modalOverlay: { position: 'fixed', inset: 0, background: 'rgba(0, 0, 0, 0.5)', display: 'flex', alignItems: 'center', justifyContent: 'center', zIndex: 1000 },
@@ -2300,70 +2605,70 @@ const styles: Record<string, React.CSSProperties> = {
   // ============ Interview Detail View Styles ============
   scoreBadgeLarge: { fontSize: '18px', fontWeight: 700, marginLeft: '12px' },
 
-  // ============ Expandable Metrics Tab Styles ============
-  expandableMetricsList: { display: 'flex', flexDirection: 'column', gap: '12px' },
-  expandableMetricCard: { background: 'white', borderRadius: '12px', border: '1px solid rgba(0, 0, 0, 0.08)', overflow: 'hidden' },
-  expandableMetricHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '16px 20px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left' },
+  // ============ Expandable Metrics Tab Styles (Institutional) ============
+  expandableMetricsList: { display: 'flex', flexDirection: 'column', gap: '0' },
+  expandableMetricCard: { background: '#FFFFFF', borderLeft: '1px solid #D0D7DE', borderRight: '1px solid #D0D7DE', borderBottom: '1px solid #D0D7DE', overflow: 'hidden' },
+  expandableMetricHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', padding: '12px 16px', border: 'none', background: 'transparent', cursor: 'pointer', textAlign: 'left', transition: 'background 0.1s' },
   expandableMetricLeft: { display: 'flex', alignItems: 'center', gap: '12px', flex: 1 },
-  expandableMetricCode: { fontSize: '13px', fontWeight: 700, color: '#6366F1', background: 'rgba(99, 102, 241, 0.1)', padding: '4px 8px', borderRadius: '6px' },
-  expandableMetricName: { fontSize: '14px', fontWeight: 500, color: '#1D1D1F' },
+  expandableMetricCode: { fontSize: '12px', fontWeight: 600, color: '#0969DA', background: '#DDF4FF', padding: '4px 8px', borderRadius: '4px', fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' },
+  expandableMetricName: { fontSize: '14px', fontWeight: 500, color: '#24292F' },
   expandableMetricRight: { display: 'flex', alignItems: 'center', gap: '16px' },
-  expandableMetricBarContainer: { width: '120px', height: '8px', background: 'rgba(0, 0, 0, 0.06)', borderRadius: '4px', overflow: 'hidden' },
-  expandableMetricBarFill: { height: '100%', borderRadius: '4px', transition: 'width 0.3s' },
-  expandableMetricScore: { fontSize: '18px', fontWeight: 700, minWidth: '36px', textAlign: 'right' },
-  expandableMetricConfidence: { fontSize: '11px', color: 'rgba(60, 60, 67, 0.6)', textTransform: 'capitalize', minWidth: '50px' },
-  expandableMetricContent: { padding: '0 20px 20px 20px', borderTop: '1px solid rgba(0, 0, 0, 0.06)' },
+  expandableMetricBarContainer: { width: '100px', height: '4px', background: '#D8DEE4', borderRadius: '2px', overflow: 'hidden' },
+  expandableMetricBarFill: { height: '100%', borderRadius: '2px', transition: 'width 0.3s' },
+  expandableMetricScore: { fontSize: '16px', fontWeight: 600, minWidth: '32px', textAlign: 'right', fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' },
+  expandableMetricConfidence: { fontSize: '12px', color: '#8C959F', textTransform: 'capitalize', padding: '2px 8px', background: '#F6F8FA', borderRadius: '4px', minWidth: '50px', textAlign: 'center' },
+  expandableMetricContent: { padding: '16px', borderTop: '1px solid #D8DEE4', background: '#F6F8FA' },
 
-  // Contributions Section
+  // Contributions Section (Institutional)
   contributionsSection: { marginTop: '16px' },
-  contributionsSectionTitle: { fontSize: '13px', fontWeight: 600, color: '#1D1D1F', margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
-  contributionsTable: { border: '1px solid rgba(0, 0, 0, 0.08)', borderRadius: '10px', overflow: 'hidden' },
-  contributionsTableHeader: { display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '10px 16px', background: 'rgba(0, 0, 0, 0.03)', borderBottom: '1px solid rgba(0, 0, 0, 0.08)' },
-  contributionsTableHeaderCell: { fontSize: '11px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.6)', textTransform: 'uppercase', letterSpacing: '0.3px' },
-  contributionsTableHeaderCellRight: { fontSize: '11px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.6)', textTransform: 'uppercase', letterSpacing: '0.3px', textAlign: 'right' },
-  contributionsTableRow: { display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '12px 16px', border: 'none', background: 'white', cursor: 'pointer', width: '100%', textAlign: 'left', borderBottom: '1px solid rgba(0, 0, 0, 0.04)', transition: 'background 0.15s' },
-  contributionsTableCell: { fontSize: '14px', color: '#1D1D1F', fontWeight: 500, display: 'flex', alignItems: 'center' },
-  contributionsTableCellRight: { fontSize: '14px', color: '#1D1D1F', textAlign: 'right' },
+  contributionsSectionTitle: { fontSize: '11px', fontWeight: 600, color: '#8C959F', margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  contributionsTable: { border: '1px solid #D0D7DE', borderRadius: '6px', overflow: 'hidden' },
+  contributionsTableHeader: { display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '8px 12px', background: '#F6F8FA', borderBottom: '1px solid #D0D7DE' },
+  contributionsTableHeaderCell: { fontSize: '11px', fontWeight: 600, color: '#8C959F', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  contributionsTableHeaderCellRight: { fontSize: '11px', fontWeight: 600, color: '#8C959F', textTransform: 'uppercase', letterSpacing: '0.5px', textAlign: 'right' },
+  contributionsTableRow: { display: 'grid', gridTemplateColumns: '2fr 1fr 1fr 1fr', padding: '10px 12px', border: 'none', background: '#FFFFFF', cursor: 'pointer', width: '100%', textAlign: 'left', borderBottom: '1px solid #D8DEE4', transition: 'background 0.1s' },
+  contributionsTableCell: { fontSize: '14px', color: '#24292F', fontWeight: 500, display: 'flex', alignItems: 'center', fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' },
+  contributionsTableCellRight: { fontSize: '14px', color: '#24292F', textAlign: 'right', fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' },
 
-  // Question Detail Expanded
-  questionDetailExpanded: { padding: '16px 20px', background: 'rgba(99, 102, 241, 0.04)', borderBottom: '1px solid rgba(0, 0, 0, 0.06)' },
-  questionDetailText: { fontSize: '13px', color: '#1D1D1F', margin: '0 0 12px 0', lineHeight: 1.5 },
+  // Question Detail Expanded (Institutional)
+  questionDetailExpanded: { padding: '16px', background: '#F6F8FA', borderBottom: '1px solid #D8DEE4' },
+  questionDetailText: { fontSize: '14px', color: '#24292F', margin: '0 0 12px 0', lineHeight: 1.6 },
   questionDetailMeta: { display: 'flex', gap: '16px', flexWrap: 'wrap', marginBottom: '16px' },
-  questionDetailMetaItem: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.8)' },
-  questionDetailReviewBadge: { fontSize: '11px', fontWeight: 500, padding: '2px 8px', borderRadius: '4px', background: 'rgba(217, 119, 6, 0.15)', color: '#D97706' },
-  noDetailText: { fontSize: '13px', color: 'rgba(60, 60, 67, 0.6)', fontStyle: 'italic' },
+  questionDetailMetaItem: { fontSize: '12px', color: '#57606A' },
+  questionDetailReviewBadge: { fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '4px', background: '#FFF8C5', color: '#9A6700' },
+  noDetailText: { fontSize: '13px', color: '#8C959F', fontStyle: 'italic' },
 
-  // Dimension Scores
+  // Dimension Scores (Institutional)
   dimensionScoresSection: { marginBottom: '16px' },
-  dimensionScoresTitle: { fontSize: '12px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.8)', margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: '0.3px' },
-  dimensionScoreItem: { marginBottom: '12px', paddingLeft: '12px', borderLeft: '3px solid rgba(99, 102, 241, 0.3)' },
+  dimensionScoresTitle: { fontSize: '11px', fontWeight: 600, color: '#8C959F', margin: '0 0 10px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  dimensionScoreItem: { marginBottom: '12px', paddingLeft: '12px', borderLeft: '3px solid #0969DA' },
   dimensionScoreHeader: { display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' },
-  dimensionScoreName: { fontSize: '13px', fontWeight: 500, color: '#1D1D1F' },
-  dimensionScoreValue: { fontSize: '14px', fontWeight: 700 },
-  dimensionScoreReasoning: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.8)', margin: 0, lineHeight: 1.5 },
+  dimensionScoreName: { fontSize: '14px', fontWeight: 500, color: '#24292F' },
+  dimensionScoreValue: { fontSize: '14px', fontWeight: 600, fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' },
+  dimensionScoreReasoning: { fontSize: '13px', color: '#57606A', margin: 0, lineHeight: 1.5 },
   dimensionScoreButton: {
     background: 'none',
     border: 'none',
     padding: 0,
-    fontSize: '13px',
+    fontSize: '14px',
     fontWeight: 500,
-    color: '#1D1D1F',
+    color: '#24292F',
     cursor: 'pointer',
     display: 'inline-flex',
     alignItems: 'center',
     textDecoration: 'underline',
-    textDecorationColor: 'rgba(99, 102, 241, 0.4)',
+    textDecorationColor: '#0969DA',
     textUnderlineOffset: '2px',
   },
 
-  // Dimension Panel (Side Drawer)
+  // Dimension Panel (Side Drawer) - Institutional
   dimensionPanelOverlay: {
     position: 'fixed' as const,
     top: 0,
     left: 0,
     right: 0,
     bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.3)',
+    backgroundColor: 'rgba(36, 41, 47, 0.5)',
     zIndex: 999,
   },
   dimensionPanel: {
@@ -2373,8 +2678,9 @@ const styles: Record<string, React.CSSProperties> = {
     width: '400px',
     maxWidth: '90vw',
     height: '100vh',
-    backgroundColor: '#fff',
-    boxShadow: '-4px 0 24px rgba(0, 0, 0, 0.15)',
+    backgroundColor: '#FFFFFF',
+    borderLeft: '1px solid #D0D7DE',
+    boxShadow: '-8px 0 24px rgba(140, 149, 159, 0.2)',
     zIndex: 1000,
     display: 'flex',
     flexDirection: 'column' as const,
@@ -2384,26 +2690,27 @@ const styles: Record<string, React.CSSProperties> = {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
-    padding: '20px 24px',
-    borderBottom: '1px solid rgba(0, 0, 0, 0.08)',
+    padding: '16px 24px',
+    borderBottom: '1px solid #D0D7DE',
     flexShrink: 0,
   },
   dimensionPanelTitle: {
-    fontSize: '18px',
+    fontSize: '16px',
     fontWeight: 600,
-    color: '#1D1D1F',
+    color: '#24292F',
     margin: 0,
   },
   dimensionPanelClose: {
-    background: 'none',
-    border: 'none',
+    background: 'transparent',
+    border: '1px solid #D0D7DE',
     padding: '8px',
     cursor: 'pointer',
-    borderRadius: '8px',
-    color: '#6B7280',
+    borderRadius: '6px',
+    color: '#57606A',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
+    transition: 'background 0.15s',
   },
   dimensionPanelContent: {
     flex: 1,
@@ -2416,7 +2723,7 @@ const styles: Record<string, React.CSSProperties> = {
   dimensionPanelSectionTitle: {
     fontSize: '11px',
     fontWeight: 600,
-    color: 'rgba(60, 60, 67, 0.6)',
+    color: '#8C959F',
     margin: '0 0 10px 0',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
@@ -2424,7 +2731,7 @@ const styles: Record<string, React.CSSProperties> = {
   dimensionPanelDescription: {
     fontSize: '14px',
     lineHeight: 1.6,
-    color: '#1D1D1F',
+    color: '#24292F',
     margin: 0,
   },
   dimensionPanelScoreBadge: {
@@ -2433,26 +2740,27 @@ const styles: Record<string, React.CSSProperties> = {
     gap: '12px',
   },
   dimensionPanelScoreValue: {
-    fontSize: '24px',
-    fontWeight: 700,
+    fontSize: '32px',
+    fontWeight: 600,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
   },
   dimensionPanelWeight: {
     fontSize: '13px',
-    color: 'rgba(60, 60, 67, 0.6)',
-    background: 'rgba(0, 0, 0, 0.04)',
+    color: '#57606A',
+    background: '#F6F8FA',
     padding: '4px 10px',
-    borderRadius: '12px',
+    borderRadius: '4px',
   },
   dimensionAnchorsGrid: {
     display: 'flex',
     flexDirection: 'column' as const,
-    gap: '10px',
+    gap: '8px',
   },
   dimensionAnchorItem: {
-    padding: '12px 14px',
-    borderRadius: '8px',
-    border: '1px solid rgba(0, 0, 0, 0.08)',
-    transition: 'background 0.15s ease',
+    padding: '12px',
+    borderRadius: '6px',
+    border: '1px solid #D0D7DE',
+    transition: 'background 0.15s ease, border-color 0.15s ease',
   },
   dimensionAnchorHeader: {
     display: 'flex',
@@ -2461,68 +2769,68 @@ const styles: Record<string, React.CSSProperties> = {
     marginBottom: '6px',
   },
   dimensionAnchorLevel: {
-    fontSize: '13px',
+    fontSize: '14px',
     fontWeight: 600,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
   },
   dimensionAnchorRange: {
     fontSize: '11px',
-    color: 'rgba(60, 60, 67, 0.6)',
-    fontFamily: 'monospace',
+    color: '#8C959F',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
   },
   dimensionAnchorBehavior: {
     fontSize: '13px',
     lineHeight: 1.5,
-    color: '#374151',
+    color: '#57606A',
     margin: 0,
   },
   dimensionPanelReasoning: {
-    fontSize: '13px',
+    fontSize: '14px',
     lineHeight: 1.6,
-    color: '#374151',
+    color: '#57606A',
     margin: 0,
     padding: '12px',
-    background: 'rgba(0, 0, 0, 0.02)',
-    borderRadius: '8px',
-    fontStyle: 'italic' as const,
+    background: '#F6F8FA',
+    borderRadius: '6px',
   },
 
-  // AI Reasoning Section
-  aiReasoningSection: { marginBottom: '16px', padding: '12px', background: 'rgba(255, 255, 255, 0.8)', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.06)' },
-  aiReasoningTitle: { fontSize: '12px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.8)', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.3px' },
-  aiReasoningText: { fontSize: '13px', color: '#1D1D1F', margin: 0, lineHeight: 1.6 },
+  // AI Reasoning Section (Institutional)
+  aiReasoningSection: { marginBottom: '16px', padding: '12px', background: '#DDF4FF', borderRadius: '6px', border: '1px solid #B6E3FF' },
+  aiReasoningTitle: { fontSize: '11px', fontWeight: 600, color: '#0969DA', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  aiReasoningText: { fontSize: '14px', color: '#24292F', margin: 0, lineHeight: 1.6 },
 
-  // Raw Response Section
-  rawResponseSection: { padding: '12px', background: 'rgba(0, 0, 0, 0.03)', borderRadius: '8px' },
-  rawResponseTitle: { fontSize: '12px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.8)', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.3px' },
-  rawResponseText: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.9)', margin: 0, lineHeight: 1.5, fontFamily: 'monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
+  // Raw Response Section (Institutional)
+  rawResponseSection: { padding: '12px', background: '#F6F8FA', borderRadius: '6px', marginBottom: '16px', borderLeft: '3px solid #0969DA' },
+  rawResponseTitle: { fontSize: '11px', fontWeight: 600, color: '#0969DA', margin: '0 0 8px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  rawResponseText: { fontSize: '13px', color: '#57606A', margin: 0, lineHeight: 1.6, fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace', whiteSpace: 'pre-wrap', wordBreak: 'break-word' },
 
-  // Metric Flags Section
-  metricFlagsSection: { marginTop: '20px', padding: '16px', background: 'rgba(220, 38, 38, 0.04)', borderRadius: '10px', border: '1px solid rgba(220, 38, 38, 0.1)' },
-  metricFlagsSectionTitle: { fontSize: '13px', fontWeight: 600, color: '#DC2626', margin: '0 0 12px 0' },
-  metricFlagItem: { marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(220, 38, 38, 0.1)' },
+  // Metric Flags Section (Institutional)
+  metricFlagsSection: { marginTop: '16px', padding: '12px', background: '#FFEBE9', borderRadius: '6px', border: '1px solid rgba(207, 34, 46, 0.2)' },
+  metricFlagsSectionTitle: { fontSize: '11px', fontWeight: 600, color: '#CF222E', margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  metricFlagItem: { marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid rgba(207, 34, 46, 0.15)' },
   metricFlagHeader: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '6px' },
-  metricFlagSeverity: { fontSize: '10px', fontWeight: 600, padding: '2px 6px', borderRadius: '4px', textTransform: 'uppercase' },
-  metricFlagType: { fontSize: '11px', color: 'rgba(60, 60, 67, 0.6)', textTransform: 'capitalize' },
-  metricFlagTitle: { fontSize: '13px', fontWeight: 500, color: '#1D1D1F', margin: '0 0 4px 0' },
-  metricFlagExplanation: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.8)', margin: 0, lineHeight: 1.5 },
-  noContributionsText: { fontSize: '13px', color: 'rgba(60, 60, 67, 0.6)', fontStyle: 'italic', margin: '16px 0' },
+  metricFlagSeverity: { fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '4px', textTransform: 'uppercase' },
+  metricFlagType: { fontSize: '12px', color: '#8C959F' },
+  metricFlagTitle: { fontSize: '14px', fontWeight: 500, color: '#24292F', margin: '0 0 4px 0' },
+  metricFlagExplanation: { fontSize: '13px', color: '#57606A', margin: 0, lineHeight: 1.5 },
+  noContributionsText: { fontSize: '13px', color: '#8C959F', fontStyle: 'italic', margin: '16px 0' },
 
-  // Interdependencies Section
-  interdependenciesSection: { marginTop: '16px', padding: '16px', background: 'rgba(37, 99, 235, 0.04)', borderRadius: '10px', border: '1px solid rgba(37, 99, 235, 0.1)' },
-  interdependenciesTitle: { fontSize: '12px', fontWeight: 600, color: '#2563EB', margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.3px' },
-  interdependencyItem: { marginBottom: '14px', paddingBottom: '14px', borderBottom: '1px solid rgba(37, 99, 235, 0.1)' },
+  // Interdependencies Section (Institutional)
+  interdependenciesSection: { marginTop: '16px', padding: '12px', background: '#DDF4FF', borderRadius: '6px', border: '1px solid #B6E3FF' },
+  interdependenciesTitle: { fontSize: '11px', fontWeight: 600, color: '#0969DA', margin: '0 0 12px 0', textTransform: 'uppercase', letterSpacing: '0.5px' },
+  interdependencyItem: { marginBottom: '12px', paddingBottom: '12px', borderBottom: '1px solid #B6E3FF' },
   interdependencyHeader: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '6px' },
-  interdependencyLinkedCode: { fontSize: '14px', fontWeight: 600, color: '#2563EB' },
-  interdependencyType: { fontSize: '10px', fontWeight: 500, padding: '2px 8px', borderRadius: '4px', background: 'rgba(37, 99, 235, 0.1)', color: '#2563EB', textTransform: 'uppercase' },
-  interdependencyDescription: { fontSize: '13px', color: '#1D1D1F', margin: '0 0 8px 0', lineHeight: 1.5 },
-  interdependencyImpact: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.8)', margin: 0, padding: '8px 12px', background: 'rgba(255, 255, 255, 0.6)', borderRadius: '6px', borderLeft: '3px solid #2563EB' },
+  interdependencyLinkedCode: { fontSize: '14px', fontWeight: 600, color: '#0969DA', fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' },
+  interdependencyType: { fontSize: '11px', fontWeight: 600, padding: '2px 8px', borderRadius: '4px', background: '#B6E3FF', color: '#0550AE', textTransform: 'uppercase' },
+  interdependencyDescription: { fontSize: '14px', color: '#24292F', margin: '0 0 8px 0', lineHeight: 1.5 },
+  interdependencyImpact: { fontSize: '13px', color: '#57606A', margin: 0, padding: '10px 12px', background: '#FFFFFF', borderRadius: '6px', borderLeft: '3px solid #0969DA' },
 
-  // Check Result Styles (AI findings for interdependencies)
-  checkResultBadge: { fontSize: '10px', fontWeight: 600, padding: '3px 8px', borderRadius: '4px', marginLeft: 'auto' },
-  checkScoresRow: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', padding: '8px 12px', background: 'rgba(255, 255, 255, 0.8)', borderRadius: '6px' },
-  checkScoreItem: { fontSize: '13px', fontWeight: 500, color: '#1D1D1F' },
-  checkScoreArrow: { fontSize: '14px', color: 'rgba(60, 60, 67, 0.5)' },
-  checkResultReasoning: { fontSize: '13px', color: '#475569', lineHeight: 1.6, padding: '10px 12px', background: 'rgba(255, 255, 255, 0.9)', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.06)', marginTop: '8px' },
+  // Check Result Styles (Institutional)
+  checkResultBadge: { fontSize: '11px', fontWeight: 600, padding: '3px 8px', borderRadius: '4px', marginLeft: 'auto' },
+  checkScoresRow: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '8px', padding: '8px 12px', background: '#FFFFFF', borderRadius: '6px' },
+  checkScoreItem: { fontSize: '14px', fontWeight: 500, color: '#24292F', fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' },
+  checkScoreArrow: { fontSize: '14px', color: '#8C959F' },
+  checkResultReasoning: { fontSize: '13px', color: '#57606A', lineHeight: 1.6, padding: '10px 12px', background: '#FFFFFF', borderRadius: '6px', border: '1px solid #D0D7DE', marginTop: '8px' },
 };
 
 export default EvaluationsSection;
