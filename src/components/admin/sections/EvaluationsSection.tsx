@@ -351,16 +351,27 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
     }
   };
 
-  const loadRunDetail = async (runId: string) => {
+  const loadRunDetail = async (runId: string, businessId?: string) => {
     try {
       setIsLoading(true);
       const [detail, scoresData] = await Promise.all([
         adminApi.getEvaluationRun(runId),
         adminApi.getEvaluationScores(runId),
       ]);
+
+      // Find business info if businessId provided (from split-pane view)
+      let selectedBusiness = nav.selectedBusiness;
+      if (businessId && !selectedBusiness) {
+        const business = enrichedBusinesses.find(b => b.id === businessId);
+        if (business) {
+          selectedBusiness = { id: business.id, name: business.name };
+        }
+      }
+
       setNav(prev => ({
         ...prev,
         level: 'detail',
+        selectedBusiness: selectedBusiness,
         selectedRun: detail,
         detailSubLevel: 'summary',
         selectedSourceId: undefined,
@@ -396,20 +407,30 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
         // Go back to summary
         setNav(prev => ({ ...prev, detailSubLevel: 'summary' }));
       } else {
-        // Go back to runs list
-        setNav(prev => ({ ...prev, level: 'runs', selectedRun: undefined, detailSubLevel: undefined, selectedSourceId: undefined }));
+        // Go back to split-pane view (businesses level) with same business selected
+        const businessToSelect = nav.selectedBusiness;
+        setNav({
+          level: 'businesses',
+          selectedBusiness: businessToSelect, // Preserve for initialSelectedBusinessId
+        });
         setScores(null);
-        if (nav.selectedAssessment) {
-          loadRuns(nav.selectedAssessment.id);
-        }
+        loadBusinesses();
       }
     } else if (nav.level === 'runs') {
-      setNav(prev => ({ ...prev, level: 'assessments', selectedAssessment: undefined }));
-      if (nav.selectedBusiness) {
-        loadAssessments(nav.selectedBusiness.id);
-      }
+      // Go back to split-pane view with same business selected
+      const businessToSelect = nav.selectedBusiness;
+      setNav({
+        level: 'businesses',
+        selectedBusiness: businessToSelect,
+      });
+      loadBusinesses();
     } else if (nav.level === 'assessments') {
-      setNav({ level: 'businesses' });
+      // Go back to split-pane view with same business selected
+      const businessToSelect = nav.selectedBusiness;
+      setNav({
+        level: 'businesses',
+        selectedBusiness: businessToSelect,
+      });
       loadBusinesses();
     }
   };
@@ -528,7 +549,7 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
         }
       }} />
 
-      {/* Level 1: Stripe-Style Unified View */}
+      {/* Level 1: Split-Pane Unified View */}
       {nav.level === 'businesses' && (
         <SplitPaneEvaluations
           businesses={enrichedBusinesses}
@@ -536,6 +557,7 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
           onTriggerEvaluation={triggerEvaluation}
           triggeringAssessment={triggeringReview}
           runningProgress={runningProgress}
+          initialSelectedBusinessId={nav.selectedBusiness?.id}
         />
       )}
 
@@ -753,15 +775,17 @@ function SplitPaneEvaluations({
   onTriggerEvaluation,
   triggeringAssessment,
   runningProgress,
+  initialSelectedBusinessId,
 }: {
   businesses: BusinessWithAssessments[];
-  onViewRun: (runId: string) => void;
+  onViewRun: (runId: string, businessId: string) => void;
   onTriggerEvaluation: (assessmentId: string) => void;
   triggeringAssessment: string | null;
   runningProgress?: { step: number; total: number; message: string };
+  initialSelectedBusinessId?: string;
 }) {
   const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(
-    businesses.length > 0 ? businesses[0].id : null
+    initialSelectedBusinessId || (businesses.length > 0 ? businesses[0].id : null)
   );
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
 
@@ -794,13 +818,10 @@ function SplitPaneEvaluations({
 
   return (
     <div style={splitStyles.container}>
-      {/* Header */}
-      <div style={splitStyles.header}>
-        <h1 style={splitStyles.title}>Evaluations</h1>
-        <p style={splitStyles.subtitle}>
-          {businesses.length} business{businesses.length !== 1 ? 'es' : ''} · {businesses.reduce((sum, b) => sum + b.assessments.length, 0)} assessments
-        </p>
-      </div>
+      {/* Stats Subtitle */}
+      <p style={splitStyles.subtitle}>
+        {businesses.length} business{businesses.length !== 1 ? 'es' : ''} · {businesses.reduce((sum, b) => sum + b.assessments.length, 0)} assessments
+      </p>
 
       {/* Split Pane Container */}
       <div style={splitStyles.splitContainer}>
@@ -931,7 +952,7 @@ function SplitPaneEvaluations({
                       {/* Score Display (when has runs) */}
                       {hasRuns && latestRun && !isRunning && (
                         <div
-                          onClick={() => onViewRun(latestRun.id)}
+                          onClick={() => onViewRun(latestRun.id, selectedBusiness!.id)}
                           style={splitStyles.scoreRow}
                         >
                           <div style={splitStyles.scoreDisplay}>
@@ -995,7 +1016,7 @@ function SplitPaneEvaluations({
                                 return (
                                   <div
                                     key={run.id}
-                                    onClick={() => onViewRun(run.id)}
+                                    onClick={() => onViewRun(run.id, selectedBusiness!.id)}
                                     style={splitStyles.historyItem}
                                   >
                                     <span style={splitStyles.historyRun}>Run #{assessment.runs.length - idx - 1}</span>
@@ -1032,20 +1053,10 @@ const splitStyles: Record<string, React.CSSProperties> = {
     flexDirection: 'column' as const,
     height: '100%',
   },
-  header: {
-    marginBottom: '24px',
-  },
-  title: {
-    fontSize: '22px',
-    fontWeight: 600,
-    color: '#1A1A1A',
-    margin: '0 0 4px 0',
-    letterSpacing: '-0.02em',
-  },
   subtitle: {
     fontSize: '13px',
     color: '#888888',
-    margin: 0,
+    margin: '0 0 16px 0',
   },
   // Split container
   splitContainer: {
