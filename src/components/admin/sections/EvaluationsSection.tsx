@@ -161,6 +161,23 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
   const [runs, setRuns] = useState<EvaluationRunSummary[]>([]);
   const [scores, setScores] = useState<EvaluationScoresResponse | null>(null);
 
+  // Stripe-style enriched data
+  const [enrichedBusinesses, setEnrichedBusinesses] = useState<{
+    id: string;
+    name: string;
+    assessments: {
+      id: string;
+      name: string;
+      status: string;
+      latestRun?: EvaluationRunSummary;
+      runs: EvaluationRunSummary[];
+      stats: { total_submitted: number };
+      evaluated_at?: string;
+    }[];
+    total_reviews: number;
+    completed_reviews: number;
+  }[]>([]);
+
   // Loading states
   const [isLoading, setIsLoading] = useState(true);
   // Note: activeTab kept for future use when tabs are implemented
@@ -169,9 +186,14 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
   // For triggering new evaluations
   const [showTriggerModal, setShowTriggerModal] = useState(false);
   const [triggeringReview, setTriggeringReview] = useState<string | null>(null);
+  const [runningProgress, setRunningProgress] = useState<{
+    step: number;
+    total: number;
+    message: string;
+  } | undefined>(undefined);
 
   useEffect(() => {
-    loadBusinesses();
+    loadEnrichedBusinesses();
   }, []);
 
   // ============ Data Loading ============
@@ -192,6 +214,95 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
       setBusinesses(sorted);
     } catch (err) {
       onError('Failed to load businesses');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  // Load enriched data for Stripe-style view
+  const loadEnrichedBusinesses = async () => {
+    try {
+      setIsLoading(true);
+      const businessesData = await adminApi.getBusinessesWithReviews();
+
+      // Sort by most recent evaluation first
+      const sortedBusinesses = businessesData.sort((a, b) => {
+        const aDate = a.latest_evaluation_at || a.most_recent_pending || '1970-01-01';
+        const bDate = b.latest_evaluation_at || b.most_recent_pending || '1970-01-01';
+        return new Date(bDate).getTime() - new Date(aDate).getTime();
+      });
+
+      // Load assessments and runs for each business in parallel
+      const enriched = await Promise.all(
+        sortedBusinesses.map(async (business) => {
+          try {
+            const reviewsData = await adminApi.getBusinessReviews(business.id);
+            const allReviews = [...(reviewsData.pending || []), ...(reviewsData.completed || [])];
+
+            // Load runs for each assessment
+            const assessmentsWithRuns = await Promise.all(
+              allReviews.map(async (review) => {
+                try {
+                  const runsData = await adminApi.getAssessmentEvaluationRuns(review.id);
+                  const sortedRuns = runsData.sort((a, b) => {
+                    const aDate = a.created_at || '1970-01-01';
+                    const bDate = b.created_at || '1970-01-01';
+                    return new Date(bDate).getTime() - new Date(aDate).getTime();
+                  });
+
+                  return {
+                    id: review.id,
+                    name: review.name,
+                    status: review.status,
+                    latestRun: sortedRuns[0],
+                    runs: sortedRuns,
+                    stats: review.stats,
+                    evaluated_at: review.evaluated_at,
+                  };
+                } catch {
+                  return {
+                    id: review.id,
+                    name: review.name,
+                    status: review.status,
+                    latestRun: undefined,
+                    runs: [],
+                    stats: review.stats,
+                    evaluated_at: review.evaluated_at,
+                  };
+                }
+              })
+            );
+
+            // Sort assessments by most recent run or evaluation
+            const sortedAssessments = assessmentsWithRuns.sort((a, b) => {
+              const aDate = a.latestRun?.created_at || a.evaluated_at || '1970-01-01';
+              const bDate = b.latestRun?.created_at || b.evaluated_at || '1970-01-01';
+              return new Date(bDate).getTime() - new Date(aDate).getTime();
+            });
+
+            return {
+              id: business.id,
+              name: business.name,
+              assessments: sortedAssessments,
+              total_reviews: business.total_reviews,
+              completed_reviews: business.completed_reviews,
+            };
+          } catch {
+            return {
+              id: business.id,
+              name: business.name,
+              assessments: [],
+              total_reviews: business.total_reviews,
+              completed_reviews: business.completed_reviews,
+            };
+          }
+        })
+      );
+
+      setEnrichedBusinesses(enriched);
+      setBusinesses(sortedBusinesses);
+    } catch (err) {
+      onError('Failed to load evaluations data');
     } finally {
       setIsLoading(false);
     }
@@ -318,17 +429,45 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
   const triggerEvaluation = async (assessmentId: string) => {
     try {
       setTriggeringReview(assessmentId);
+
+      // Simulate progress steps for better UX
+      const progressSteps = [
+        { step: 1, total: 5, message: 'Loading interview data...' },
+        { step: 2, total: 5, message: 'Analyzing responses...' },
+        { step: 3, total: 5, message: 'Calculating metrics...' },
+        { step: 4, total: 5, message: 'Generating insights...' },
+        { step: 5, total: 5, message: 'Finalizing report...' },
+      ];
+
+      // Show progress animation
+      for (const progress of progressSteps) {
+        setRunningProgress(progress);
+        await new Promise(resolve => setTimeout(resolve, 800));
+      }
+
       const result = await adminApi.runEvaluation(assessmentId);
       setShowTriggerModal(false);
-      // Refresh and show the new run
-      await loadRuns(assessmentId);
-      setTimeout(() => {
+      setRunningProgress(undefined);
+
+      // Refresh enriched data for Stripe-style view
+      if (nav.level === 'businesses') {
+        await loadEnrichedBusinesses();
+        // Auto-navigate to the new run
         if (result.run_id) {
-          loadRunDetail(result.run_id);
+          setTimeout(() => loadRunDetail(result.run_id), 500);
         }
-      }, 1000);
+      } else {
+        // Fallback for old-style navigation
+        await loadRuns(assessmentId);
+        setTimeout(() => {
+          if (result.run_id) {
+            loadRunDetail(result.run_id);
+          }
+        }, 1000);
+      }
     } catch (err) {
       onError('Failed to trigger evaluation');
+      setRunningProgress(undefined);
     } finally {
       setTriggeringReview(null);
     }
@@ -358,7 +497,7 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
 
   return (
     <div style={styles.container}>
-      {/* CSS for dimension panel animation */}
+      {/* CSS for animations */}
       <style>{`
         @keyframes slideInRight {
           from {
@@ -369,6 +508,10 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
             transform: translateX(0);
             opacity: 1;
           }
+        }
+        @keyframes spin {
+          from { transform: rotate(0deg); }
+          to { transform: rotate(360deg); }
         }
       `}</style>
       {/* Breadcrumb */}
@@ -385,11 +528,14 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
         }
       }} />
 
-      {/* Level 1: Businesses */}
+      {/* Level 1: Stripe-Style Unified View */}
       {nav.level === 'businesses' && (
-        <BusinessesList
-          businesses={businesses}
-          onSelect={selectBusiness}
+        <StripeStyleEvaluations
+          businesses={enrichedBusinesses}
+          onViewRun={loadRunDetail}
+          onTriggerEvaluation={triggerEvaluation}
+          triggeringAssessment={triggeringReview}
+          runningProgress={runningProgress}
         />
       )}
 
@@ -578,6 +724,633 @@ function BusinessesList({
     </>
   );
 }
+
+// ============ NEW: Stripe-Style Unified View ============
+
+interface AssessmentWithRuns {
+  id: string;
+  name: string;
+  status: string;
+  latestRun?: EvaluationRunSummary;
+  runs: EvaluationRunSummary[];
+  stats: {
+    total_submitted: number;
+  };
+  evaluated_at?: string;
+}
+
+interface BusinessWithAssessments {
+  id: string;
+  name: string;
+  assessments: AssessmentWithRuns[];
+  total_reviews: number;
+  completed_reviews: number;
+}
+
+function StripeStyleEvaluations({
+  businesses,
+  onViewRun,
+  onTriggerEvaluation,
+  triggeringAssessment,
+  runningProgress,
+}: {
+  businesses: BusinessWithAssessments[];
+  onViewRun: (runId: string) => void;
+  onTriggerEvaluation: (assessmentId: string) => void;
+  triggeringAssessment: string | null;
+  runningProgress?: { step: number; total: number; message: string };
+}) {
+  const [expandedBusinesses, setExpandedBusinesses] = useState<Set<string>>(
+    new Set(businesses.slice(0, 2).map(b => b.id)) // First 2 expanded by default
+  );
+  const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
+
+  const toggleBusiness = (businessId: string) => {
+    setExpandedBusinesses(prev => {
+      const next = new Set(prev);
+      if (next.has(businessId)) {
+        next.delete(businessId);
+      } else {
+        next.add(businessId);
+      }
+      return next;
+    });
+  };
+
+  const toggleHistory = (assessmentId: string) => {
+    setExpandedHistory(prev => prev === assessmentId ? null : assessmentId);
+  };
+
+  const getScoreColor = (score: number) => {
+    if (score >= 70) return { bg: '#DAFBE1', text: '#1A7F37', bar: '#1A7F37' };
+    if (score >= 50) return { bg: '#FFF8C5', text: '#9A6700', bar: '#9A6700' };
+    if (score >= 30) return { bg: '#FFEBE9', text: '#CF222E', bar: '#CF222E' };
+    return { bg: '#F6F8FA', text: '#57606A', bar: '#8C959F' };
+  };
+
+  return (
+    <div style={stripeStyles.container}>
+      {/* Header */}
+      <div style={stripeStyles.header}>
+        <div>
+          <h1 style={stripeStyles.title}>Evaluations</h1>
+          <p style={stripeStyles.subtitle}>
+            {businesses.length} business{businesses.length !== 1 ? 'es' : ''} •
+            {businesses.reduce((sum, b) => sum + b.assessments.length, 0)} assessments
+          </p>
+        </div>
+      </div>
+
+      {/* Business Sections */}
+      <div style={stripeStyles.businessList}>
+        {businesses.map(business => {
+          const isExpanded = expandedBusinesses.has(business.id);
+
+          return (
+            <div key={business.id} style={stripeStyles.businessSection}>
+              {/* Business Header - Collapsible */}
+              <button
+                onClick={() => toggleBusiness(business.id)}
+                style={stripeStyles.businessHeader}
+              >
+                <div style={stripeStyles.businessLeft}>
+                  <div style={stripeStyles.businessIcon}>
+                    {business.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div>
+                    <h2 style={stripeStyles.businessName}>{business.name}</h2>
+                    <p style={stripeStyles.businessMeta}>
+                      {business.assessments.length} assessment{business.assessments.length !== 1 ? 's' : ''} •
+                      {business.completed_reviews} evaluated
+                    </p>
+                  </div>
+                </div>
+                <svg
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  style={{
+                    transition: 'transform 0.2s ease',
+                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                    opacity: 0.5,
+                  }}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </button>
+
+              {/* Assessment Cards */}
+              {isExpanded && (
+                <div style={stripeStyles.assessmentGrid}>
+                  {business.assessments.map(assessment => {
+                    const isRunning = triggeringAssessment === assessment.id;
+                    const hasRuns = assessment.runs.length > 0;
+                    const latestRun = assessment.latestRun;
+                    const score = latestRun?.overall_score || 0;
+                    const scoreColors = getScoreColor(score);
+                    const isHistoryOpen = expandedHistory === assessment.id;
+
+                    return (
+                      <div key={assessment.id} style={stripeStyles.assessmentCard}>
+                        {/* Card Header */}
+                        <div style={stripeStyles.cardHeader}>
+                          <h3 style={stripeStyles.assessmentName}>{assessment.name}</h3>
+                          <div style={stripeStyles.cardActions}>
+                            <button
+                              onClick={() => onTriggerEvaluation(assessment.id)}
+                              disabled={isRunning}
+                              style={{
+                                ...stripeStyles.runButton,
+                                opacity: isRunning ? 0.7 : 1,
+                              }}
+                            >
+                              {isRunning ? (
+                                <>
+                                  <div style={stripeStyles.miniSpinner} />
+                                  Running...
+                                </>
+                              ) : (
+                                <>
+                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                    <polygon points="5 3 19 12 5 21 5 3" />
+                                  </svg>
+                                  Run
+                                </>
+                              )}
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Running Progress */}
+                        {isRunning && runningProgress && (
+                          <div style={stripeStyles.progressSection}>
+                            <div style={stripeStyles.progressBar}>
+                              <div
+                                style={{
+                                  ...stripeStyles.progressFill,
+                                  width: `${(runningProgress.step / runningProgress.total) * 100}%`,
+                                }}
+                              />
+                            </div>
+                            <div style={stripeStyles.progressSteps}>
+                              <span style={stripeStyles.progressText}>{runningProgress.message}</span>
+                              <span style={stripeStyles.progressCount}>
+                                Step {runningProgress.step}/{runningProgress.total}
+                              </span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Latest Run Card */}
+                        {hasRuns && latestRun && !isRunning ? (
+                          <div
+                            onClick={() => onViewRun(latestRun.id)}
+                            style={stripeStyles.latestRunCard}
+                          >
+                            <div style={stripeStyles.runInfo}>
+                              <div style={stripeStyles.scoreSection}>
+                                <span
+                                  style={{
+                                    ...stripeStyles.scoreValue,
+                                    color: scoreColors.text,
+                                  }}
+                                >
+                                  {score}
+                                </span>
+                                <span style={stripeStyles.scoreLabel}>/ 100</span>
+                              </div>
+                              <div style={stripeStyles.healthBar}>
+                                <div
+                                  style={{
+                                    ...stripeStyles.healthFill,
+                                    width: `${score}%`,
+                                    backgroundColor: scoreColors.bar,
+                                  }}
+                                />
+                              </div>
+                            </div>
+                            <div style={stripeStyles.runMeta}>
+                              <span style={stripeStyles.runDate}>
+                                {timeAgo(latestRun.created_at)}
+                              </span>
+                              <span style={stripeStyles.runDot}>•</span>
+                              <span style={stripeStyles.runStats}>
+                                {latestRun.total_sources || 0} interviews
+                              </span>
+                              {(latestRun.flags_count || 0) > 0 && (
+                                <>
+                                  <span style={stripeStyles.runDot}>•</span>
+                                  <span style={stripeStyles.flagsBadge}>
+                                    {latestRun.flags_count} flags
+                                  </span>
+                                </>
+                              )}
+                            </div>
+                            <svg
+                              width="16"
+                              height="16"
+                              viewBox="0 0 24 24"
+                              fill="none"
+                              stroke="currentColor"
+                              strokeWidth="2"
+                              style={stripeStyles.viewArrow}
+                            >
+                              <path d="M9 18l6-6-6-6" />
+                            </svg>
+                          </div>
+                        ) : !isRunning ? (
+                          <div style={stripeStyles.noRunsState}>
+                            <span style={stripeStyles.noRunsText}>No evaluations yet</span>
+                            <span style={stripeStyles.noRunsHint}>
+                              {assessment.stats.total_submitted} interview{assessment.stats.total_submitted !== 1 ? 's' : ''} ready
+                            </span>
+                          </div>
+                        ) : null}
+
+                        {/* History Dropdown */}
+                        {hasRuns && assessment.runs.length > 1 && (
+                          <div style={stripeStyles.historySection}>
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                toggleHistory(assessment.id);
+                              }}
+                              style={stripeStyles.historyToggle}
+                            >
+                              <span>Previous runs ({assessment.runs.length - 1})</span>
+                              <svg
+                                width="12"
+                                height="12"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="currentColor"
+                                strokeWidth="2"
+                                style={{
+                                  transition: 'transform 0.2s ease',
+                                  transform: isHistoryOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                                }}
+                              >
+                                <path d="M6 9l6 6 6-6" />
+                              </svg>
+                            </button>
+
+                            {isHistoryOpen && (
+                              <div style={stripeStyles.historyList}>
+                                {assessment.runs.slice(1).map((run, idx) => {
+                                  const runScore = run.overall_score || 0;
+                                  const runColors = getScoreColor(runScore);
+                                  return (
+                                    <div
+                                      key={run.id}
+                                      onClick={() => onViewRun(run.id)}
+                                      style={stripeStyles.historyItem}
+                                    >
+                                      <span style={stripeStyles.historyIndex}>#{assessment.runs.length - idx - 1}</span>
+                                      <span
+                                        style={{
+                                          ...stripeStyles.historyScore,
+                                          color: runColors.text,
+                                        }}
+                                      >
+                                        {runScore}
+                                      </span>
+                                      <span style={stripeStyles.historyDate}>
+                                        {timeAgo(run.created_at)}
+                                      </span>
+                                      <svg
+                                        width="14"
+                                        height="14"
+                                        viewBox="0 0 24 24"
+                                        fill="none"
+                                        stroke="currentColor"
+                                        strokeWidth="2"
+                                        style={{ opacity: 0.3, marginLeft: 'auto' }}
+                                      >
+                                        <path d="M9 18l6-6-6-6" />
+                                      </svg>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+    </div>
+  );
+}
+
+// Stripe-style styles
+const stripeStyles: Record<string, React.CSSProperties> = {
+  container: {
+    padding: '0',
+  },
+  header: {
+    marginBottom: '32px',
+  },
+  title: {
+    fontSize: '24px',
+    fontWeight: 600,
+    color: '#1A1A1A',
+    margin: '0 0 4px 0',
+    letterSpacing: '-0.02em',
+  },
+  subtitle: {
+    fontSize: '14px',
+    color: '#888888',
+    margin: 0,
+  },
+  businessList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '16px',
+  },
+  businessSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '12px',
+    border: '1px solid #E5E5E5',
+    overflow: 'hidden',
+  },
+  businessHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    padding: '20px 24px',
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    textAlign: 'left' as const,
+    transition: 'background-color 0.15s',
+  },
+  businessLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+  },
+  businessIcon: {
+    width: '44px',
+    height: '44px',
+    borderRadius: '10px',
+    backgroundColor: '#F0F0F0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#666666',
+  },
+  businessName: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#1A1A1A',
+    margin: 0,
+  },
+  businessMeta: {
+    fontSize: '13px',
+    color: '#888888',
+    margin: '2px 0 0 0',
+  },
+  assessmentGrid: {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
+    gap: '16px',
+    padding: '0 24px 24px 24px',
+  },
+  assessmentCard: {
+    backgroundColor: '#FAFAFA',
+    borderRadius: '10px',
+    border: '1px solid #EEEEEE',
+    padding: '20px',
+    transition: 'border-color 0.15s, box-shadow 0.15s',
+  },
+  cardHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    marginBottom: '16px',
+  },
+  assessmentName: {
+    fontSize: '15px',
+    fontWeight: 600,
+    color: '#1A1A1A',
+    margin: 0,
+    lineHeight: 1.3,
+  },
+  cardActions: {
+    display: 'flex',
+    gap: '8px',
+  },
+  runButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 14px',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#FFFFFF',
+    backgroundColor: '#0969DA',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'background-color 0.15s',
+  },
+  miniSpinner: {
+    width: '12px',
+    height: '12px',
+    border: '2px solid rgba(255, 255, 255, 0.3)',
+    borderTopColor: '#FFFFFF',
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite',
+  },
+  progressSection: {
+    marginBottom: '16px',
+    padding: '12px',
+    backgroundColor: '#F0F7FF',
+    borderRadius: '6px',
+    border: '1px solid #B6D4FE',
+  },
+  progressBar: {
+    height: '4px',
+    backgroundColor: '#E1E1E1',
+    borderRadius: '2px',
+    overflow: 'hidden',
+    marginBottom: '8px',
+  },
+  progressFill: {
+    height: '100%',
+    backgroundColor: '#0969DA',
+    borderRadius: '2px',
+    transition: 'width 0.3s ease',
+  },
+  progressSteps: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  progressText: {
+    fontSize: '12px',
+    color: '#0969DA',
+    fontWeight: 500,
+  },
+  progressCount: {
+    fontSize: '11px',
+    color: '#666666',
+  },
+  latestRunCard: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+    padding: '14px 16px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    border: '1px solid #E5E5E5',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s, box-shadow 0.15s',
+  },
+  runInfo: {
+    flex: 1,
+    minWidth: 0,
+  },
+  scoreSection: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '2px',
+    marginBottom: '6px',
+  },
+  scoreValue: {
+    fontSize: '24px',
+    fontWeight: 600,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+  },
+  scoreLabel: {
+    fontSize: '12px',
+    color: '#999999',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+  },
+  healthBar: {
+    height: '4px',
+    backgroundColor: '#E8E8E8',
+    borderRadius: '2px',
+    overflow: 'hidden',
+  },
+  healthFill: {
+    height: '100%',
+    borderRadius: '2px',
+    transition: 'width 0.3s ease',
+  },
+  runMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    flexWrap: 'wrap' as const,
+  },
+  runDate: {
+    fontSize: '12px',
+    color: '#666666',
+  },
+  runDot: {
+    fontSize: '12px',
+    color: '#CCCCCC',
+  },
+  runStats: {
+    fontSize: '12px',
+    color: '#666666',
+  },
+  flagsBadge: {
+    fontSize: '11px',
+    fontWeight: 500,
+    color: '#9A6700',
+    backgroundColor: '#FFF8C5',
+    padding: '2px 8px',
+    borderRadius: '4px',
+  },
+  viewArrow: {
+    opacity: 0.3,
+    flexShrink: 0,
+  },
+  noRunsState: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '24px 16px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    border: '1px dashed #D0D0D0',
+  },
+  noRunsText: {
+    fontSize: '13px',
+    color: '#888888',
+    marginBottom: '4px',
+  },
+  noRunsHint: {
+    fontSize: '12px',
+    color: '#AAAAAA',
+  },
+  historySection: {
+    marginTop: '12px',
+    paddingTop: '12px',
+    borderTop: '1px solid #EEEEEE',
+  },
+  historyToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 0',
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '12px',
+    color: '#888888',
+    fontWeight: 500,
+    width: '100%',
+    justifyContent: 'flex-start',
+  },
+  historyList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '4px',
+    marginTop: '8px',
+  },
+  historyItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '10px 12px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '6px',
+    border: '1px solid #EEEEEE',
+    cursor: 'pointer',
+    transition: 'background-color 0.15s',
+  },
+  historyIndex: {
+    fontSize: '11px',
+    fontWeight: 500,
+    color: '#999999',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+  },
+  historyScore: {
+    fontSize: '14px',
+    fontWeight: 600,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+  },
+  historyDate: {
+    fontSize: '12px',
+    color: '#888888',
+  },
+};
 
 // ============ Level 2: Assessments List ============
 
