@@ -20,6 +20,12 @@ import type {
   InterviewResponse,
   BusinessWithReviews,
   BusinessReviewsResponse,
+  Dimension,
+  CriticalFlag,
+  EvaluationRunSummary,
+  EvaluationRunDetail,
+  EvaluationScoresResponse,
+  EvaluationFlag,
 } from '../types/admin';
 
 const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -141,6 +147,18 @@ export const adminApi = {
    */
   getQuestionSet: async (questionSetId: string): Promise<QuestionSetDetail> => {
     return adminRequest<QuestionSetDetail>(`/admin/question-sets/${questionSetId}`);
+  },
+
+  /**
+   * Get scoring rubric (dimensions, critical flags) for a question
+   */
+  getQuestionRubric: async (questionId: string): Promise<{
+    question_id: string;
+    dimensions: Dimension[];
+    critical_flags: CriticalFlag[];
+    calibration_examples?: Array<{ level: string; score: number; response: string; explanation: string }>;
+  }> => {
+    return adminRequest(`/admin/questions/${questionId}/rubric`);
   },
 
   /**
@@ -334,6 +352,120 @@ export const adminApi = {
     return adminRequest(`/admin/reviews/${reviewId}/revoke`, {
       method: 'POST',
     });
+  },
+
+  // ============ Evaluation API ============
+
+  /**
+   * Trigger an evaluation run for a review/assessment
+   */
+  runEvaluation: async (assessmentId: string, options?: {
+    config_overrides?: Record<string, unknown>;
+    dry_run?: boolean;
+  }): Promise<{
+    message: string;
+    run_id: string;
+    run_number: number;
+    interviews_to_evaluate: number;
+    status: string;
+  }> => {
+    return adminRequest('/evaluation/run', {
+      method: 'POST',
+      body: JSON.stringify({
+        assessment_id: assessmentId,
+        ...options,
+      }),
+    });
+  },
+
+  /**
+   * List evaluation runs
+   */
+  getEvaluationRuns: async (filters?: {
+    assessment_id?: string;
+    status?: string;
+  }): Promise<EvaluationRunSummary[]> => {
+    const params = new URLSearchParams();
+    if (filters?.assessment_id) params.append('assessment_id', filters.assessment_id);
+    if (filters?.status) params.append('status', filters.status);
+    const query = params.toString() ? `?${params.toString()}` : '';
+    return adminRequest<EvaluationRunSummary[]>(`/evaluation/runs${query}`);
+  },
+
+  /**
+   * Get evaluation run details
+   */
+  getEvaluationRun: async (runId: string, includeAuditLog = false): Promise<EvaluationRunDetail> => {
+    const query = includeAuditLog ? '?include_audit_log=true' : '';
+    return adminRequest<EvaluationRunDetail>(`/evaluation/runs/${runId}${query}`);
+  },
+
+  /**
+   * Get detailed scores for an evaluation run
+   */
+  getEvaluationScores: async (runId: string): Promise<EvaluationScoresResponse> => {
+    return adminRequest<EvaluationScoresResponse>(`/evaluation/runs/${runId}/scores`);
+  },
+
+  /**
+   * Get flags for an evaluation run
+   */
+  getEvaluationFlags: async (runId: string, requiresReviewOnly = false): Promise<EvaluationFlag[]> => {
+    const query = requiresReviewOnly ? '?requires_review_only=true' : '';
+    return adminRequest<EvaluationFlag[]>(`/evaluation/runs/${runId}/flags${query}`);
+  },
+
+  /**
+   * Get audit log for an evaluation run
+   */
+  getEvaluationAuditLog: async (runId: string, stage?: string): Promise<Array<{
+    id: string;
+    timestamp: string;
+    stage: string;
+    action: string;
+    subject_type: string;
+    subject_id: string;
+    details: Record<string, unknown>;
+  }>> => {
+    const query = stage ? `?stage=${stage}` : '';
+    return adminRequest(`/evaluation/runs/${runId}/audit-log${query}`);
+  },
+
+  /**
+   * Resolve a flag
+   */
+  resolveFlag: async (flagId: string, resolution: string, overrideScore?: number): Promise<{ message: string }> => {
+    return adminRequest(`/evaluation/flags/${flagId}/resolve`, {
+      method: 'POST',
+      body: JSON.stringify({
+        resolution,
+        override_score: overrideScore,
+      }),
+    });
+  },
+
+  /**
+   * Get all evaluation runs for an assessment
+   */
+  getAssessmentEvaluationRuns: async (assessmentId: string): Promise<Array<{
+    id: string;
+    run_number: number;
+    status: string;
+    average_metric_score?: number;
+    total_flags: number;
+    unresolved_flags: number;
+    started_at?: string;
+    completed_at?: string;
+    created_at: string;
+  }>> => {
+    return adminRequest(`/evaluation/assessments/${assessmentId}/runs`);
+  },
+
+  /**
+   * Get latest evaluation for an assessment
+   */
+  getLatestEvaluation: async (assessmentId: string): Promise<EvaluationRunDetail> => {
+    return adminRequest<EvaluationRunDetail>(`/evaluation/assessments/${assessmentId}/latest`);
   },
 };
 

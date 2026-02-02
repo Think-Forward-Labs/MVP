@@ -6,14 +6,14 @@
 
 import { useState, useEffect, useRef } from 'react';
 import { adminApi } from '../../../services/adminApi';
-import type { QuestionSetDetail, Question, MetricWeight, ScoreAnchor, ChecklistItem, ExampleAnswer, Interdependency } from '../../../types/admin';
+import type { QuestionSetDetail, Question, MetricWeight, ScoreAnchor, ChecklistItem, ExampleAnswer, Interdependency, Dimension, DimensionAnchor, CriticalFlag } from '../../../types/admin';
 
 interface QuestionSetDetailViewProps {
   questionSetId: string;
   onBack: () => void;
 }
 
-type TabType = 'overview' | 'scoring' | 'training' | 'checklist';
+type TabType = 'overview' | 'scoring' | 'dimensions' | 'training' | 'checklist';
 
 export function QuestionSetDetailView({ questionSetId, onBack }: QuestionSetDetailViewProps) {
   const [questionSet, setQuestionSet] = useState<QuestionSetDetail | null>(null);
@@ -439,7 +439,7 @@ export function QuestionSetDetailView({ questionSetId, onBack }: QuestionSetDeta
           {/* Tabs */}
           <div style={styles.tabsContainer}>
             <div style={styles.tabs}>
-              {(['overview', 'scoring', 'training', 'checklist'] as TabType[]).map((tab) => (
+              {(['overview', 'scoring', 'dimensions', 'training', 'checklist'] as TabType[]).map((tab) => (
                 <button
                   key={tab}
                   onClick={() => setActiveTab(tab)}
@@ -466,6 +466,14 @@ export function QuestionSetDetailView({ questionSetId, onBack }: QuestionSetDeta
             )}
             {activeTab === 'scoring' && (
               <ScoringTab
+                question={displayQuestion}
+                isEditing={isEditing}
+                editedQuestion={editedQuestion}
+                updateField={updateField}
+              />
+            )}
+            {activeTab === 'dimensions' && (
+              <DimensionsTab
                 question={displayQuestion}
                 isEditing={isEditing}
                 editedQuestion={editedQuestion}
@@ -1286,6 +1294,617 @@ function ChecklistTab({ question, isEditing, editedQuestion, updateField }: TabP
   );
 }
 
+function DimensionsTab({ question, isEditing, editedQuestion, updateField }: TabProps) {
+  const [isLoading, setIsLoading] = useState(true);
+  const [rubricDimensions, setRubricDimensions] = useState<Dimension[]>([]);
+  const [rubricFlags, setRubricFlags] = useState<CriticalFlag[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
+
+  // Load rubric data from API
+  useEffect(() => {
+    const loadRubric = async () => {
+      setIsLoading(true);
+      setLoadError(null);
+      try {
+        const rubric = await adminApi.getQuestionRubric(question.id);
+        setRubricDimensions(rubric.dimensions || []);
+        setRubricFlags(rubric.critical_flags || []);
+      } catch (err) {
+        console.error('Failed to load rubric:', err);
+        setLoadError('Failed to load scoring rubric');
+      } finally {
+        setIsLoading(false);
+      }
+    };
+    loadRubric();
+  }, [question.id]);
+
+  // Use edited values when editing, otherwise use loaded rubric data
+  const dimensions = isEditing
+    ? (editedQuestion?.dimensions || rubricDimensions)
+    : rubricDimensions;
+
+  const criticalFlags = isEditing
+    ? (editedQuestion?.critical_flags || rubricFlags)
+    : rubricFlags;
+
+  const totalWeight = dimensions.reduce((sum, d) => sum + d.weight, 0);
+
+  // Loading state
+  if (isLoading) {
+    return (
+      <div style={styles.tabPanel}>
+        <div style={styles.rubricLoaderContainer}>
+          <div style={styles.rubricLoaderSpinner} />
+          <p style={styles.rubricLoaderText}>Loading scoring rubric...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // Error state
+  if (loadError) {
+    return (
+      <div style={styles.tabPanel}>
+        <div style={styles.rubricErrorContainer}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <path d="M12 8v4M12 16h.01" />
+          </svg>
+          <p style={styles.rubricErrorText}>{loadError}</p>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={styles.tabPanel}>
+      {/* Dimensions Section */}
+      <div style={styles.section}>
+        <div style={styles.sectionHeader}>
+          <div>
+            <h4 style={styles.sectionTitle}>Scoring Dimensions</h4>
+            <p style={styles.sectionSubtitle}>Multi-dimensional BARS scoring rubric for AI evaluation</p>
+          </div>
+          {isEditing && (
+            <span style={{
+              ...styles.weightTotal,
+              color: totalWeight === 100 ? '#16A34A' : totalWeight > 100 ? '#DC2626' : '#CA8A04',
+            }}>
+              Total Weight: {totalWeight}%
+            </span>
+          )}
+        </div>
+
+        {isEditing ? (
+          <DimensionsEditor
+            dimensions={dimensions}
+            onChange={(dims) => updateField('dimensions', dims)}
+          />
+        ) : dimensions.length > 0 ? (
+          <DimensionsView dimensions={dimensions} />
+        ) : (
+          <div style={styles.emptyDimensionsContainer}>
+            <div style={styles.emptyDimensionsIcon}>
+              <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M18 20V10M12 20V4M6 20v-6" />
+              </svg>
+            </div>
+            <p style={styles.emptyText}>No dimensions defined</p>
+            <p style={styles.emptySubtext}>
+              Dimensions enable multi-faceted AI scoring using BARS methodology.
+              Each dimension has 5 behavioral anchor levels.
+            </p>
+          </div>
+        )}
+      </div>
+
+      {/* Critical Flags Section */}
+      <div style={styles.section}>
+        <h4 style={styles.sectionTitle}>Critical Flags</h4>
+        <p style={styles.sectionSubtitle}>Auto-detect concerning patterns that may cap scores or trigger review</p>
+
+        {isEditing ? (
+          <CriticalFlagsEditor
+            flags={criticalFlags}
+            onChange={(flags) => updateField('critical_flags', flags)}
+          />
+        ) : criticalFlags.length > 0 ? (
+          <div style={styles.flagsGrid}>
+            {criticalFlags.map((flag, i) => (
+              <div key={i} style={styles.flagCard}>
+                <div style={styles.flagHeader}>
+                  <span style={styles.flagId}>{flag.id}</span>
+                  {flag.max_score !== undefined && (
+                    <span style={styles.flagMaxScore}>Max: {flag.max_score}</span>
+                  )}
+                </div>
+                <p style={styles.flagCondition}>{flag.condition}</p>
+                <p style={styles.flagAction}>{flag.action}</p>
+                {flag.signals.length > 0 && (
+                  <div style={styles.flagSignals}>
+                    {flag.signals.map((signal, j) => (
+                      <span key={j} style={styles.flagSignal}>{signal}</span>
+                    ))}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        ) : (
+          <p style={styles.emptyText}>No critical flags defined</p>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Dimensions View Component (Read-only) - Premium UI
+function DimensionsView({ dimensions }: { dimensions: Dimension[] }) {
+  const [expandedDimension, setExpandedDimension] = useState<string | null>(null);
+
+  const getLevelInfo = (level: number) => {
+    const info: Record<number, { label: string; color: string; bg: string; gradient: string }> = {
+      5: { label: 'Excellent', color: '#16A34A', bg: 'rgba(34, 197, 94, 0.06)', gradient: 'linear-gradient(135deg, #22C55E 0%, #16A34A 100%)' },
+      4: { label: 'Good', color: '#2563EB', bg: 'rgba(59, 130, 246, 0.06)', gradient: 'linear-gradient(135deg, #3B82F6 0%, #2563EB 100%)' },
+      3: { label: 'Moderate', color: '#D97706', bg: 'rgba(245, 158, 11, 0.06)', gradient: 'linear-gradient(135deg, #F59E0B 0%, #D97706 100%)' },
+      2: { label: 'Poor', color: '#EA580C', bg: 'rgba(249, 115, 22, 0.06)', gradient: 'linear-gradient(135deg, #F97316 0%, #EA580C 100%)' },
+      1: { label: 'Very Poor', color: '#DC2626', bg: 'rgba(239, 68, 68, 0.06)', gradient: 'linear-gradient(135deg, #EF4444 0%, #DC2626 100%)' },
+    };
+    return info[level] || { label: `Level ${level}`, color: '#6B7280', bg: 'rgba(107, 114, 128, 0.06)', gradient: 'linear-gradient(135deg, #9CA3AF 0%, #6B7280 100%)' };
+  };
+
+  const totalWeight = dimensions.reduce((sum, d) => sum + d.weight, 0);
+
+  return (
+    <div style={{ display: 'flex', flexDirection: 'column', gap: '16px' }}>
+      {/* Weight Summary Bar */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: '12px', padding: '12px 16px', background: 'rgba(16, 185, 129, 0.04)', borderRadius: '12px', border: '1px solid rgba(16, 185, 129, 0.1)' }}>
+        <span style={{ fontSize: '13px', color: 'rgba(60, 60, 67, 0.6)' }}>Total Weight:</span>
+        <div style={{ flex: 1, height: '8px', background: 'rgba(0, 0, 0, 0.06)', borderRadius: '4px', overflow: 'hidden' }}>
+          <div style={{ width: `${Math.min(totalWeight, 100)}%`, height: '100%', background: totalWeight === 100 ? 'linear-gradient(90deg, #22C55E, #16A34A)' : 'linear-gradient(90deg, #F59E0B, #D97706)', borderRadius: '4px', transition: 'width 0.3s ease' }} />
+        </div>
+        <span style={{ fontSize: '14px', fontWeight: 600, color: totalWeight === 100 ? '#16A34A' : '#D97706' }}>{totalWeight}%</span>
+      </div>
+
+      {/* Dimension Cards */}
+      {dimensions.map((dim) => {
+        const isExpanded = expandedDimension === dim.id;
+        return (
+          <div key={dim.id} style={{ background: 'white', borderRadius: '16px', border: '1px solid rgba(0, 0, 0, 0.06)', boxShadow: '0 2px 8px rgba(0, 0, 0, 0.04)', overflow: 'hidden' }}>
+            {/* Dimension Header */}
+            <button
+              onClick={() => setExpandedDimension(isExpanded ? null : dim.id)}
+              style={{ width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '18px 20px', background: 'transparent', border: 'none', cursor: 'pointer', textAlign: 'left' }}
+            >
+              <div style={{ display: 'flex', alignItems: 'center', gap: '14px' }}>
+                <div style={{ width: '42px', height: '42px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)', borderRadius: '12px', color: 'white', fontSize: '14px', fontWeight: 700 }}>
+                  {dim.weight}%
+                </div>
+                <div>
+                  <div style={{ fontSize: '15px', fontWeight: 600, color: '#1D1D1F', marginBottom: '2px' }}>{dim.name}</div>
+                  <div style={{ fontSize: '12px', color: 'rgba(60, 60, 67, 0.5)', fontFamily: 'monospace' }}>{dim.id}</div>
+                </div>
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '12px', color: 'rgba(60, 60, 67, 0.5)' }}>{dim.anchors?.length || 0} levels</span>
+                <svg
+                  width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                  style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', color: 'rgba(60, 60, 67, 0.4)' }}
+                >
+                  <path d="M6 9l6 6 6-6" />
+                </svg>
+              </div>
+            </button>
+
+            {/* Description */}
+            {dim.description && (
+              <div style={{ padding: '0 20px 16px', marginTop: '-8px' }}>
+                <p style={{ fontSize: '13px', color: 'rgba(60, 60, 67, 0.7)', lineHeight: 1.5, margin: 0 }}>{dim.description}</p>
+              </div>
+            )}
+
+            {/* Expanded Anchors */}
+            {isExpanded && dim.anchors && (
+              <div style={{ borderTop: '1px solid rgba(0, 0, 0, 0.06)', padding: '20px' }}>
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {dim.anchors.sort((a, b) => b.level - a.level).map((anchor) => {
+                    const levelInfo = getLevelInfo(anchor.level);
+                    return (
+                      <div key={anchor.level} style={{ display: 'flex', gap: '16px', padding: '16px', background: levelInfo.bg, borderRadius: '12px', borderLeft: `4px solid ${levelInfo.color}` }}>
+                        {/* Level Badge */}
+                        <div style={{ flexShrink: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '4px', minWidth: '70px' }}>
+                          <div style={{ width: '36px', height: '36px', display: 'flex', alignItems: 'center', justifyContent: 'center', background: levelInfo.gradient, borderRadius: '10px', color: 'white', fontSize: '16px', fontWeight: 700, boxShadow: `0 2px 8px ${levelInfo.color}30` }}>
+                            {anchor.level}
+                          </div>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: levelInfo.color, textTransform: 'uppercase', letterSpacing: '0.02em' }}>{levelInfo.label}</span>
+                          <span style={{ fontSize: '10px', color: 'rgba(60, 60, 67, 0.5)', fontFamily: 'monospace' }}>{anchor.score_range}</span>
+                        </div>
+
+                        {/* Content */}
+                        <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: '16px', minWidth: 0 }}>
+                          {/* Behavior - Full text, no truncation */}
+                          <div>
+                            <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Expected Behavior</div>
+                            <p style={{ fontSize: '14px', color: '#1D1D1F', lineHeight: 1.7, margin: 0, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{anchor.behavior}</p>
+                          </div>
+
+                          {/* Signals - Full list */}
+                          {anchor.signals && anchor.signals.length > 0 && (
+                            <div>
+                              <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Detection Signals ({anchor.signals.length})</div>
+                              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+                                {anchor.signals.map((signal, j) => (
+                                  <span key={j} style={{ padding: '6px 12px', borderRadius: '8px', background: 'white', border: '1px solid rgba(0, 0, 0, 0.1)', fontSize: '13px', color: '#1D1D1F', whiteSpace: 'normal', wordBreak: 'break-word' }}>{signal}</span>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {/* Example Phrases - Full text for each */}
+                          {anchor.example_phrases && anchor.example_phrases.length > 0 && (
+                            <div>
+                              <div style={{ fontSize: '10px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.5)', textTransform: 'uppercase', letterSpacing: '0.05em', marginBottom: '8px' }}>Example Responses ({anchor.example_phrases.length})</div>
+                              <div style={{ display: 'flex', flexDirection: 'column', gap: '10px' }}>
+                                {anchor.example_phrases.map((phrase, j) => (
+                                  <div key={j} style={{ padding: '14px 16px', borderRadius: '10px', background: 'white', border: '1px solid rgba(0, 0, 0, 0.08)', fontSize: '13px', color: 'rgba(60, 60, 67, 0.9)', fontStyle: 'italic', lineHeight: 1.7, whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>"{phrase}"</div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// Dimensions Editor Component
+function DimensionsEditor({ dimensions, onChange }: { dimensions: Dimension[]; onChange: (d: Dimension[]) => void }) {
+  const [expandedDimension, setExpandedDimension] = useState<number | null>(null);
+
+  const addDimension = () => {
+    const newDimension: Dimension = {
+      id: `dim_${Date.now()}`,
+      name: '',
+      description: '',
+      weight: 20,
+      anchors: [
+        { level: 5, score_range: '80-100', behavior: '', signals: [], example_phrases: [] },
+        { level: 4, score_range: '60-80', behavior: '', signals: [], example_phrases: [] },
+        { level: 3, score_range: '40-60', behavior: '', signals: [], example_phrases: [] },
+        { level: 2, score_range: '20-40', behavior: '', signals: [], example_phrases: [] },
+        { level: 1, score_range: '0-20', behavior: '', signals: [], example_phrases: [] },
+      ],
+    };
+    onChange([...dimensions, newDimension]);
+    setExpandedDimension(dimensions.length);
+  };
+
+  const removeDimension = (index: number) => {
+    onChange(dimensions.filter((_, i) => i !== index));
+    if (expandedDimension === index) setExpandedDimension(null);
+  };
+
+  const updateDimension = (index: number, field: keyof Dimension, value: string | number | DimensionAnchor[]) => {
+    const updated = [...dimensions];
+    updated[index] = { ...updated[index], [field]: value };
+    onChange(updated);
+  };
+
+  return (
+    <div style={styles.dimensionsEditorContainer}>
+      {dimensions.map((dim, i) => (
+        <div key={i} style={styles.dimensionEditorCard}>
+          <div style={styles.dimensionEditorHeader}>
+            <button
+              onClick={() => setExpandedDimension(expandedDimension === i ? null : i)}
+              style={styles.dimensionExpandBtn}
+            >
+              <svg
+                width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+                style={{ transform: expandedDimension === i ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease' }}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            <input
+              type="text"
+              value={dim.id}
+              onChange={(e) => updateDimension(i, 'id', e.target.value.toLowerCase().replace(/\s+/g, '_'))}
+              placeholder="dimension_id"
+              style={{ ...styles.editInputSmall, width: '120px' }}
+            />
+            <input
+              type="text"
+              value={dim.name}
+              onChange={(e) => updateDimension(i, 'name', e.target.value)}
+              placeholder="Dimension Name"
+              style={{ ...styles.editInput, flex: 1 }}
+            />
+            <div style={styles.dimensionWeightInput}>
+              <input
+                type="number"
+                value={dim.weight}
+                onChange={(e) => updateDimension(i, 'weight', parseInt(e.target.value) || 0)}
+                style={{ ...styles.editInputSmall, width: '50px', textAlign: 'right' }}
+                min="0"
+                max="100"
+              />
+              <span style={styles.percentSign}>%</span>
+            </div>
+            <button onClick={() => removeDimension(i)} style={styles.removeButtonSmall}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+
+          {expandedDimension === i && (
+            <div style={styles.dimensionEditorBody}>
+              <div style={styles.dimensionEditorField}>
+                <label style={styles.smallLabel}>Description</label>
+                <textarea
+                  value={dim.description}
+                  onChange={(e) => updateDimension(i, 'description', e.target.value)}
+                  placeholder="What does this dimension measure?"
+                  style={styles.editTextarea}
+                  rows={2}
+                />
+              </div>
+
+              <div style={styles.anchorsEditorContainer}>
+                <label style={styles.smallLabel}>Behavioral Anchors (5 Levels)</label>
+                <AnchorsEditor
+                  anchors={dim.anchors}
+                  onChange={(anchors) => updateDimension(i, 'anchors', anchors)}
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+
+      <button onClick={addDimension} style={styles.addDimensionBtn}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        Add Dimension
+      </button>
+    </div>
+  );
+}
+
+// Anchors Editor Component
+function AnchorsEditor({ anchors, onChange }: { anchors: DimensionAnchor[]; onChange: (a: DimensionAnchor[]) => void }) {
+  const [expandedAnchor, setExpandedAnchor] = useState<number | null>(null);
+
+  const updateAnchor = (level: number, field: keyof DimensionAnchor, value: string | number | string[]) => {
+    const updated = anchors.map(a => a.level === level ? { ...a, [field]: value } : a);
+    onChange(updated);
+  };
+
+  const getLevelLabel = (level: number) => {
+    const labels: Record<number, string> = { 5: 'Excellent', 4: 'Good', 3: 'Moderate', 2: 'Poor', 1: 'Very Poor' };
+    return labels[level] || `Level ${level}`;
+  };
+
+  const getLevelColor = (level: number) => {
+    const colors: Record<number, string> = { 5: '#16A34A', 4: '#2563EB', 3: '#D97706', 2: '#EA580C', 1: '#DC2626' };
+    return colors[level] || '#6B7280';
+  };
+
+  // Ensure we have all 5 levels
+  const sortedAnchors = [5, 4, 3, 2, 1].map(level => {
+    const existing = anchors.find(a => a.level === level);
+    return existing || { level, score_range: '', behavior: '', signals: [], example_phrases: [] };
+  });
+
+  return (
+    <div style={styles.anchorsEditorList}>
+      {sortedAnchors.map((anchor) => (
+        <div key={anchor.level} style={styles.anchorEditorCard}>
+          <button
+            onClick={() => setExpandedAnchor(expandedAnchor === anchor.level ? null : anchor.level)}
+            style={styles.anchorEditorHeader}
+          >
+            <span style={{ ...styles.anchorLevelBadge, background: `${getLevelColor(anchor.level)}20`, color: getLevelColor(anchor.level) }}>
+              {anchor.level}
+            </span>
+            <span style={styles.anchorLevelLabel}>{getLevelLabel(anchor.level)}</span>
+            <input
+              type="text"
+              value={anchor.score_range}
+              onChange={(e) => { e.stopPropagation(); updateAnchor(anchor.level, 'score_range', e.target.value); }}
+              onClick={(e) => e.stopPropagation()}
+              placeholder="80-100"
+              style={{ ...styles.editInputSmall, width: '70px', marginLeft: 'auto' }}
+            />
+            <svg
+              width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
+              style={{ transform: expandedAnchor === anchor.level ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s ease', marginLeft: '8px' }}
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+
+          {expandedAnchor === anchor.level && (
+            <div style={styles.anchorEditorBody}>
+              <div style={styles.anchorEditorField}>
+                <label style={styles.tinyLabel}>Behavior Description</label>
+                <textarea
+                  value={anchor.behavior}
+                  onChange={(e) => updateAnchor(anchor.level, 'behavior', e.target.value)}
+                  placeholder="Describe the expected behavior at this level..."
+                  style={styles.editTextareaSmall}
+                  rows={2}
+                />
+              </div>
+
+              <div style={styles.anchorEditorField}>
+                <label style={styles.tinyLabel}>Signals (keywords that indicate this level)</label>
+                <TagsEditor
+                  tags={anchor.signals}
+                  onChange={(signals) => updateAnchor(anchor.level, 'signals', signals)}
+                  placeholder="Add signal keyword..."
+                />
+              </div>
+
+              <div style={styles.anchorEditorField}>
+                <label style={styles.tinyLabel}>Example Phrases</label>
+                <TagsEditor
+                  tags={anchor.example_phrases}
+                  onChange={(phrases) => updateAnchor(anchor.level, 'example_phrases', phrases)}
+                  placeholder="Add example phrase..."
+                  multiline
+                />
+              </div>
+            </div>
+          )}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// Tags Editor Component (for signals and example phrases)
+function TagsEditor({ tags, onChange, placeholder, multiline }: { tags: string[]; onChange: (t: string[]) => void; placeholder?: string; multiline?: boolean }) {
+  const [inputValue, setInputValue] = useState('');
+
+  const addTag = () => {
+    if (inputValue.trim()) {
+      onChange([...tags, inputValue.trim()]);
+      setInputValue('');
+    }
+  };
+
+  const removeTag = (index: number) => onChange(tags.filter((_, i) => i !== index));
+
+  return (
+    <div style={styles.tagsEditorContainer}>
+      <div style={styles.tagsInputRow}>
+        {multiline ? (
+          <textarea
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => { if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); addTag(); } }}
+            placeholder={placeholder}
+            style={styles.editTextareaSmall}
+            rows={1}
+          />
+        ) : (
+          <input
+            type="text"
+            value={inputValue}
+            onChange={(e) => setInputValue(e.target.value)}
+            onKeyDown={(e) => e.key === 'Enter' && addTag()}
+            placeholder={placeholder}
+            style={styles.editInputSmall}
+          />
+        )}
+        <button onClick={addTag} style={styles.addTagBtn}>+</button>
+      </div>
+      {tags.length > 0 && (
+        <div style={styles.tagsList}>
+          {tags.map((tag, i) => (
+            <span key={i} style={styles.tag} onClick={() => removeTag(i)}>
+              {tag} <span style={styles.tagRemove}>×</span>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Critical Flags Editor Component
+function CriticalFlagsEditor({ flags, onChange }: { flags: CriticalFlag[]; onChange: (f: CriticalFlag[]) => void }) {
+  const addFlag = () => {
+    onChange([...flags, { id: '', condition: '', signals: [], action: '', max_score: undefined }]);
+  };
+
+  const removeFlag = (index: number) => onChange(flags.filter((_, i) => i !== index));
+
+  const updateFlag = (index: number, field: keyof CriticalFlag, value: string | number | string[] | undefined) => {
+    const updated = [...flags];
+    updated[index] = { ...updated[index], [field]: value };
+    onChange(updated);
+  };
+
+  return (
+    <div style={styles.flagsEditorContainer}>
+      {flags.map((flag, i) => (
+        <div key={i} style={styles.flagEditorCard}>
+          <div style={styles.flagEditorRow}>
+            <input
+              type="text"
+              value={flag.id}
+              onChange={(e) => updateFlag(i, 'id', e.target.value.toLowerCase().replace(/\s+/g, '_'))}
+              placeholder="flag_id"
+              style={{ ...styles.editInputSmall, width: '100px' }}
+            />
+            <input
+              type="text"
+              value={flag.condition}
+              onChange={(e) => updateFlag(i, 'condition', e.target.value)}
+              placeholder="When does this flag trigger?"
+              style={{ ...styles.editInput, flex: 1 }}
+            />
+            <div style={styles.flagMaxScoreInput}>
+              <span style={styles.tinyLabel}>Max:</span>
+              <input
+                type="number"
+                value={flag.max_score ?? ''}
+                onChange={(e) => updateFlag(i, 'max_score', e.target.value ? parseInt(e.target.value) : undefined)}
+                placeholder="--"
+                style={{ ...styles.editInputSmall, width: '50px' }}
+                min="0"
+                max="100"
+              />
+            </div>
+            <button onClick={() => removeFlag(i)} style={styles.removeButtonSmall}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M18 6L6 18M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+          <div style={styles.flagEditorField}>
+            <input
+              type="text"
+              value={flag.action}
+              onChange={(e) => updateFlag(i, 'action', e.target.value)}
+              placeholder="Action: e.g., Flag as critical concern - learning-to-action loop may be broken"
+              style={styles.editInput}
+            />
+          </div>
+          <div style={styles.flagEditorField}>
+            <label style={styles.tinyLabel}>Trigger Signals</label>
+            <TagsEditor
+              tags={flag.signals}
+              onChange={(signals) => updateFlag(i, 'signals', signals)}
+              placeholder="Add signal keyword..."
+            />
+          </div>
+        </div>
+      ))}
+
+      <button onClick={addFlag} style={styles.addFlagBtn}>
+        <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M12 5v14M5 12h14" />
+        </svg>
+        Add Critical Flag
+      </button>
+    </div>
+  );
+}
+
 // Inline Editors for Complex Types
 function MetricsEditor({ metrics, onChange }: { metrics: MetricWeight[]; onChange: (m: MetricWeight[]) => void }) {
   const addMetric = () => onChange([...metrics, { metric_code: '', metric_name: '', weight: 0 }]);
@@ -1672,6 +2291,114 @@ const styles: Record<string, React.CSSProperties> = {
   interdependencyEditorRow: { display: 'flex', gap: '12px', alignItems: 'flex-end' },
   interdependencyEditorFields: { display: 'flex', flexDirection: 'column', gap: '12px' },
   interdependencyEditorField: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  // Dimensions tab styles
+  dimensionsGrid: { display: 'flex', flexDirection: 'column', gap: '16px' },
+  dimensionCard: { padding: '20px', borderRadius: '14px', background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.12)' },
+  dimensionHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' },
+  dimensionHeaderLeft: { display: 'flex', alignItems: 'center', gap: '12px' },
+  dimensionId: { fontSize: '10px', fontWeight: 700, color: '#059669', background: 'rgba(16, 185, 129, 0.15)', padding: '3px 8px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.03em', fontFamily: 'monospace' },
+  dimensionName: { fontSize: '15px', fontWeight: 600, color: '#1D1D1F' },
+  dimensionWeight: { fontSize: '14px', fontWeight: 700, color: '#059669', background: 'rgba(16, 185, 129, 0.1)', padding: '4px 10px', borderRadius: '6px' },
+  dimensionDescription: { fontSize: '13px', color: 'rgba(60, 60, 67, 0.7)', lineHeight: 1.5, marginBottom: '16px' },
+  anchorsContainer: { marginTop: '12px' },
+  anchorsHeader: { display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '10px', cursor: 'pointer', userSelect: 'none' },
+  anchorsTitle: { fontSize: '12px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.6)', textTransform: 'uppercase', letterSpacing: '0.03em' },
+  anchorsList: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  anchorItem: { display: 'flex', gap: '12px', padding: '12px 14px', borderRadius: '10px', background: 'rgba(255, 255, 255, 0.6)', border: '1px solid rgba(0, 0, 0, 0.04)' },
+  anchorLevel: { width: '28px', height: '28px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', color: 'white', fontSize: '12px', fontWeight: 700, flexShrink: 0 },
+  anchorContent: { flex: 1, display: 'flex', flexDirection: 'column', gap: '6px' },
+  anchorScoreRange: { fontSize: '11px', fontWeight: 600, color: '#059669' },
+  anchorBehavior: { fontSize: '13px', color: 'rgba(60, 60, 67, 0.8)', lineHeight: 1.5, margin: 0 },
+  anchorSignals: { display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '4px' },
+  anchorSignal: { padding: '2px 6px', borderRadius: '4px', background: 'rgba(16, 185, 129, 0.08)', color: '#059669', fontSize: '10px', fontWeight: 500 },
+  // Dimensions editor styles
+  dimensionsEditorContainer: { display: 'flex', flexDirection: 'column', gap: '16px' },
+  weightTotalBanner: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', borderRadius: '10px', background: 'rgba(16, 185, 129, 0.08)', border: '1px solid rgba(16, 185, 129, 0.15)' },
+  weightTotalLabel: { fontSize: '13px', fontWeight: 500, color: '#059669' },
+  weightTotalValue: { fontSize: '15px', fontWeight: 700 },
+  weightTotalGood: { color: '#059669' },
+  weightTotalBad: { color: '#DC2626' },
+  dimensionEditorCard: { padding: '16px', borderRadius: '14px', background: 'rgba(16, 185, 129, 0.04)', border: '1px solid rgba(16, 185, 129, 0.12)', marginBottom: '12px' },
+  dimensionEditorHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' },
+  dimensionEditorTitle: { display: 'flex', alignItems: 'center', gap: '10px' },
+  dimensionEditorIndex: { width: '24px', height: '24px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '6px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', color: 'white', fontSize: '11px', fontWeight: 700 },
+  dimensionEditorBody: { display: 'flex', flexDirection: 'column', gap: '16px' },
+  dimensionEditorRow: { display: 'grid', gridTemplateColumns: '1fr 1fr 100px', gap: '12px', alignItems: 'end' },
+  dimensionEditorField: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  dimensionEditorFieldFull: { display: 'flex', flexDirection: 'column', gap: '4px', gridColumn: '1 / -1' },
+  // Anchors editor styles
+  anchorsEditorContainer: { marginTop: '16px', paddingTop: '16px', borderTop: '1px solid rgba(16, 185, 129, 0.1)' },
+  anchorsEditorTitle: { fontSize: '13px', fontWeight: 600, color: '#1D1D1F', marginBottom: '12px', display: 'flex', alignItems: 'center', gap: '8px' },
+  anchorsEditorList: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  anchorEditorCard: { padding: '14px', borderRadius: '10px', background: 'rgba(255, 255, 255, 0.6)', border: '1px solid rgba(0, 0, 0, 0.06)' },
+  anchorEditorHeader: { display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '12px' },
+  anchorEditorLevel: { width: '32px', height: '32px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '8px', background: 'linear-gradient(135deg, #059669 0%, #047857 100%)', color: 'white', fontSize: '13px', fontWeight: 700 },
+  anchorEditorLevelLabel: { fontSize: '12px', fontWeight: 600, color: '#1D1D1F' },
+  anchorEditorBody: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  anchorEditorRow: { display: 'grid', gridTemplateColumns: '120px 1fr', gap: '12px', alignItems: 'start' },
+  anchorEditorFieldSmall: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  anchorEditorFieldLarge: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  // Tags editor styles (for signals and example_phrases)
+  tagsEditorContainer: { display: 'flex', flexDirection: 'column', gap: '8px' },
+  tagsLabel: { fontSize: '11px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.6)', textTransform: 'uppercase', letterSpacing: '0.03em' },
+  tagsInputRow: { display: 'flex', gap: '8px' },
+  tagInput: { flex: 1, padding: '8px 10px', borderRadius: '6px', border: '1px solid rgba(0, 0, 0, 0.1)', background: 'white', fontSize: '12px', color: '#1D1D1F', outline: 'none' },
+  addTagBtn: { padding: '8px 12px', borderRadius: '6px', border: 'none', background: 'rgba(16, 185, 129, 0.1)', color: '#059669', fontSize: '12px', fontWeight: 500, cursor: 'pointer', whiteSpace: 'nowrap' },
+  tagsList: { display: 'flex', flexWrap: 'wrap', gap: '6px' },
+  tag: { display: 'flex', alignItems: 'center', gap: '6px', padding: '4px 8px 4px 10px', borderRadius: '6px', background: 'rgba(16, 185, 129, 0.1)', color: '#059669', fontSize: '11px', fontWeight: 500 },
+  tagRemove: { width: '16px', height: '16px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '4px', border: 'none', background: 'rgba(0, 0, 0, 0.05)', color: 'rgba(60, 60, 67, 0.6)', cursor: 'pointer', padding: 0 },
+  // Critical flags styles
+  flagsSection: { marginTop: '24px', paddingTop: '24px', borderTop: '1px solid rgba(0, 0, 0, 0.06)' },
+  flagsSectionTitle: { fontSize: '14px', fontWeight: 600, color: '#1D1D1F', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' },
+  flagsGrid: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  flagCard: { padding: '16px', borderRadius: '12px', background: 'rgba(220, 38, 38, 0.04)', border: '1px solid rgba(220, 38, 38, 0.12)' },
+  flagHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '10px' },
+  flagId: { fontSize: '11px', fontWeight: 700, color: '#DC2626', background: 'rgba(220, 38, 38, 0.12)', padding: '3px 8px', borderRadius: '4px', textTransform: 'uppercase', letterSpacing: '0.02em', fontFamily: 'monospace' },
+  flagMaxScore: { fontSize: '12px', fontWeight: 600, color: '#DC2626' },
+  flagCondition: { fontSize: '13px', color: 'rgba(60, 60, 67, 0.8)', lineHeight: 1.5, marginBottom: '8px' },
+  flagAction: { fontSize: '12px', color: '#DC2626', fontWeight: 500, fontStyle: 'italic' },
+  flagSignals: { display: 'flex', flexWrap: 'wrap', gap: '4px', marginTop: '8px' },
+  flagSignal: { padding: '2px 6px', borderRadius: '4px', background: 'rgba(220, 38, 38, 0.08)', color: '#DC2626', fontSize: '10px', fontWeight: 500 },
+  flagEditorCard: { padding: '16px', borderRadius: '12px', background: 'rgba(220, 38, 38, 0.04)', border: '1px solid rgba(220, 38, 38, 0.12)', marginBottom: '12px' },
+  flagEditorHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '12px' },
+  flagEditorBody: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  flagEditorRow: { display: 'grid', gridTemplateColumns: '1fr 1fr 100px', gap: '12px', alignItems: 'end' },
+  flagEditorField: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  // Empty states
+  emptyDimensionsContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '48px 24px', background: 'rgba(0, 0, 0, 0.02)', borderRadius: '14px', border: '1px dashed rgba(0, 0, 0, 0.1)' },
+  emptyDimensionsIcon: { width: '48px', height: '48px', display: 'flex', alignItems: 'center', justifyContent: 'center', borderRadius: '12px', background: 'rgba(16, 185, 129, 0.1)', color: '#059669', marginBottom: '12px' },
+  emptyDimensionsTitle: { fontSize: '15px', fontWeight: 600, color: '#1D1D1F', marginBottom: '4px' },
+  emptyDimensionsText: { fontSize: '13px', color: 'rgba(60, 60, 67, 0.6)', textAlign: 'center', maxWidth: '300px', lineHeight: 1.5 },
+  // Utility styles
+  tinyLabel: { fontSize: '10px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.5)', textTransform: 'uppercase', letterSpacing: '0.03em' },
+  editTextareaSmall: { width: '100%', padding: '10px 12px', borderRadius: '8px', border: '1px solid rgba(0, 0, 0, 0.1)', background: 'white', fontSize: '13px', color: '#1D1D1F', outline: 'none', resize: 'vertical', fontFamily: 'inherit', lineHeight: 1.5, boxSizing: 'border-box', minHeight: '60px' },
+  sectionHeader: { display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '16px' },
+  // Additional Dimensions styles
+  weightTotal: { fontSize: '13px', fontWeight: 600, padding: '6px 12px', borderRadius: '6px', background: 'rgba(22, 163, 74, 0.08)' },
+  emptySubtext: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.5)', textAlign: 'center', maxWidth: '280px', lineHeight: 1.4, marginTop: '4px' },
+  dimensionHeaderRight: { display: 'flex', alignItems: 'center', gap: '10px' },
+  dimensionExpandBtn: { display: 'flex', alignItems: 'center', justifyContent: 'center', width: '28px', height: '28px', borderRadius: '6px', border: '1px solid rgba(0, 0, 0, 0.08)', background: 'white', color: 'rgba(60, 60, 67, 0.6)', cursor: 'pointer', flexShrink: 0 },
+  dimensionWeightInput: { display: 'flex', alignItems: 'center', gap: '4px' },
+  percentSign: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.5)', fontWeight: 500 },
+  addDimensionBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '12px 16px', borderRadius: '10px', border: '1px dashed rgba(16, 185, 129, 0.3)', background: 'rgba(16, 185, 129, 0.04)', color: '#059669', fontSize: '13px', fontWeight: 500, cursor: 'pointer', width: '100%', justifyContent: 'center' },
+  anchorLevelBadge: { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: '6px', fontSize: '12px', fontWeight: 700 },
+  anchorHeader: { display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '8px' },
+  anchorSignalsContainer: { marginTop: '8px', display: 'flex', alignItems: 'flex-start', gap: '8px' },
+  anchorSignalsLabel: { fontSize: '10px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.5)', textTransform: 'uppercase', whiteSpace: 'nowrap', paddingTop: '3px' },
+  anchorExamplesContainer: { marginTop: '8px', display: 'flex', flexDirection: 'column', gap: '4px' },
+  anchorExamplesLabel: { fontSize: '10px', fontWeight: 600, color: 'rgba(60, 60, 67, 0.5)', textTransform: 'uppercase' },
+  anchorExamples: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  anchorExample: { fontSize: '12px', color: 'rgba(60, 60, 67, 0.7)', fontStyle: 'italic', lineHeight: 1.4, padding: '6px 10px', background: 'rgba(0, 0, 0, 0.02)', borderRadius: '6px', borderLeft: '2px solid rgba(16, 185, 129, 0.3)' },
+  anchorEditorField: { display: 'flex', flexDirection: 'column', gap: '4px' },
+  flagsEditorContainer: { display: 'flex', flexDirection: 'column', gap: '12px' },
+  flagMaxScoreInput: { display: 'flex', alignItems: 'center', gap: '4px' },
+  addFlagBtn: { display: 'flex', alignItems: 'center', gap: '6px', padding: '12px 16px', borderRadius: '10px', border: '1px dashed rgba(220, 38, 38, 0.3)', background: 'rgba(220, 38, 38, 0.04)', color: '#DC2626', fontSize: '13px', fontWeight: 500, cursor: 'pointer', width: '100%', justifyContent: 'center' },
+  // Rubric loader styles
+  rubricLoaderContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: '16px' },
+  rubricLoaderSpinner: { width: '32px', height: '32px', border: '3px solid rgba(16, 185, 129, 0.15)', borderTopColor: '#059669', borderRadius: '50%', animation: 'spin 0.8s linear infinite' },
+  rubricLoaderText: { fontSize: '14px', color: 'rgba(60, 60, 67, 0.6)', margin: 0 },
+  rubricErrorContainer: { display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', padding: '60px 24px', gap: '12px' },
+  rubricErrorText: { fontSize: '14px', color: '#DC2626', margin: 0 },
 };
 
 export default QuestionSetDetailView;

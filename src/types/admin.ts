@@ -52,7 +52,7 @@ export interface AdminListItem {
   created_at: string;
 }
 
-export type AdminSection = 'businesses' | 'question-sets' | 'admins' | 'metrics' | 'reviews';
+export type AdminSection = 'businesses' | 'question-sets' | 'admins' | 'metrics' | 'reviews' | 'evaluations';
 
 // Question Types
 export type QuestionType = 'open' | 'scale' | 'percentage' | 'single_select' | 'multi_select';
@@ -74,6 +74,31 @@ export interface MetricWeight {
 export interface ScoreAnchor {
   range: string;
   description: string;
+}
+
+// Dimension-based scoring (BARS methodology)
+export interface DimensionAnchor {
+  level: number;           // 1-5 (1=lowest, 5=highest)
+  score_range: string;     // e.g., "80-100", "60-80"
+  behavior: string;        // Behavioral description for this level
+  signals: string[];       // Detection keywords/phrases
+  example_phrases: string[]; // Example response phrases for AI training
+}
+
+export interface Dimension {
+  id: string;              // Unique ID e.g., "trigger_clarity"
+  name: string;            // Display name e.g., "Trigger Clarity"
+  description: string;     // What this dimension measures
+  weight: number;          // Percentage weight (should sum to 100 across all dimensions)
+  anchors: DimensionAnchor[]; // 5-level behavioral anchors
+}
+
+export interface CriticalFlag {
+  id: string;              // e.g., "no_example", "avoidance"
+  condition: string;       // Description of when this flag triggers
+  signals: string[];       // Keywords that trigger this flag
+  action: string;          // What happens when triggered
+  max_score?: number;      // Cap score at this level if triggered
 }
 
 export interface ChecklistItem {
@@ -119,6 +144,9 @@ export interface Question {
   scoring_note?: string;
   example_answers?: ExampleAnswer[];
   checklist?: ChecklistItem[];
+  // Dimensional scoring (BARS methodology)
+  dimensions?: Dimension[];
+  critical_flags?: CriticalFlag[];
   created_at: string;
   created_by?: string;
 }
@@ -322,6 +350,9 @@ export interface BusinessWithReviews {
   total_reviews: number;
   most_recent_pending?: string;
   has_pending: boolean;
+  // For evaluation sorting - computed from most_recent_pending or evaluated_reviews
+  latest_evaluation_at?: string;
+  evaluated_reviews?: number;
 }
 
 export interface BusinessReviewItem {
@@ -346,4 +377,169 @@ export interface BusinessReviewsResponse {
   };
   pending: BusinessReviewItem[];
   completed: BusinessReviewItem[];
+}
+
+// Evaluation Types
+export type EvaluationStatus = 'pending' | 'processing' | 'completed' | 'failed';
+export type ConfidenceLevel = 'high' | 'medium' | 'low';
+export type ResponseQualityLevel = 'complete' | 'partial' | 'minimal' | 'empty';
+export type FlagSeverity = 'critical' | 'warning' | 'info';
+export type FlagType = 'contradiction' | 'inconsistency' | 'missing_data' | 'outlier' | 'quality_issue';
+
+export interface EvaluationRunSummary {
+  id: string;
+  assessment_id?: string;
+  run_number: number;
+  status: EvaluationStatus | string;  // API returns string
+  total_sources?: number;
+  total_questions_scored?: number;
+  total_metrics_calculated?: number;
+  total_flags: number;
+  flags_requiring_review?: number;
+  unresolved_flags?: number;
+  average_metric_score?: number;
+  started_at?: string;
+  completed_at?: string;
+  created_at: string;
+}
+
+export interface EvaluationSource {
+  id: string;
+  source_type: string;
+  name: string;
+  reference_id?: string;
+}
+
+export interface DimensionAnchor {
+  level: number;
+  score_range: string;
+  behavior: string;
+}
+
+export interface DimensionScoreDetail {
+  dimension_id: string;
+  dimension_name: string;
+  description?: string;
+  weight?: number;
+  anchors?: DimensionAnchor[];
+  score: number;
+  confidence: ConfidenceLevel;
+  reasoning: string;
+}
+
+export interface QuestionInterdependency {
+  linked_question_id: string;
+  linked_question_code: string;
+  description: string;
+  scoring_impact?: string | null;
+  type?: string;
+}
+
+// What the AI actually checked and found for an interdependency
+export interface InterdependencyCheckResult {
+  id: string;
+  check_type: string;  // "contradiction", "validation", "context", "pathology"
+  primary_question_code: string;
+  linked_question_code: string;
+  interdependency_description: string;  // What should be checked (from question definition)
+  primary_score?: number | null;
+  linked_score?: number | null;
+  passed: boolean;  // true = no issue found, false = issue detected
+  reasoning: string;  // AI explanation of what was checked and concluded
+  flag_id?: string | null;  // If a flag was created, link to it
+}
+
+export interface QuestionScoreDetail {
+  id: string;
+  source_id: string;
+  question_id: string;
+  question_code: string;
+  question_text?: string;
+  overall_score: number;
+  dimension_scores: DimensionScoreDetail[];
+  interdependencies?: QuestionInterdependency[];
+  check_results?: InterdependencyCheckResult[];  // What AI actually found for each interdependency
+  confidence: ConfidenceLevel;
+  response_quality: ResponseQualityLevel;
+  scoring_reasoning?: string;
+  raw_response?: string;
+  requires_review: boolean;
+}
+
+export interface QuestionContribution {
+  question_id: string;
+  question_code: string;
+  score: number;
+  weight: number;
+  weighted_contribution: number;
+}
+
+export interface MetricScoreDetail {
+  id: string;
+  source_id?: string | null;  // null = aggregated across all sources, otherwise per-interview
+  metric_id: string;
+  metric_code: string;
+  metric_name?: string;
+  overall_score: number;
+  question_contributions: QuestionContribution[];
+  confidence: ConfidenceLevel;
+  interpretation?: string;
+}
+
+export interface FlagTrigger {
+  trigger_type: string;
+  source_question?: string;
+  target_question?: string;
+  condition: string;
+}
+
+export interface FlagEvidence {
+  question_id: string;
+  response_excerpt: string;
+  relevance: string;
+}
+
+export interface EvaluationFlag {
+  id: string;
+  flag_type: FlagType;
+  severity: FlagSeverity;
+  title: string;
+  description?: string;
+  source_ids: string[];  // Which interview sources this flag applies to
+  question_ids?: string[];  // Legacy - use source_ids instead
+  triggers?: FlagTrigger[];
+  evidence?: FlagEvidence[];
+  ai_explanation?: string;
+  requires_review: boolean;
+  is_resolved: boolean;
+  resolution?: string;
+  resolved_by?: string;
+  resolved_at?: string;
+  created_at?: string;
+}
+
+export interface EvaluationRunDetail {
+  id: string;
+  assessment_id: string;
+  run_number: number;
+  status: EvaluationStatus;
+  triggered_by: string;
+  config: Record<string, unknown>;
+  sources: EvaluationSource[];
+  question_scores: QuestionScoreDetail[];
+  metric_scores: MetricScoreDetail[];
+  flags: EvaluationFlag[];
+  audit_log: {
+    total_entries: number;
+    stages_covered: string[];
+  };
+  started_at?: string;
+  completed_at?: string;
+  created_at: string;
+}
+
+export interface EvaluationScoresResponse {
+  run_id: string;
+  question_scores: QuestionScoreDetail[];
+  metric_scores: MetricScoreDetail[];
 }

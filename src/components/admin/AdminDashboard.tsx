@@ -11,6 +11,7 @@ import { QuestionSetsSection } from './sections/QuestionSetsSection';
 import { AdminsSection } from './sections/AdminsSection';
 import { MetricsSection } from './sections/MetricsSection';
 import { ReviewsSection } from './sections/ReviewsSection';
+import { EvaluationsSection } from './sections/EvaluationsSection';
 
 interface AdminDashboardProps {
   admin: Admin;
@@ -37,6 +38,8 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
         return <MetricsSection onError={handleError} />;
       case 'reviews':
         return <ReviewsSection onError={handleError} />;
+      case 'evaluations':
+        return <EvaluationsSection onError={handleError} />;
       case 'admins':
         return admin.role === 'super_admin' ? <AdminsSection /> : null;
       default:
