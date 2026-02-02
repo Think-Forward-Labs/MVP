@@ -530,7 +530,7 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
 
       {/* Level 1: Stripe-Style Unified View */}
       {nav.level === 'businesses' && (
-        <StripeStyleEvaluations
+        <SplitPaneEvaluations
           businesses={enrichedBusinesses}
           onViewRun={loadRunDetail}
           onTriggerEvaluation={triggerEvaluation}
@@ -725,7 +725,7 @@ function BusinessesList({
   );
 }
 
-// ============ NEW: Stripe-Style Unified View ============
+// ============ NEW: Split-Pane Master-Detail View ============
 
 interface AssessmentWithRuns {
   id: string;
@@ -747,7 +747,7 @@ interface BusinessWithAssessments {
   completed_reviews: number;
 }
 
-function StripeStyleEvaluations({
+function SplitPaneEvaluations({
   businesses,
   onViewRun,
   onTriggerEvaluation,
@@ -760,397 +760,416 @@ function StripeStyleEvaluations({
   triggeringAssessment: string | null;
   runningProgress?: { step: number; total: number; message: string };
 }) {
-  const [expandedBusinesses, setExpandedBusinesses] = useState<Set<string>>(
-    new Set(businesses.slice(0, 2).map(b => b.id)) // First 2 expanded by default
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(
+    businesses.length > 0 ? businesses[0].id : null
   );
   const [expandedHistory, setExpandedHistory] = useState<string | null>(null);
 
-  const toggleBusiness = (businessId: string) => {
-    setExpandedBusinesses(prev => {
-      const next = new Set(prev);
-      if (next.has(businessId)) {
-        next.delete(businessId);
-      } else {
-        next.add(businessId);
-      }
-      return next;
-    });
-  };
+  const selectedBusiness = businesses.find(b => b.id === selectedBusinessId);
 
   const toggleHistory = (assessmentId: string) => {
     setExpandedHistory(prev => prev === assessmentId ? null : assessmentId);
   };
 
   const getScoreColor = (score: number) => {
-    if (score >= 70) return { bg: '#DAFBE1', text: '#1A7F37', bar: '#1A7F37' };
-    if (score >= 50) return { bg: '#FFF8C5', text: '#9A6700', bar: '#9A6700' };
-    if (score >= 30) return { bg: '#FFEBE9', text: '#CF222E', bar: '#CF222E' };
-    return { bg: '#F6F8FA', text: '#57606A', bar: '#8C959F' };
+    if (score >= 70) return { text: '#1A7F37', bar: '#1A7F37' };
+    if (score >= 50) return { text: '#9A6700', bar: '#9A6700' };
+    if (score >= 30) return { text: '#CF222E', bar: '#CF222E' };
+    return { text: '#8C959F', bar: '#D0D0D0' };
   };
 
-  return (
-    <div style={stripeStyles.container}>
-      {/* Header */}
-      <div style={stripeStyles.header}>
-        <div>
-          <h1 style={stripeStyles.title}>Evaluations</h1>
-          <p style={stripeStyles.subtitle}>
-            {businesses.length} business{businesses.length !== 1 ? 'es' : ''} •
-            {businesses.reduce((sum, b) => sum + b.assessments.length, 0)} assessments
-          </p>
+  if (businesses.length === 0) {
+    return (
+      <div style={splitStyles.emptyState}>
+        <div style={splitStyles.emptyIcon}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#CCCCCC" strokeWidth="1.5">
+            <path d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4" />
+          </svg>
         </div>
+        <h3 style={splitStyles.emptyTitle}>No evaluations yet</h3>
+        <p style={splitStyles.emptyText}>Businesses will appear here once they have submitted assessments.</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={splitStyles.container}>
+      {/* Header */}
+      <div style={splitStyles.header}>
+        <h1 style={splitStyles.title}>Evaluations</h1>
+        <p style={splitStyles.subtitle}>
+          {businesses.length} business{businesses.length !== 1 ? 'es' : ''} · {businesses.reduce((sum, b) => sum + b.assessments.length, 0)} assessments
+        </p>
       </div>
 
-      {/* Business Sections */}
-      <div style={stripeStyles.businessList}>
-        {businesses.map(business => {
-          const isExpanded = expandedBusinesses.has(business.id);
+      {/* Split Pane Container */}
+      <div style={splitStyles.splitContainer}>
+        {/* Left Panel - Business List */}
+        <div style={splitStyles.leftPanel}>
+          <div style={splitStyles.panelHeader}>
+            <span style={splitStyles.panelLabel}>Businesses</span>
+          </div>
+          <div style={splitStyles.businessList}>
+            {businesses.map(business => {
+              const isSelected = business.id === selectedBusinessId;
+              const hasRuns = business.assessments.some(a => a.runs.length > 0);
+              const avgScore = hasRuns
+                ? Math.round(
+                    business.assessments
+                      .filter(a => a.latestRun)
+                      .reduce((sum, a) => sum + (a.latestRun?.overall_score || 0), 0) /
+                    Math.max(1, business.assessments.filter(a => a.latestRun).length)
+                  )
+                : null;
 
-          return (
-            <div key={business.id} style={stripeStyles.businessSection}>
-              {/* Business Header - Collapsible */}
-              <button
-                onClick={() => toggleBusiness(business.id)}
-                style={stripeStyles.businessHeader}
-              >
-                <div style={stripeStyles.businessLeft}>
-                  <div style={stripeStyles.businessIcon}>
-                    {business.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div>
-                    <h2 style={stripeStyles.businessName}>{business.name}</h2>
-                    <p style={stripeStyles.businessMeta}>
-                      {business.assessments.length} assessment{business.assessments.length !== 1 ? 's' : ''} •
-                      {business.completed_reviews} evaluated
-                    </p>
-                  </div>
-                </div>
-                <svg
-                  width="16"
-                  height="16"
-                  viewBox="0 0 24 24"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2"
+              return (
+                <button
+                  key={business.id}
+                  onClick={() => setSelectedBusinessId(business.id)}
                   style={{
-                    transition: 'transform 0.2s ease',
-                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
-                    opacity: 0.5,
+                    ...splitStyles.businessItem,
+                    backgroundColor: isSelected ? '#F5F5F5' : 'transparent',
+                    borderLeft: isSelected ? '2px solid #1A1A1A' : '2px solid transparent',
                   }}
                 >
-                  <path d="M6 9l6 6 6-6" />
-                </svg>
-              </button>
+                  <div style={splitStyles.businessItemContent}>
+                    <span style={splitStyles.businessName}>{business.name}</span>
+                    <span style={splitStyles.businessMeta}>
+                      {business.assessments.length} assessment{business.assessments.length !== 1 ? 's' : ''}
+                    </span>
+                  </div>
+                  {avgScore !== null && (
+                    <span style={{
+                      ...splitStyles.businessScore,
+                      color: getScoreColor(avgScore).text,
+                    }}>
+                      {avgScore}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
 
-              {/* Assessment Cards */}
-              {isExpanded && (
-                <div style={stripeStyles.assessmentGrid}>
-                  {business.assessments.map(assessment => {
-                    const isRunning = triggeringAssessment === assessment.id;
-                    const hasRuns = assessment.runs.length > 0;
-                    const latestRun = assessment.latestRun;
-                    const score = latestRun?.overall_score || 0;
-                    const scoreColors = getScoreColor(score);
-                    const isHistoryOpen = expandedHistory === assessment.id;
+        {/* Vertical Divider */}
+        <div style={splitStyles.divider} />
 
-                    return (
-                      <div key={assessment.id} style={stripeStyles.assessmentCard}>
-                        {/* Card Header */}
-                        <div style={stripeStyles.cardHeader}>
-                          <h3 style={stripeStyles.assessmentName}>{assessment.name}</h3>
-                          <div style={stripeStyles.cardActions}>
-                            <button
-                              onClick={() => onTriggerEvaluation(assessment.id)}
-                              disabled={isRunning}
-                              style={{
-                                ...stripeStyles.runButton,
-                                opacity: isRunning ? 0.7 : 1,
-                              }}
-                            >
-                              {isRunning ? (
-                                <>
-                                  <div style={stripeStyles.miniSpinner} />
-                                  Running...
-                                </>
-                              ) : (
-                                <>
-                                  <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                                    <polygon points="5 3 19 12 5 21 5 3" />
-                                  </svg>
-                                  Run
-                                </>
-                              )}
-                            </button>
+        {/* Right Panel - Assessments */}
+        <div style={splitStyles.rightPanel}>
+          {selectedBusiness ? (
+            <>
+              <div style={splitStyles.panelHeader}>
+                <div>
+                  <span style={splitStyles.selectedBusinessName}>{selectedBusiness.name}</span>
+                  <span style={splitStyles.selectedBusinessMeta}>
+                    {selectedBusiness.assessments.length} assessment{selectedBusiness.assessments.length !== 1 ? 's' : ''} · {selectedBusiness.completed_reviews} evaluated
+                  </span>
+                </div>
+              </div>
+
+              <div style={splitStyles.assessmentList}>
+                {selectedBusiness.assessments.map(assessment => {
+                  const isRunning = triggeringAssessment === assessment.id;
+                  const hasRuns = assessment.runs.length > 0;
+                  const latestRun = assessment.latestRun;
+                  const score = latestRun?.overall_score || 0;
+                  const scoreColors = getScoreColor(score);
+                  const isHistoryOpen = expandedHistory === assessment.id;
+
+                  return (
+                    <div key={assessment.id} style={splitStyles.assessmentCard}>
+                      {/* Assessment Header Row */}
+                      <div style={splitStyles.assessmentHeader}>
+                        <div style={splitStyles.assessmentInfo}>
+                          <h3 style={splitStyles.assessmentName}>{assessment.name}</h3>
+                          <span style={splitStyles.assessmentMeta}>
+                            {assessment.stats.total_submitted} interview{assessment.stats.total_submitted !== 1 ? 's' : ''}
+                            {latestRun && ` · Last run ${timeAgo(latestRun.created_at)}`}
+                          </span>
+                        </div>
+                        <button
+                          onClick={() => onTriggerEvaluation(assessment.id)}
+                          disabled={isRunning}
+                          style={{
+                            ...splitStyles.runButton,
+                            opacity: isRunning ? 0.7 : 1,
+                          }}
+                        >
+                          {isRunning ? (
+                            <>
+                              <div style={splitStyles.miniSpinner} />
+                              <span>Running...</span>
+                            </>
+                          ) : (
+                            <>
+                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                <polygon points="5 3 19 12 5 21 5 3" />
+                              </svg>
+                              <span>Run Evaluation</span>
+                            </>
+                          )}
+                        </button>
+                      </div>
+
+                      {/* Progress Bar (when running) */}
+                      {isRunning && runningProgress && (
+                        <div style={splitStyles.progressSection}>
+                          <div style={splitStyles.progressBar}>
+                            <div style={{
+                              ...splitStyles.progressFill,
+                              width: `${(runningProgress.step / runningProgress.total) * 100}%`,
+                            }} />
+                          </div>
+                          <div style={splitStyles.progressInfo}>
+                            <span style={splitStyles.progressMessage}>{runningProgress.message}</span>
+                            <span style={splitStyles.progressStep}>Step {runningProgress.step}/{runningProgress.total}</span>
                           </div>
                         </div>
+                      )}
 
-                        {/* Running Progress */}
-                        {isRunning && runningProgress && (
-                          <div style={stripeStyles.progressSection}>
-                            <div style={stripeStyles.progressBar}>
-                              <div
-                                style={{
-                                  ...stripeStyles.progressFill,
-                                  width: `${(runningProgress.step / runningProgress.total) * 100}%`,
-                                }}
-                              />
-                            </div>
-                            <div style={stripeStyles.progressSteps}>
-                              <span style={stripeStyles.progressText}>{runningProgress.message}</span>
-                              <span style={stripeStyles.progressCount}>
-                                Step {runningProgress.step}/{runningProgress.total}
-                              </span>
+                      {/* Score Display (when has runs) */}
+                      {hasRuns && latestRun && !isRunning && (
+                        <div
+                          onClick={() => onViewRun(latestRun.id)}
+                          style={splitStyles.scoreRow}
+                        >
+                          <div style={splitStyles.scoreDisplay}>
+                            <span style={{ ...splitStyles.scoreValue, color: scoreColors.text }}>
+                              {score}
+                            </span>
+                            <span style={splitStyles.scoreMax}>/100</span>
+                            <div style={splitStyles.scoreBar}>
+                              <div style={{
+                                ...splitStyles.scoreBarFill,
+                                width: `${score}%`,
+                                backgroundColor: scoreColors.bar,
+                              }} />
                             </div>
                           </div>
-                        )}
+                          <div style={splitStyles.runDetails}>
+                            {(latestRun.flags_count || 0) > 0 && (
+                              <span style={splitStyles.flagBadge}>{latestRun.flags_count} flags</span>
+                            )}
+                            <span style={splitStyles.viewLink}>View details →</span>
+                          </div>
+                        </div>
+                      )}
 
-                        {/* Latest Run Card */}
-                        {hasRuns && latestRun && !isRunning ? (
-                          <div
-                            onClick={() => onViewRun(latestRun.id)}
-                            style={stripeStyles.latestRunCard}
+                      {/* No runs state */}
+                      {!hasRuns && !isRunning && (
+                        <div style={splitStyles.noRunsRow}>
+                          <span style={splitStyles.noRunsText}>No evaluations yet</span>
+                        </div>
+                      )}
+
+                      {/* History Dropdown */}
+                      {hasRuns && assessment.runs.length > 1 && (
+                        <div style={splitStyles.historySection}>
+                          <button
+                            onClick={() => toggleHistory(assessment.id)}
+                            style={splitStyles.historyToggle}
                           >
-                            <div style={stripeStyles.runInfo}>
-                              <div style={stripeStyles.scoreSection}>
-                                <span
-                                  style={{
-                                    ...stripeStyles.scoreValue,
-                                    color: scoreColors.text,
-                                  }}
-                                >
-                                  {score}
-                                </span>
-                                <span style={stripeStyles.scoreLabel}>/ 100</span>
-                              </div>
-                              <div style={stripeStyles.healthBar}>
-                                <div
-                                  style={{
-                                    ...stripeStyles.healthFill,
-                                    width: `${score}%`,
-                                    backgroundColor: scoreColors.bar,
-                                  }}
-                                />
-                              </div>
-                            </div>
-                            <div style={stripeStyles.runMeta}>
-                              <span style={stripeStyles.runDate}>
-                                {timeAgo(latestRun.created_at)}
-                              </span>
-                              <span style={stripeStyles.runDot}>•</span>
-                              <span style={stripeStyles.runStats}>
-                                {latestRun.total_sources || 0} interviews
-                              </span>
-                              {(latestRun.flags_count || 0) > 0 && (
-                                <>
-                                  <span style={stripeStyles.runDot}>•</span>
-                                  <span style={stripeStyles.flagsBadge}>
-                                    {latestRun.flags_count} flags
-                                  </span>
-                                </>
-                              )}
-                            </div>
                             <svg
-                              width="16"
-                              height="16"
+                              width="12"
+                              height="12"
                               viewBox="0 0 24 24"
                               fill="none"
                               stroke="currentColor"
                               strokeWidth="2"
-                              style={stripeStyles.viewArrow}
-                            >
-                              <path d="M9 18l6-6-6-6" />
-                            </svg>
-                          </div>
-                        ) : !isRunning ? (
-                          <div style={stripeStyles.noRunsState}>
-                            <span style={stripeStyles.noRunsText}>No evaluations yet</span>
-                            <span style={stripeStyles.noRunsHint}>
-                              {assessment.stats.total_submitted} interview{assessment.stats.total_submitted !== 1 ? 's' : ''} ready
-                            </span>
-                          </div>
-                        ) : null}
-
-                        {/* History Dropdown */}
-                        {hasRuns && assessment.runs.length > 1 && (
-                          <div style={stripeStyles.historySection}>
-                            <button
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                toggleHistory(assessment.id);
+                              style={{
+                                transform: isHistoryOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                                transition: 'transform 0.2s ease',
                               }}
-                              style={stripeStyles.historyToggle}
                             >
-                              <span>Previous runs ({assessment.runs.length - 1})</span>
-                              <svg
-                                width="12"
-                                height="12"
-                                viewBox="0 0 24 24"
-                                fill="none"
-                                stroke="currentColor"
-                                strokeWidth="2"
-                                style={{
-                                  transition: 'transform 0.2s ease',
-                                  transform: isHistoryOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                                }}
-                              >
-                                <path d="M6 9l6 6 6-6" />
-                              </svg>
-                            </button>
+                              <path d="M6 9l6 6 6-6" />
+                            </svg>
+                            <span>Previous runs ({assessment.runs.length - 1})</span>
+                          </button>
 
-                            {isHistoryOpen && (
-                              <div style={stripeStyles.historyList}>
-                                {assessment.runs.slice(1).map((run, idx) => {
-                                  const runScore = run.overall_score || 0;
-                                  const runColors = getScoreColor(runScore);
-                                  return (
-                                    <div
-                                      key={run.id}
-                                      onClick={() => onViewRun(run.id)}
-                                      style={stripeStyles.historyItem}
-                                    >
-                                      <span style={stripeStyles.historyIndex}>#{assessment.runs.length - idx - 1}</span>
-                                      <span
-                                        style={{
-                                          ...stripeStyles.historyScore,
-                                          color: runColors.text,
-                                        }}
-                                      >
-                                        {runScore}
-                                      </span>
-                                      <span style={stripeStyles.historyDate}>
-                                        {timeAgo(run.created_at)}
-                                      </span>
-                                      <svg
-                                        width="14"
-                                        height="14"
-                                        viewBox="0 0 24 24"
-                                        fill="none"
-                                        stroke="currentColor"
-                                        strokeWidth="2"
-                                        style={{ opacity: 0.3, marginLeft: 'auto' }}
-                                      >
-                                        <path d="M9 18l6-6-6-6" />
-                                      </svg>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
-                          </div>
-                        )}
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
+                          {isHistoryOpen && (
+                            <div style={splitStyles.historyList}>
+                              {assessment.runs.slice(1).map((run, idx) => {
+                                const runScore = run.overall_score || 0;
+                                const runColors = getScoreColor(runScore);
+                                return (
+                                  <div
+                                    key={run.id}
+                                    onClick={() => onViewRun(run.id)}
+                                    style={splitStyles.historyItem}
+                                  >
+                                    <span style={splitStyles.historyRun}>Run #{assessment.runs.length - idx - 1}</span>
+                                    <span style={{ ...splitStyles.historyScore, color: runColors.text }}>{runScore}</span>
+                                    <span style={splitStyles.historyDate}>{timeAgo(run.created_at)}</span>
+                                    <span style={splitStyles.historyArrow}>→</span>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </>
+          ) : (
+            <div style={splitStyles.noSelection}>
+              <span>Select a business to view assessments</span>
             </div>
-          );
-        })}
+          )}
+        </div>
       </div>
     </div>
   );
 }
 
-// Stripe-style styles
-const stripeStyles: Record<string, React.CSSProperties> = {
+// Split-pane styles - Elegant master-detail layout
+const splitStyles: Record<string, React.CSSProperties> = {
   container: {
-    padding: '0',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    height: '100%',
   },
   header: {
-    marginBottom: '32px',
+    marginBottom: '24px',
   },
   title: {
-    fontSize: '24px',
+    fontSize: '22px',
     fontWeight: 600,
     color: '#1A1A1A',
     margin: '0 0 4px 0',
     letterSpacing: '-0.02em',
   },
   subtitle: {
-    fontSize: '14px',
+    fontSize: '13px',
     color: '#888888',
     margin: 0,
   },
-  businessList: {
+  // Split container
+  splitContainer: {
     display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '16px',
-  },
-  businessSection: {
+    flex: 1,
     backgroundColor: '#FFFFFF',
     borderRadius: '12px',
-    border: '1px solid #E5E5E5',
+    border: '1px solid #E8E8E8',
     overflow: 'hidden',
+    minHeight: '500px',
   },
-  businessHeader: {
+  // Left panel - Business list
+  leftPanel: {
+    width: '280px',
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    backgroundColor: '#FFFFFF',
+  },
+  panelHeader: {
+    padding: '16px 20px',
+    borderBottom: '1px solid #EEEEEE',
+  },
+  panelLabel: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#999999',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+  },
+  businessList: {
+    flex: 1,
+    overflowY: 'auto' as const,
+    padding: '8px 0',
+  },
+  businessItem: {
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'space-between',
     width: '100%',
-    padding: '20px 24px',
-    background: 'transparent',
+    padding: '12px 20px',
     border: 'none',
     cursor: 'pointer',
     textAlign: 'left' as const,
     transition: 'background-color 0.15s',
   },
-  businessLeft: {
+  businessItemContent: {
     display: 'flex',
-    alignItems: 'center',
-    gap: '16px',
-  },
-  businessIcon: {
-    width: '44px',
-    height: '44px',
-    borderRadius: '10px',
-    backgroundColor: '#F0F0F0',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    fontSize: '18px',
-    fontWeight: 600,
-    color: '#666666',
+    flexDirection: 'column' as const,
+    gap: '2px',
   },
   businessName: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#1A1A1A',
+  },
+  businessMeta: {
+    fontSize: '12px',
+    color: '#888888',
+  },
+  businessScore: {
+    fontSize: '14px',
+    fontWeight: 600,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+  },
+  // Divider
+  divider: {
+    width: '1px',
+    backgroundColor: '#EEEEEE',
+    flexShrink: 0,
+  },
+  // Right panel - Assessments
+  rightPanel: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    backgroundColor: '#FAFAFA',
+    minWidth: 0,
+  },
+  selectedBusinessName: {
     fontSize: '16px',
     fontWeight: 600,
     color: '#1A1A1A',
-    margin: 0,
+    display: 'block',
   },
-  businessMeta: {
-    fontSize: '13px',
+  selectedBusinessMeta: {
+    fontSize: '12px',
     color: '#888888',
-    margin: '2px 0 0 0',
+    display: 'block',
+    marginTop: '2px',
   },
-  assessmentGrid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(340px, 1fr))',
-    gap: '16px',
-    padding: '0 24px 24px 24px',
+  assessmentList: {
+    flex: 1,
+    overflowY: 'auto' as const,
+    padding: '16px 20px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
   },
   assessmentCard: {
-    backgroundColor: '#FAFAFA',
-    borderRadius: '10px',
-    border: '1px solid #EEEEEE',
-    padding: '20px',
-    transition: 'border-color 0.15s, box-shadow 0.15s',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    border: '1px solid #E8E8E8',
+    padding: '16px 20px',
   },
-  cardHeader: {
+  assessmentHeader: {
     display: 'flex',
     alignItems: 'flex-start',
     justifyContent: 'space-between',
-    marginBottom: '16px',
+    gap: '16px',
+  },
+  assessmentInfo: {
+    flex: 1,
+    minWidth: 0,
   },
   assessmentName: {
     fontSize: '15px',
-    fontWeight: 600,
+    fontWeight: 500,
     color: '#1A1A1A',
-    margin: 0,
-    lineHeight: 1.3,
+    margin: '0 0 4px 0',
   },
-  cardActions: {
-    display: 'flex',
-    gap: '8px',
+  assessmentMeta: {
+    fontSize: '12px',
+    color: '#888888',
   },
   runButton: {
     display: 'inline-flex',
@@ -1160,11 +1179,12 @@ const stripeStyles: Record<string, React.CSSProperties> = {
     fontSize: '13px',
     fontWeight: 500,
     color: '#FFFFFF',
-    backgroundColor: '#0969DA',
+    backgroundColor: '#1A1A1A',
     border: 'none',
     borderRadius: '6px',
     cursor: 'pointer',
     transition: 'background-color 0.15s',
+    flexShrink: 0,
   },
   miniSpinner: {
     width: '12px',
@@ -1175,15 +1195,15 @@ const stripeStyles: Record<string, React.CSSProperties> = {
     animation: 'spin 0.8s linear infinite',
   },
   progressSection: {
-    marginBottom: '16px',
-    padding: '12px',
+    marginTop: '12px',
+    padding: '12px 14px',
     backgroundColor: '#F0F7FF',
     borderRadius: '6px',
-    border: '1px solid #B6D4FE',
+    border: '1px solid #CCE0FF',
   },
   progressBar: {
-    height: '4px',
-    backgroundColor: '#E1E1E1',
+    height: '3px',
+    backgroundColor: '#E0E0E0',
     borderRadius: '2px',
     overflow: 'hidden',
     marginBottom: '8px',
@@ -1194,110 +1214,85 @@ const stripeStyles: Record<string, React.CSSProperties> = {
     borderRadius: '2px',
     transition: 'width 0.3s ease',
   },
-  progressSteps: {
+  progressInfo: {
     display: 'flex',
     justifyContent: 'space-between',
     alignItems: 'center',
   },
-  progressText: {
+  progressMessage: {
     fontSize: '12px',
     color: '#0969DA',
     fontWeight: 500,
   },
-  progressCount: {
+  progressStep: {
     fontSize: '11px',
     color: '#666666',
   },
-  latestRunCard: {
+  scoreRow: {
     display: 'flex',
     alignItems: 'center',
-    gap: '16px',
-    padding: '14px 16px',
-    backgroundColor: '#FFFFFF',
-    borderRadius: '8px',
-    border: '1px solid #E5E5E5',
+    justifyContent: 'space-between',
+    marginTop: '14px',
+    paddingTop: '14px',
+    borderTop: '1px solid #EEEEEE',
     cursor: 'pointer',
-    transition: 'border-color 0.15s, box-shadow 0.15s',
+    transition: 'opacity 0.15s',
   },
-  runInfo: {
-    flex: 1,
-    minWidth: 0,
-  },
-  scoreSection: {
+  scoreDisplay: {
     display: 'flex',
-    alignItems: 'baseline',
-    gap: '2px',
-    marginBottom: '6px',
+    alignItems: 'center',
+    gap: '8px',
   },
   scoreValue: {
-    fontSize: '24px',
+    fontSize: '22px',
     fontWeight: 600,
     fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
   },
-  scoreLabel: {
-    fontSize: '12px',
-    color: '#999999',
+  scoreMax: {
+    fontSize: '13px',
+    color: '#AAAAAA',
     fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
   },
-  healthBar: {
+  scoreBar: {
+    width: '80px',
     height: '4px',
     backgroundColor: '#E8E8E8',
     borderRadius: '2px',
     overflow: 'hidden',
+    marginLeft: '12px',
   },
-  healthFill: {
+  scoreBarFill: {
     height: '100%',
     borderRadius: '2px',
     transition: 'width 0.3s ease',
   },
-  runMeta: {
+  runDetails: {
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
-    flexWrap: 'wrap' as const,
+    gap: '12px',
   },
-  runDate: {
-    fontSize: '12px',
-    color: '#666666',
-  },
-  runDot: {
-    fontSize: '12px',
-    color: '#CCCCCC',
-  },
-  runStats: {
-    fontSize: '12px',
-    color: '#666666',
-  },
-  flagsBadge: {
+  flagBadge: {
     fontSize: '11px',
     fontWeight: 500,
     color: '#9A6700',
     backgroundColor: '#FFF8C5',
-    padding: '2px 8px',
+    padding: '3px 8px',
     borderRadius: '4px',
   },
-  viewArrow: {
-    opacity: 0.3,
-    flexShrink: 0,
+  viewLink: {
+    fontSize: '13px',
+    color: '#888888',
+    fontWeight: 500,
   },
-  noRunsState: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '24px 16px',
-    backgroundColor: '#FFFFFF',
-    borderRadius: '8px',
-    border: '1px dashed #D0D0D0',
+  noRunsRow: {
+    marginTop: '14px',
+    paddingTop: '14px',
+    borderTop: '1px solid #EEEEEE',
   },
   noRunsText: {
     fontSize: '13px',
-    color: '#888888',
-    marginBottom: '4px',
-  },
-  noRunsHint: {
-    fontSize: '12px',
     color: '#AAAAAA',
+    fontStyle: 'italic' as const,
   },
   historySection: {
     marginTop: '12px',
@@ -1308,47 +1303,77 @@ const stripeStyles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '6px',
-    padding: '8px 0',
+    padding: '0',
     background: 'transparent',
     border: 'none',
     cursor: 'pointer',
     fontSize: '12px',
     color: '#888888',
     fontWeight: 500,
-    width: '100%',
-    justifyContent: 'flex-start',
   },
   historyList: {
+    marginTop: '8px',
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '4px',
-    marginTop: '8px',
   },
   historyItem: {
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
-    padding: '10px 12px',
-    backgroundColor: '#FFFFFF',
-    borderRadius: '6px',
-    border: '1px solid #EEEEEE',
+    padding: '8px 10px',
+    backgroundColor: '#F5F5F5',
+    borderRadius: '4px',
     cursor: 'pointer',
     transition: 'background-color 0.15s',
   },
-  historyIndex: {
-    fontSize: '11px',
-    fontWeight: 500,
-    color: '#999999',
-    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
+  historyRun: {
+    fontSize: '12px',
+    color: '#666666',
   },
   historyScore: {
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: 600,
     fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, monospace',
   },
   historyDate: {
     fontSize: '12px',
-    color: '#888888',
+    color: '#999999',
+    flex: 1,
+  },
+  historyArrow: {
+    fontSize: '12px',
+    color: '#CCCCCC',
+  },
+  noSelection: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#AAAAAA',
+    fontSize: '14px',
+  },
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '60px 40px',
+    textAlign: 'center' as const,
+  },
+  emptyIcon: {
+    marginBottom: '16px',
+  },
+  emptyTitle: {
+    fontSize: '16px',
+    fontWeight: 500,
+    color: '#666666',
+    margin: '0 0 8px 0',
+  },
+  emptyText: {
+    fontSize: '14px',
+    color: '#999999',
+    margin: '0',
   },
 };
 
