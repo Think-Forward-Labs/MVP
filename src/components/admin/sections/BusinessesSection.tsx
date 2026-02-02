@@ -7,6 +7,29 @@ import { useState, useEffect } from 'react';
 import { adminApi } from '../../../services/adminApi';
 import type { BusinessOverview } from '../../../types/admin';
 
+// Logo color generator for business avatars
+const LOGO_COLORS = [
+  { bg: '#1A1A1A', text: '#FFFFFF' }, // Black
+  { bg: '#6366F1', text: '#FFFFFF' }, // Indigo
+  { bg: '#8B5CF6', text: '#FFFFFF' }, // Violet
+  { bg: '#EC4899', text: '#FFFFFF' }, // Pink
+  { bg: '#F59E0B', text: '#FFFFFF' }, // Amber
+  { bg: '#10B981', text: '#FFFFFF' }, // Emerald
+  { bg: '#3B82F6', text: '#FFFFFF' }, // Blue
+  { bg: '#EF4444', text: '#FFFFFF' }, // Red
+  { bg: '#14B8A6', text: '#FFFFFF' }, // Teal
+  { bg: '#F97316', text: '#FFFFFF' }, // Orange
+];
+
+function getLogoColor(name: string): { bg: string; text: string } {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % LOGO_COLORS.length;
+  return LOGO_COLORS[index];
+}
+
 export function BusinessesSection() {
   const [businesses, setBusinesses] = useState<BusinessOverview[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -138,6 +161,7 @@ export function BusinessesSection() {
             <tbody>
               {filteredBusinesses.map((business, index) => {
                 const statusStyle = getStatusStyle(business.status);
+                const logoColor = getLogoColor(business.name);
                 return (
                   <tr
                     key={business.id}
@@ -148,7 +172,11 @@ export function BusinessesSection() {
                   >
                     <td style={styles.td}>
                       <div style={styles.businessCell}>
-                        <div style={styles.avatar}>
+                        <div style={{
+                          ...styles.avatar,
+                          background: logoColor.bg,
+                          color: logoColor.text,
+                        }}>
                           {business.name.charAt(0).toUpperCase()}
                         </div>
                         <div>
@@ -398,14 +426,12 @@ const styles: Record<string, React.CSSProperties> = {
   avatar: {
     width: '36px',
     height: '36px',
-    borderRadius: '10px',
-    background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
+    borderRadius: '50%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     fontSize: '14px',
     fontWeight: 600,
-    color: 'white',
     flexShrink: 0,
   },
   businessName: {

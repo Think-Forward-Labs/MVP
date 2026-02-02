@@ -1136,6 +1136,81 @@ const fullViewStyles: Record<string, React.CSSProperties> = {
   },
 };
 
+// ============ Interview Detail View (Direct) ============
+
+function InterviewDetailView({
+  interview,
+  isAnonymous,
+  onBack,
+  onError,
+}: {
+  interview: InterviewSummary;
+  isAnonymous: boolean;
+  onBack: () => void;
+  onError: (message: string) => void;
+}) {
+  const [responses, setResponses] = useState<InterviewResponse[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    loadResponses();
+  }, [interview.id]);
+
+  const loadResponses = async () => {
+    setLoading(true);
+    try {
+      const data = await adminApi.getInterviewResponses(interview.id);
+      setResponses(data);
+    } catch {
+      onError('Failed to load interview responses');
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  if (loading) {
+    return (
+      <div style={interviewDetailStyles.loading}>
+        <div style={interviewDetailStyles.spinner} />
+        <p style={interviewDetailStyles.loadingText}>Loading interview...</p>
+      </div>
+    );
+  }
+
+  return (
+    <FullInterviewView
+      interview={interview}
+      responses={responses}
+      isAnonymous={isAnonymous}
+      onBack={onBack}
+    />
+  );
+}
+
+const interviewDetailStyles: Record<string, React.CSSProperties> = {
+  loading: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '80px',
+    gap: '16px',
+  },
+  spinner: {
+    width: '32px',
+    height: '32px',
+    border: '2px solid #E4E4E7',
+    borderTopColor: '#18181B',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
+  },
+  loadingText: {
+    fontSize: '14px',
+    color: '#71717A',
+    margin: 0,
+  },
+};
+
 // ============ Assessment Detail ============
 
 function AssessmentDetail({
@@ -1722,13 +1797,13 @@ interface PendingReview {
 
 function SplitPaneReviews({
   businesses,
-  onViewSource,
+  onViewInterview,
   onApprove,
   approvingReview,
   onRefresh,
 }: {
   businesses: BusinessWithReviews[];
-  onViewSource: (reviewId: string, businessId: string) => void;
+  onViewInterview: (interview: InterviewSummary, reviewId: string, businessId: string) => void;
   onApprove: (reviewId: string) => Promise<void>;
   approvingReview: string | null;
   onRefresh: () => void;
@@ -1983,7 +2058,7 @@ function SplitPaneReviews({
                                 {reviewInterviews.filter(i => i.status === 'submitted').map((interview, index) => (
                                   <div
                                     key={interview.id}
-                                    onClick={() => onViewSource(review.id, selectedBusiness.id)}
+                                    onClick={() => onViewInterview(interview, review.id, selectedBusiness.id)}
                                     style={splitStyles.sourceItem}
                                   >
                                     <div style={splitStyles.sourceIndex}>
@@ -2344,7 +2419,7 @@ const splitStyles: Record<string, React.CSSProperties> = {
 type ViewState =
   | { type: 'board' }
   | { type: 'board'; selectedBusinessId?: string }
-  | { type: 'assessment'; reviewId: string; businessId: string };
+  | { type: 'interview'; interview: InterviewSummary; reviewId: string; businessId: string; isAnonymous: boolean };
 
 export function ReviewsSection({ onError }: ReviewsSectionProps) {
   const [businesses, setBusinesses] = useState<BusinessWithReviews[]>([]);
@@ -2381,14 +2456,14 @@ export function ReviewsSection({ onError }: ReviewsSectionProps) {
     }
   };
 
-  // When viewing assessment detail
-  if (view.type === 'assessment') {
+  // When viewing interview detail directly
+  if (view.type === 'interview') {
     return (
-      <AssessmentDetail
-        reviewId={view.reviewId}
+      <InterviewDetailView
+        interview={view.interview}
+        isAnonymous={view.isAnonymous}
         onBack={() => setView({ type: 'board', selectedBusinessId: view.businessId })}
         onError={onError}
-        onStatusChange={loadBusinesses}
       />
     );
   }
@@ -2403,10 +2478,12 @@ export function ReviewsSection({ onError }: ReviewsSectionProps) {
       ) : (
         <SplitPaneReviews
           businesses={businesses}
-          onViewSource={(reviewId, businessId) => setView({
-            type: 'assessment',
+          onViewInterview={(interview, reviewId, businessId) => setView({
+            type: 'interview',
+            interview,
             reviewId,
             businessId,
+            isAnonymous: false, // Default, could be fetched from review settings
           })}
           onApprove={handleApprove}
           approvingReview={approvingReview}
