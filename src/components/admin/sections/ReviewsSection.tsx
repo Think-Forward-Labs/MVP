@@ -1680,17 +1680,670 @@ const businessDetailStyles: Record<string, React.CSSProperties> = {
   },
 };
 
+// ============ Logo Color Generator ============
+
+const LOGO_COLORS = [
+  { bg: '#1A1A1A', text: '#FFFFFF' }, // Black
+  { bg: '#6366F1', text: '#FFFFFF' }, // Indigo
+  { bg: '#8B5CF6', text: '#FFFFFF' }, // Violet
+  { bg: '#EC4899', text: '#FFFFFF' }, // Pink
+  { bg: '#F59E0B', text: '#FFFFFF' }, // Amber
+  { bg: '#10B981', text: '#FFFFFF' }, // Emerald
+  { bg: '#3B82F6', text: '#FFFFFF' }, // Blue
+  { bg: '#EF4444', text: '#FFFFFF' }, // Red
+  { bg: '#14B8A6', text: '#FFFFFF' }, // Teal
+  { bg: '#F97316', text: '#FFFFFF' }, // Orange
+];
+
+function getLogoColor(name: string): { bg: string; text: string } {
+  // Generate consistent color based on name
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % LOGO_COLORS.length;
+  return LOGO_COLORS[index];
+}
+
+// ============ Split-Pane Reviews ============
+
+interface PendingReview {
+  id: string;
+  name: string;
+  goal?: string;
+  question_set_name: string;
+  interview_count: number;
+  stats: {
+    total_invited: number;
+    total_submitted: number;
+  };
+  submitted_at?: string;
+}
+
+function SplitPaneReviews({
+  businesses,
+  onViewSource,
+  onApprove,
+  approvingReview,
+  onRefresh,
+}: {
+  businesses: BusinessWithReviews[];
+  onViewSource: (reviewId: string, businessId: string) => void;
+  onApprove: (reviewId: string) => Promise<void>;
+  approvingReview: string | null;
+  onRefresh: () => void;
+}) {
+  // Only show businesses with pending reviews
+  const pendingBusinesses = businesses.filter(b => b.pending_reviews > 0);
+
+  const [selectedBusinessId, setSelectedBusinessId] = useState<string | null>(
+    pendingBusinesses.length > 0 ? pendingBusinesses[0].id : null
+  );
+  const [reviews, setReviews] = useState<PendingReview[]>([]);
+  const [loadingReviews, setLoadingReviews] = useState(false);
+  const [expandedReview, setExpandedReview] = useState<string | null>(null);
+  const [interviews, setInterviews] = useState<Record<string, InterviewSummary[]>>({});
+  const [loadingInterviews, setLoadingInterviews] = useState<string | null>(null);
+
+  const selectedBusiness = pendingBusinesses.find(b => b.id === selectedBusinessId);
+
+  // Load reviews when business changes
+  useEffect(() => {
+    if (selectedBusinessId) {
+      loadReviews(selectedBusinessId);
+    }
+  }, [selectedBusinessId]);
+
+  const loadReviews = async (businessId: string) => {
+    setLoadingReviews(true);
+    try {
+      const data = await adminApi.getBusinessReviews(businessId);
+      // Only show pending reviews
+      setReviews(data.pending || []);
+    } catch (err) {
+      console.error('Failed to load reviews:', err);
+    } finally {
+      setLoadingReviews(false);
+    }
+  };
+
+  const toggleExpand = async (reviewId: string) => {
+    if (expandedReview === reviewId) {
+      setExpandedReview(null);
+      return;
+    }
+
+    setExpandedReview(reviewId);
+
+    // Load interviews if not already loaded
+    if (!interviews[reviewId]) {
+      setLoadingInterviews(reviewId);
+      try {
+        const detail = await adminApi.getReview(reviewId);
+        setInterviews(prev => ({
+          ...prev,
+          [reviewId]: detail.interviews || [],
+        }));
+      } catch (err) {
+        console.error('Failed to load interviews:', err);
+      } finally {
+        setLoadingInterviews(null);
+      }
+    }
+  };
+
+  const handleApprove = async (reviewId: string) => {
+    await onApprove(reviewId);
+    // Reload reviews for this business
+    if (selectedBusinessId) {
+      await loadReviews(selectedBusinessId);
+    }
+  };
+
+  if (pendingBusinesses.length === 0) {
+    return (
+      <div style={splitStyles.emptyState}>
+        <div style={splitStyles.emptyIcon}>
+          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#CCCCCC" strokeWidth="1.5">
+            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
+            <rect x="9" y="3" width="6" height="4" rx="1" />
+            <path d="M9 14l2 2 4-4" />
+          </svg>
+        </div>
+        <h3 style={splitStyles.emptyTitle}>All caught up</h3>
+        <p style={splitStyles.emptyText}>No pending assessments to review</p>
+      </div>
+    );
+  }
+
+  return (
+    <div style={splitStyles.container}>
+      {/* Stats Subtitle */}
+      <p style={splitStyles.subtitle}>
+        {pendingBusinesses.length} business{pendingBusinesses.length !== 1 ? 'es' : ''} · {pendingBusinesses.reduce((sum, b) => sum + b.pending_reviews, 0)} pending
+      </p>
+
+      {/* Split Pane Container */}
+      <div style={splitStyles.splitContainer}>
+        {/* Left Panel - Business List */}
+        <div style={splitStyles.leftPanel}>
+          <div style={splitStyles.panelHeader}>
+            <span style={splitStyles.panelLabel}>Businesses</span>
+          </div>
+          <div style={splitStyles.businessList}>
+            {pendingBusinesses.map(business => {
+              const isSelected = business.id === selectedBusinessId;
+              const logoColor = getLogoColor(business.name);
+
+              return (
+                <button
+                  key={business.id}
+                  onClick={() => setSelectedBusinessId(business.id)}
+                  style={{
+                    ...splitStyles.businessItem,
+                    backgroundColor: isSelected ? '#F5F5F5' : 'transparent',
+                    borderLeft: isSelected ? '2px solid #1A1A1A' : '2px solid transparent',
+                  }}
+                >
+                  {/* Circular Logo */}
+                  <div style={{
+                    ...splitStyles.businessLogo,
+                    backgroundColor: logoColor.bg,
+                    color: logoColor.text,
+                  }}>
+                    {business.name.charAt(0).toUpperCase()}
+                  </div>
+                  <div style={splitStyles.businessItemContent}>
+                    <span style={splitStyles.businessName}>{business.name}</span>
+                    <span style={splitStyles.businessMeta}>
+                      {business.pending_reviews} pending
+                    </span>
+                  </div>
+                  {business.pending_reviews > 0 && (
+                    <span style={splitStyles.pendingBadge}>
+                      {business.pending_reviews}
+                    </span>
+                  )}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {/* Vertical Divider */}
+        <div style={splitStyles.divider} />
+
+        {/* Right Panel - Assessments */}
+        <div style={splitStyles.rightPanel}>
+          {selectedBusiness ? (
+            <>
+              <div style={splitStyles.panelHeader}>
+                <div>
+                  <span style={splitStyles.selectedBusinessName}>{selectedBusiness.name}</span>
+                  <span style={splitStyles.selectedBusinessMeta}>
+                    {reviews.length} pending assessment{reviews.length !== 1 ? 's' : ''}
+                  </span>
+                </div>
+                <button onClick={onRefresh} style={splitStyles.refreshBtn}>
+                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M23 4v6h-6M1 20v-6h6" />
+                    <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
+                  </svg>
+                </button>
+              </div>
+
+              <div style={splitStyles.assessmentList}>
+                {loadingReviews ? (
+                  <div style={splitStyles.loadingRow}>
+                    <div style={splitStyles.spinner} />
+                  </div>
+                ) : reviews.length === 0 ? (
+                  <div style={splitStyles.noReviews}>
+                    <span>No pending reviews</span>
+                  </div>
+                ) : (
+                  reviews.map(review => {
+                    const isExpanded = expandedReview === review.id;
+                    const isApproving = approvingReview === review.id;
+                    const reviewInterviews = interviews[review.id] || [];
+                    const isLoadingInterviews = loadingInterviews === review.id;
+
+                    return (
+                      <div key={review.id} style={splitStyles.assessmentCard}>
+                        {/* Card Header */}
+                        <div style={splitStyles.cardHeader}>
+                          <div
+                            style={splitStyles.cardInfo}
+                            onClick={() => toggleExpand(review.id)}
+                          >
+                            <div style={splitStyles.cardTitleRow}>
+                              <h3 style={splitStyles.cardTitle}>{review.name}</h3>
+                              <svg
+                                width="16"
+                                height="16"
+                                viewBox="0 0 24 24"
+                                fill="none"
+                                stroke="#999999"
+                                strokeWidth="2"
+                                style={{
+                                  transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
+                                  transition: 'transform 0.2s ease',
+                                  flexShrink: 0,
+                                }}
+                              >
+                                <polyline points="6 9 12 15 18 9" />
+                              </svg>
+                            </div>
+                            <span style={splitStyles.cardMeta}>
+                              {review.question_set_name} · {review.interview_count} source{review.interview_count !== 1 ? 's' : ''}
+                              {review.submitted_at && ` · ${timeAgo(review.submitted_at)}`}
+                            </span>
+                          </div>
+                          <button
+                            onClick={() => handleApprove(review.id)}
+                            disabled={isApproving}
+                            style={{
+                              ...splitStyles.approveBtn,
+                              opacity: isApproving ? 0.7 : 1,
+                            }}
+                          >
+                            {isApproving ? (
+                              <>
+                                <div style={splitStyles.miniSpinner} />
+                                <span>Approving...</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                                  <polyline points="20 6 9 17 4 12" />
+                                </svg>
+                                <span>Approve</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
+
+                        {/* Expanded Sources */}
+                        {isExpanded && (
+                          <div style={splitStyles.sourcesSection}>
+                            {isLoadingInterviews ? (
+                              <div style={splitStyles.loadingRow}>
+                                <div style={splitStyles.spinner} />
+                              </div>
+                            ) : reviewInterviews.length === 0 ? (
+                              <div style={splitStyles.noSources}>
+                                No sources found
+                              </div>
+                            ) : (
+                              <div style={splitStyles.sourcesList}>
+                                {reviewInterviews.filter(i => i.status === 'submitted').map((interview, index) => (
+                                  <div
+                                    key={interview.id}
+                                    onClick={() => onViewSource(review.id, selectedBusiness.id)}
+                                    style={splitStyles.sourceItem}
+                                  >
+                                    <div style={splitStyles.sourceIndex}>
+                                      {index + 1}
+                                    </div>
+                                    <div style={splitStyles.sourceInfo}>
+                                      <span style={splitStyles.sourceName}>
+                                        {interview.participant_name || 'Anonymous'}
+                                      </span>
+                                      <span style={splitStyles.sourceMeta}>
+                                        {interview.response_count} responses · {formatDuration(interview.duration_seconds)}
+                                      </span>
+                                    </div>
+                                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CCCCCC" strokeWidth="2">
+                                      <path d="M9 18l6-6-6-6" />
+                                    </svg>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })
+                )}
+              </div>
+            </>
+          ) : (
+            <div style={splitStyles.noSelection}>
+              Select a business to view pending reviews
+            </div>
+          )}
+        </div>
+      </div>
+
+      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+    </div>
+  );
+}
+
+// Split-pane styles
+const splitStyles: Record<string, React.CSSProperties> = {
+  container: {
+    display: 'flex',
+    flexDirection: 'column',
+    height: '100%',
+  },
+  subtitle: {
+    fontSize: '13px',
+    color: '#888888',
+    margin: '0 0 16px 0',
+  },
+  splitContainer: {
+    display: 'flex',
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    borderRadius: '12px',
+    border: '1px solid #E8E8E8',
+    overflow: 'hidden',
+    minHeight: '500px',
+  },
+  leftPanel: {
+    width: '280px',
+    flexShrink: 0,
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: '#FFFFFF',
+  },
+  divider: {
+    width: '1px',
+    backgroundColor: '#EEEEEE',
+    flexShrink: 0,
+  },
+  rightPanel: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    backgroundColor: '#FAFAFA',
+    minWidth: 0,
+  },
+  panelHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    padding: '16px 20px',
+    borderBottom: '1px solid #EEEEEE',
+  },
+  panelLabel: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#888888',
+    textTransform: 'uppercase',
+    letterSpacing: '0.05em',
+  },
+  businessList: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '8px',
+  },
+  businessItem: {
+    width: '100%',
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '12px 14px',
+    border: 'none',
+    background: 'transparent',
+    cursor: 'pointer',
+    borderRadius: '8px',
+    textAlign: 'left',
+    transition: 'background-color 0.15s',
+  },
+  businessLogo: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+    fontWeight: 600,
+    flexShrink: 0,
+  },
+  businessItemContent: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    minWidth: 0,
+  },
+  businessName: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#1A1A1A',
+    whiteSpace: 'nowrap',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+  },
+  businessMeta: {
+    fontSize: '12px',
+    color: '#888888',
+  },
+  pendingBadge: {
+    minWidth: '20px',
+    height: '20px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#FFFFFF',
+    backgroundColor: '#F59E0B',
+    borderRadius: '10px',
+    padding: '0 6px',
+  },
+  selectedBusinessName: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#1A1A1A',
+    display: 'block',
+  },
+  selectedBusinessMeta: {
+    fontSize: '13px',
+    color: '#888888',
+    display: 'block',
+    marginTop: '2px',
+  },
+  refreshBtn: {
+    width: '32px',
+    height: '32px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    border: '1px solid #E4E4E7',
+    borderRadius: '6px',
+    backgroundColor: '#FFFFFF',
+    cursor: 'pointer',
+    color: '#666666',
+  },
+  assessmentList: {
+    flex: 1,
+    overflowY: 'auto',
+    padding: '16px',
+  },
+  assessmentCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    border: '1px solid #E8E8E8',
+    marginBottom: '12px',
+    overflow: 'hidden',
+  },
+  cardHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    justifyContent: 'space-between',
+    padding: '16px',
+    gap: '16px',
+  },
+  cardInfo: {
+    flex: 1,
+    cursor: 'pointer',
+    minWidth: 0,
+  },
+  cardTitleRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  cardTitle: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#1A1A1A',
+    margin: 0,
+    flex: 1,
+  },
+  cardMeta: {
+    fontSize: '13px',
+    color: '#888888',
+    display: 'block',
+    marginTop: '4px',
+  },
+  approveBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 14px',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#FFFFFF',
+    backgroundColor: '#18181B',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  miniSpinner: {
+    width: '12px',
+    height: '12px',
+    border: '2px solid rgba(255, 255, 255, 0.3)',
+    borderTopColor: '#FFFFFF',
+    borderRadius: '50%',
+    animation: 'spin 0.8s linear infinite',
+  },
+  sourcesSection: {
+    borderTop: '1px solid #F0F0F0',
+    backgroundColor: '#FAFAFA',
+    padding: '12px 16px',
+  },
+  sourcesList: {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '8px',
+  },
+  sourceItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    padding: '10px 12px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '6px',
+    border: '1px solid #EEEEEE',
+    cursor: 'pointer',
+    transition: 'border-color 0.15s',
+  },
+  sourceIndex: {
+    width: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    backgroundColor: '#F0F0F0',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#666666',
+    flexShrink: 0,
+  },
+  sourceInfo: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '2px',
+    minWidth: 0,
+  },
+  sourceName: {
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#1A1A1A',
+  },
+  sourceMeta: {
+    fontSize: '12px',
+    color: '#888888',
+  },
+  noSources: {
+    fontSize: '13px',
+    color: '#AAAAAA',
+    textAlign: 'center',
+    padding: '12px',
+  },
+  loadingRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '24px',
+  },
+  spinner: {
+    width: '20px',
+    height: '20px',
+    border: '2px solid #E4E4E7',
+    borderTopColor: '#18181B',
+    borderRadius: '50%',
+    animation: 'spin 1s linear infinite',
+  },
+  noReviews: {
+    textAlign: 'center',
+    padding: '40px 20px',
+    color: '#AAAAAA',
+    fontSize: '14px',
+  },
+  noSelection: {
+    flex: 1,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    color: '#AAAAAA',
+    fontSize: '14px',
+  },
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '80px 40px',
+    textAlign: 'center',
+  },
+  emptyIcon: {
+    marginBottom: '16px',
+  },
+  emptyTitle: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#666666',
+    margin: '0 0 8px 0',
+  },
+  emptyText: {
+    fontSize: '14px',
+    color: '#999999',
+    margin: '0',
+  },
+};
+
 // ============ Main Reviews Section ============
 
 type ViewState =
   | { type: 'board' }
-  | { type: 'business'; businessId: string }
+  | { type: 'board'; selectedBusinessId?: string }
   | { type: 'assessment'; reviewId: string; businessId: string };
 
 export function ReviewsSection({ onError }: ReviewsSectionProps) {
   const [businesses, setBusinesses] = useState<BusinessWithReviews[]>([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState<ViewState>({ type: 'board' });
+  const [approvingReview, setApprovingReview] = useState<string | null>(null);
 
   useEffect(() => {
     loadBusinesses();
@@ -1708,75 +2361,51 @@ export function ReviewsSection({ onError }: ReviewsSectionProps) {
     }
   };
 
+  const handleApprove = async (reviewId: string) => {
+    setApprovingReview(reviewId);
+    try {
+      await adminApi.approveReview(reviewId);
+      // Refresh business list to update counts
+      await loadBusinesses();
+    } catch {
+      onError('Failed to approve review');
+    } finally {
+      setApprovingReview(null);
+    }
+  };
+
+  // When viewing assessment detail
   if (view.type === 'assessment') {
     return (
       <AssessmentDetail
         reviewId={view.reviewId}
-        onBack={() => setView({ type: 'business', businessId: view.businessId })}
+        onBack={() => setView({ type: 'board', selectedBusinessId: view.businessId })}
         onError={onError}
         onStatusChange={loadBusinesses}
       />
     );
   }
 
-  if (view.type === 'business') {
-    return (
-      <BusinessDetail
-        businessId={view.businessId}
-        onBack={() => setView({ type: 'board' })}
-        onError={onError}
-        onViewAssessment={(reviewId) => setView({
-          type: 'assessment',
-          reviewId,
-          businessId: view.businessId,
-        })}
-      />
-    );
-  }
-
+  // Main split-pane view
   return (
     <div style={mainStyles.container}>
-      <div style={mainStyles.header}>
-        <div>
-          <h1 style={mainStyles.title}>Review Board</h1>
-          <p style={mainStyles.subtitle}>Approve submitted assessments</p>
-        </div>
-        <button onClick={loadBusinesses} style={mainStyles.refreshBtn}>
-          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M23 4v6h-6M1 20v-6h6" />
-            <path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15" />
-          </svg>
-          Refresh
-        </button>
-      </div>
-
       {loading ? (
         <div style={mainStyles.loading}>
           <div style={mainStyles.spinner} />
         </div>
-      ) : businesses.length === 0 ? (
-        <div style={mainStyles.empty}>
-          <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#D4D4D8" strokeWidth="1.5">
-            <path d="M9 5H7a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2V7a2 2 0 00-2-2h-2" />
-            <rect x="9" y="3" width="6" height="4" rx="1" />
-            <path d="M9 14l2 2 4-4" />
-          </svg>
-          <p style={mainStyles.emptyTitle}>All caught up</p>
-          <p style={mainStyles.emptyText}>No pending assessments to review</p>
-        </div>
       ) : (
-        <div style={mainStyles.grid}>
-          {businesses.map((business) => (
-            <BusinessCard
-              key={business.id}
-              business={business}
-              onClick={() => setView({ type: 'business', businessId: business.id })}
-            />
-          ))}
-        </div>
+        <SplitPaneReviews
+          businesses={businesses}
+          onViewSource={(reviewId, businessId) => setView({
+            type: 'assessment',
+            reviewId,
+            businessId,
+          })}
+          onApprove={handleApprove}
+          approvingReview={approvingReview}
+          onRefresh={loadBusinesses}
+        />
       )}
-
-      <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
     </div>
   );
 }
@@ -1784,41 +2413,7 @@ export function ReviewsSection({ onError }: ReviewsSectionProps) {
 const mainStyles: Record<string, React.CSSProperties> = {
   container: {
     padding: '24px 32px',
-  },
-  header: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'flex-start',
-    marginBottom: '28px',
-  },
-  title: {
-    fontSize: '24px',
-    fontWeight: 600,
-    color: '#18181B',
-    margin: 0,
-  },
-  subtitle: {
-    fontSize: '14px',
-    color: '#71717A',
-    margin: '4px 0 0 0',
-  },
-  refreshBtn: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '6px',
-    padding: '8px 14px',
-    fontSize: '13px',
-    fontWeight: 500,
-    color: '#18181B',
-    backgroundColor: '#FFFFFF',
-    border: '1px solid #E4E4E7',
-    borderRadius: '6px',
-    cursor: 'pointer',
-  },
-  grid: {
-    display: 'grid',
-    gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))',
-    gap: '16px',
+    height: '100%',
   },
   loading: {
     padding: '80px',
@@ -1832,24 +2427,6 @@ const mainStyles: Record<string, React.CSSProperties> = {
     borderTopColor: '#18181B',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
-  },
-  empty: {
-    display: 'flex',
-    flexDirection: 'column',
-    alignItems: 'center',
-    padding: '80px 20px',
-    textAlign: 'center',
-  },
-  emptyTitle: {
-    fontSize: '16px',
-    fontWeight: 600,
-    color: '#18181B',
-    margin: '20px 0 4px 0',
-  },
-  emptyText: {
-    fontSize: '14px',
-    color: '#A1A1AA',
-    margin: 0,
   },
 };
 
