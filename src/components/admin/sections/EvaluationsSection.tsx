@@ -63,7 +63,7 @@ function getMetricDisplayName(metricCode: string, metricName?: string): string {
   return metricName || metricCode || 'Unknown Metric';
 }
 
-// Helper to sort metrics by CABAS order
+// Helper to sort metrics by CABAS order (strategic priority)
 function sortMetricsByCABASOrder(metrics: MetricScoreDetail[]): MetricScoreDetail[] {
   return [...metrics].sort((a, b) => {
     const aIndex = METRIC_ORDER.findIndex(m => m.code === a.metric_code);
@@ -72,6 +72,15 @@ function sortMetricsByCABASOrder(metrics: MetricScoreDetail[]): MetricScoreDetai
     const aOrder = aIndex === -1 ? 999 : aIndex;
     const bOrder = bIndex === -1 ? 999 : bIndex;
     return aOrder - bOrder;
+  });
+}
+
+// Helper to sort metrics by numerical order (M1, M2, M3... M14)
+function sortMetricsByNumber(metrics: MetricScoreDetail[]): MetricScoreDetail[] {
+  return [...metrics].sort((a, b) => {
+    const aNum = parseInt(a.metric_code?.replace(/\D/g, '') || '999', 10);
+    const bNum = parseInt(b.metric_code?.replace(/\D/g, '') || '999', 10);
+    return aNum - bNum;
   });
 }
 
@@ -856,9 +865,9 @@ function RunSummaryView({
   const statusColor = getStatusColor(run.status);
   const totalFlags = run.flags?.filter(f => !f.is_resolved) || [];
 
-  // Get aggregated metrics (deduplicated by metric_code) and sort by CABAS order
+  // Get aggregated metrics (deduplicated by metric_code) and sort by numerical order
   const aggregatedMetrics = getAggregatedMetrics(scores?.metric_scores || []);
-  const sortedMetrics = sortMetricsByCABASOrder(aggregatedMetrics);
+  const sortedMetrics = sortMetricsByNumber(aggregatedMetrics);
 
   // Calculate overall score
   const avgScore = sortedMetrics.length > 0
@@ -1129,6 +1138,7 @@ function InterviewDetailView({
   onResolveFlag: (flagId: string, resolution: string) => void;
 }) {
   const [activeTab, setActiveTab] = useState<'metrics' | 'questions' | 'flags'>('metrics');
+  const [selectedDimension, setSelectedDimension] = useState<DimensionScoreDetail | null>(null);
 
   // Find the source
   const source = run.sources?.find(s => s.id === sourceId);
@@ -1140,8 +1150,8 @@ function InterviewDetailView({
   // Get metrics for this specific interview (filtered by source_id)
   const interviewMetrics = getMetricsForInterview(scores?.metric_scores || [], sourceId);
 
-  // Sort by CABAS order
-  const sortedInterviewMetrics = sortMetricsByCABASOrder(interviewMetrics);
+  // Sort by numerical order (M1, M2, M3... M14)
+  const sortedInterviewMetrics = sortMetricsByNumber(interviewMetrics);
 
   // Get flags for this interview (flags use source_ids, not question_ids)
   const interviewFlags = run.flags?.filter(f =>
@@ -1161,109 +1171,247 @@ function InterviewDetailView({
   const ragStatus = getRAGStatus(avgScore);
   const confidence = getConfidenceLevel(sortedInterviewMetrics);
 
-  return (
-    <>
-      {/* Institutional Header */}
-      <div style={institutionalStyles.headerContainer}>
-        {/* Top Bar with Breadcrumb */}
-        <div style={institutionalStyles.headerTop}>
-          <nav style={institutionalStyles.breadcrumb}>
-            <button onClick={onBack} style={institutionalStyles.breadcrumbLink}>Evaluations</button>
-            <span style={institutionalStyles.breadcrumbSep}>/</span>
-            <span style={institutionalStyles.breadcrumbLink}>Run #{run.run_number}</span>
-            <span style={institutionalStyles.breadcrumbSep}>/</span>
-            <span style={institutionalStyles.breadcrumbCurrent}>{formattedId}</span>
-          </nav>
-        </div>
+  // Get top and bottom performers for horizontal bars
+  const sortedByScore = [...sortedInterviewMetrics].sort((a, b) => (b.overall_score || 0) - (a.overall_score || 0));
+  const topPerformers = sortedByScore.slice(0, 3);
+  const bottomPerformers = sortedByScore.slice(-3).reverse();
 
-        {/* Main Header */}
-        <div style={institutionalStyles.headerMain}>
-          <div style={institutionalStyles.candidateInfo}>
-            <div style={institutionalStyles.avatar}>
-              {formattedId.slice(-3)}
-            </div>
-            <div>
-              <h1 style={institutionalStyles.candidateName}>{formattedId}</h1>
-              <div style={institutionalStyles.candidateMeta}>
-                <span>{sourceName}</span>
-                <span style={institutionalStyles.metaDot} />
-                <span style={institutionalStyles.methodBadge}>
-                  {source?.source_type || 'Interview'}
-                </span>
+  return (
+    <div style={dashboardStyles.container}>
+      {/* Premium Header */}
+      <header style={dashboardStyles.header}>
+        {/* Breadcrumb */}
+        <nav style={dashboardStyles.breadcrumb}>
+          <button onClick={onBack} style={dashboardStyles.breadcrumbLink}>
+            <svg width="16" height="16" viewBox="0 0 16 16" fill="currentColor">
+              <path d="M7.78 12.53a.75.75 0 01-1.06 0L2.47 8.28a.75.75 0 010-1.06l4.25-4.25a.75.75 0 011.06 1.06L4.81 7h7.44a.75.75 0 010 1.5H4.81l2.97 2.97a.75.75 0 010 1.06z" />
+            </svg>
+            Back to Evaluations
+          </button>
+          <span style={dashboardStyles.breadcrumbSep}>/</span>
+          <span style={dashboardStyles.breadcrumbText}>Run #{run.run_number}</span>
+          <span style={dashboardStyles.breadcrumbSep}>/</span>
+          <span style={dashboardStyles.breadcrumbCurrent}>{formattedId}</span>
+        </nav>
+
+        {/* Title Row */}
+        <div style={dashboardStyles.titleRow}>
+          <div style={dashboardStyles.titleLeft}>
+            <div style={dashboardStyles.idBadge}>
+              <span style={dashboardStyles.idBadgeIcon}>
+                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M16 21v-2a4 4 0 00-4-4H6a4 4 0 00-4 4v2" />
+                  <circle cx="9" cy="7" r="4" />
+                  <path d="M22 21v-2a4 4 0 00-3-3.87M16 3.13a4 4 0 010 7.75" />
+                </svg>
+              </span>
+              <div>
+                <h1 style={dashboardStyles.idTitle}>{formattedId}</h1>
+                <p style={dashboardStyles.idSubtitle}>
+                  {sourceName} • {source?.source_type || 'Interview'} • {formatDate(run.started_at)}
+                </p>
               </div>
             </div>
           </div>
-
-          {/* Score Panel */}
-          <div style={institutionalStyles.scorePanel}>
-            <div style={institutionalStyles.scoreMain}>
-              <span style={{ ...institutionalStyles.scoreValue, color: ragStatus.color }}>
-                {avgScore}
-              </span>
-              <span style={institutionalStyles.scoreMax}>/100</span>
+          <div style={dashboardStyles.titleRight}>
+            <div style={dashboardStyles.confidenceBadge}>
+              <span style={dashboardStyles.confidenceLabel}>Confidence</span>
+              <span style={dashboardStyles.confidenceValue}>{confidence}</span>
             </div>
-            <div style={institutionalStyles.scoreBar}>
+          </div>
+        </div>
+      </header>
+
+      {/* Summary Dashboard */}
+      <div style={dashboardStyles.summarySection}>
+        {/* Left: Overall Score Card */}
+        <div style={dashboardStyles.scoreCard}>
+          <div style={dashboardStyles.scoreCardHeader}>
+            <span style={dashboardStyles.scoreCardLabel}>Overall Score</span>
+            <span style={{
+              ...dashboardStyles.ragBadge,
+              backgroundColor: ragStatus.bg,
+              color: ragStatus.color,
+            }}>
+              {ragStatus.status.toUpperCase()}
+            </span>
+          </div>
+          <div style={dashboardStyles.scoreCardMain}>
+            <span style={{ ...dashboardStyles.scoreNumber, color: ragStatus.color }}>
+              {avgScore}
+            </span>
+            <span style={dashboardStyles.scoreOutOf}>/100</span>
+          </div>
+          <div style={dashboardStyles.scoreBarContainer}>
+            <div style={dashboardStyles.scoreBarBg}>
               <div style={{
-                ...institutionalStyles.scoreBarFill,
+                ...dashboardStyles.scoreBarFill,
                 width: `${avgScore}%`,
                 backgroundColor: ragStatus.color,
               }} />
             </div>
-            <span style={institutionalStyles.scoreLabel}>Overall Assessment Score</span>
+          </div>
+          {/* Quick Stats */}
+          <div style={dashboardStyles.quickStats}>
+            <div style={dashboardStyles.quickStat}>
+              <span style={dashboardStyles.quickStatValue}>{interviewQuestions.length}</span>
+              <span style={dashboardStyles.quickStatLabel}>Questions</span>
+            </div>
+            <div style={dashboardStyles.quickStatDivider} />
+            <div style={dashboardStyles.quickStat}>
+              <span style={dashboardStyles.quickStatValue}>{sortedInterviewMetrics.length}</span>
+              <span style={dashboardStyles.quickStatLabel}>Metrics</span>
+            </div>
+            <div style={dashboardStyles.quickStatDivider} />
+            <div style={dashboardStyles.quickStat}>
+              <span style={{
+                ...dashboardStyles.quickStatValue,
+                color: totalFlags.length > 0 ? '#CF222E' : '#1A7F37',
+              }}>
+                {totalFlags.length}
+              </span>
+              <span style={dashboardStyles.quickStatLabel}>Flags</span>
+            </div>
           </div>
         </div>
 
-        {/* Metadata Bar */}
-        <div style={institutionalStyles.headerMeta}>
-          <div style={institutionalStyles.metaItem}>
-            <span style={institutionalStyles.metaLabel}>Evaluated</span>
-            <span style={institutionalStyles.metaValue}>{formatDate(run.started_at)}</span>
+        {/* Right: Performance Overview */}
+        <div style={dashboardStyles.performanceCard}>
+          {/* Metric Distribution Strip (Option C) */}
+          <div style={dashboardStyles.metricStripSection}>
+            <div style={dashboardStyles.sectionHeader}>
+              <span style={dashboardStyles.sectionTitle}>Metric Distribution</span>
+              <span style={dashboardStyles.sectionSubtitle}>{sortedInterviewMetrics.length} metrics evaluated</span>
+            </div>
+            <div style={dashboardStyles.metricStrip}>
+              {sortedInterviewMetrics.map((metric, idx) => {
+                const score = metric.overall_score || 0;
+                const color = getScoreColor(score);
+                const metricDef = METRIC_ORDER.find(m => m.code === metric.metric_code);
+                return (
+                  <div
+                    key={metric.id || idx}
+                    style={{
+                      ...dashboardStyles.metricBlock,
+                      backgroundColor: color,
+                    }}
+                    title={`${metricDef?.clientName || metric.metric_code}: ${Math.round(score)}`}
+                  >
+                    <span style={dashboardStyles.metricBlockCode}>{metric.metric_code}</span>
+                  </div>
+                );
+              })}
+            </div>
+            <div style={dashboardStyles.metricLegend}>
+              <span style={dashboardStyles.legendItem}>
+                <span style={{ ...dashboardStyles.legendDot, backgroundColor: '#1A7F37' }} />
+                80+ Excellent
+              </span>
+              <span style={dashboardStyles.legendItem}>
+                <span style={{ ...dashboardStyles.legendDot, backgroundColor: '#0969DA' }} />
+                70-79 Good
+              </span>
+              <span style={dashboardStyles.legendItem}>
+                <span style={{ ...dashboardStyles.legendDot, backgroundColor: '#9A6700' }} />
+                60-69 Moderate
+              </span>
+              <span style={dashboardStyles.legendItem}>
+                <span style={{ ...dashboardStyles.legendDot, backgroundColor: '#CF222E' }} />
+                &lt;60 Attention
+              </span>
+            </div>
           </div>
-          <div style={institutionalStyles.metaItem}>
-            <span style={institutionalStyles.metaLabel}>Questions</span>
-            <span style={institutionalStyles.metaValue}>{interviewQuestions.length}</span>
-          </div>
-          <div style={institutionalStyles.metaItem}>
-            <span style={institutionalStyles.metaLabel}>Metrics</span>
-            <span style={institutionalStyles.metaValue}>{sortedInterviewMetrics.length}</span>
-          </div>
-          <div style={institutionalStyles.metaItem}>
-            <span style={institutionalStyles.metaLabel}>Flags</span>
-            <span style={{
-              ...institutionalStyles.metaValue,
-              color: totalFlags.length > 0 ? '#9A6700' : '#1A7F37',
-            }}>
-              {totalFlags.length}
-            </span>
-          </div>
-          <div style={institutionalStyles.metaItem}>
-            <span style={institutionalStyles.metaLabel}>Confidence</span>
-            <span style={institutionalStyles.metaValue}>{confidence}</span>
+
+          {/* Top & Bottom Performers (Option B) */}
+          <div style={dashboardStyles.performersSection}>
+            {/* Top Performers */}
+            <div style={dashboardStyles.performerColumn}>
+              <span style={dashboardStyles.performerTitle}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="#1A7F37">
+                  <path d="M4.53 4.75A.75.75 0 015.28 4h5.44a.75.75 0 01.75.75v5.44a.75.75 0 01-1.5 0V6.31L5.03 11.25a.75.75 0 01-1.06-1.06l4.94-4.94H5.28a.75.75 0 01-.75-.75z" />
+                </svg>
+                Top Performers
+              </span>
+              {topPerformers.map((metric, idx) => {
+                const score = metric.overall_score || 0;
+                const metricDef = METRIC_ORDER.find(m => m.code === metric.metric_code);
+                return (
+                  <div key={idx} style={dashboardStyles.performerBar}>
+                    <div style={dashboardStyles.performerInfo}>
+                      <span style={dashboardStyles.performerCode}>{metric.metric_code}</span>
+                      <span style={dashboardStyles.performerName}>{metricDef?.clientName || metric.metric_name}</span>
+                    </div>
+                    <div style={dashboardStyles.performerBarContainer}>
+                      <div style={{
+                        ...dashboardStyles.performerBarFill,
+                        width: `${score}%`,
+                        backgroundColor: getScoreColor(score),
+                      }} />
+                    </div>
+                    <span style={{ ...dashboardStyles.performerScore, color: getScoreColor(score) }}>
+                      {Math.round(score)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Bottom Performers */}
+            <div style={dashboardStyles.performerColumn}>
+              <span style={dashboardStyles.performerTitle}>
+                <svg width="14" height="14" viewBox="0 0 16 16" fill="#CF222E">
+                  <path d="M11.47 11.25a.75.75 0 01-.75.75H5.28a.75.75 0 01-.75-.75V5.81a.75.75 0 011.5 0v3.63l4.94-4.94a.75.75 0 011.06 1.06L7.09 10.5h3.63a.75.75 0 01.75.75z" />
+                </svg>
+                Needs Attention
+              </span>
+              {bottomPerformers.map((metric, idx) => {
+                const score = metric.overall_score || 0;
+                const metricDef = METRIC_ORDER.find(m => m.code === metric.metric_code);
+                return (
+                  <div key={idx} style={dashboardStyles.performerBar}>
+                    <div style={dashboardStyles.performerInfo}>
+                      <span style={dashboardStyles.performerCode}>{metric.metric_code}</span>
+                      <span style={dashboardStyles.performerName}>{metricDef?.clientName || metric.metric_name}</span>
+                    </div>
+                    <div style={dashboardStyles.performerBarContainer}>
+                      <div style={{
+                        ...dashboardStyles.performerBarFill,
+                        width: `${score}%`,
+                        backgroundColor: getScoreColor(score),
+                      }} />
+                    </div>
+                    <span style={{ ...dashboardStyles.performerScore, color: getScoreColor(score) }}>
+                      {Math.round(score)}
+                    </span>
+                  </div>
+                );
+              })}
+            </div>
           </div>
         </div>
       </div>
 
       {/* Navigation Tabs */}
-      <nav style={institutionalStyles.nav}>
-        <div style={institutionalStyles.navInner}>
+      <nav style={dashboardStyles.tabNav}>
+        <div style={dashboardStyles.tabNavInner}>
           {([
-            { id: 'metrics' as const, label: 'Metrics', count: sortedInterviewMetrics.length },
-            { id: 'questions' as const, label: 'Questions', count: interviewQuestions.length },
-            { id: 'flags' as const, label: 'Flags', count: totalFlags.length, alert: totalFlags.length > 0 },
+            { id: 'metrics' as const, label: 'All Metrics', count: sortedInterviewMetrics.length, icon: 'M16 4v12H0V4a2 2 0 012-2h12a2 2 0 012 2zM4.5 6.5a.5.5 0 00-.5.5v6a.5.5 0 001 0V7a.5.5 0 00-.5-.5zm4 0a.5.5 0 00-.5.5v6a.5.5 0 001 0V7a.5.5 0 00-.5-.5zm4 0a.5.5 0 00-.5.5v6a.5.5 0 001 0V7a.5.5 0 00-.5-.5z' },
+            { id: 'questions' as const, label: 'Questions', count: interviewQuestions.length, icon: 'M6.457 1.047c.659-1.234 2.427-1.234 3.086 0l6.082 11.378A1.75 1.75 0 0114.082 15H1.918a1.75 1.75 0 01-1.543-2.575L6.457 1.047zM8 5a.75.75 0 00-.75.75v2.5a.75.75 0 001.5 0v-2.5A.75.75 0 008 5zm1 6a1 1 0 11-2 0 1 1 0 012 0z' },
+            { id: 'flags' as const, label: 'Flags', count: totalFlags.length, alert: totalFlags.length > 0, icon: 'M3.5 3.75a.25.25 0 01.25-.25h8.5a.25.25 0 01.25.25v8.5a.25.25 0 01-.25.25h-8.5a.25.25 0 01-.25-.25v-8.5zM3.75 2A1.75 1.75 0 002 3.75v8.5c0 .966.784 1.75 1.75 1.75h8.5A1.75 1.75 0 0014 12.25v-8.5A1.75 1.75 0 0012.25 2h-8.5z' },
           ]).map((tab) => (
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
               style={{
-                ...institutionalStyles.navTab,
-                ...(activeTab === tab.id ? institutionalStyles.navTabActive : {}),
+                ...dashboardStyles.tab,
+                ...(activeTab === tab.id ? dashboardStyles.tabActive : {}),
               }}
             >
               {tab.label}
               <span style={{
-                ...institutionalStyles.navCount,
-                ...(activeTab === tab.id ? institutionalStyles.navCountActive : {}),
-                ...(tab.alert && activeTab !== tab.id ? institutionalStyles.navCountAlert : {}),
+                ...dashboardStyles.tabCount,
+                ...(activeTab === tab.id ? dashboardStyles.tabCountActive : {}),
+                ...(tab.alert && activeTab !== tab.id ? dashboardStyles.tabCountAlert : {}),
               }}>
                 {tab.count}
               </span>
@@ -1273,24 +1421,533 @@ function InterviewDetailView({
       </nav>
 
       {/* Tab Content */}
-      <div style={institutionalStyles.main}>
+      <div style={dashboardStyles.tabContent}>
         {activeTab === 'metrics' && (
           <InterviewMetricsTab
             metrics={sortedInterviewMetrics}
             questionScores={interviewQuestions}
             flags={interviewFlags}
+            onSelectDimension={setSelectedDimension}
           />
         )}
         {activeTab === 'questions' && (
-          <QuestionsTab questions={interviewQuestions} />
+          <QuestionsTab
+            questions={interviewQuestions}
+            onSelectDimension={setSelectedDimension}
+          />
         )}
         {activeTab === 'flags' && (
           <FlagsTab flags={interviewFlags} onResolve={onResolveFlag} />
         )}
       </div>
-    </>
+
+      {/* Dimension Details Side Panel (shared by Metrics and Questions tabs) */}
+      {selectedDimension && (
+        <>
+          {/* Overlay */}
+          <div
+            style={styles.dimensionPanelOverlay}
+            onClick={() => setSelectedDimension(null)}
+          />
+          {/* Panel */}
+          <div style={styles.dimensionPanel}>
+            <div style={styles.dimensionPanelHeader}>
+              <h3 style={styles.dimensionPanelTitle}>{selectedDimension.dimension_name}</h3>
+              <button
+                onClick={() => setSelectedDimension(null)}
+                style={styles.dimensionPanelClose}
+              >
+                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M18 6L6 18M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            <div style={styles.dimensionPanelContent}>
+              {/* 1. What This Measures (Description) */}
+              <div style={styles.dimensionPanelSection}>
+                <h4 style={styles.dimensionPanelSectionTitle}>What This Measures</h4>
+                <p style={styles.dimensionPanelDescription}>
+                  {selectedDimension.description || 'No description available.'}
+                </p>
+              </div>
+
+              {/* 2. Score with pips */}
+              <div style={styles.dimensionPanelSection}>
+                <h4 style={styles.dimensionPanelSectionTitle}>Score</h4>
+                <div style={styles.dimensionPanelScoreBadge}>
+                  <span style={{
+                    ...styles.dimensionPanelScoreValue,
+                    color: getScoreColor((selectedDimension.score || 0) * 20)
+                  }}>
+                    {selectedDimension.score}
+                  </span>
+                  <span style={{ fontSize: '16px', color: '#8C959F', fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace' }}>/5</span>
+                  {/* Pips */}
+                  <div style={{ display: 'flex', gap: '4px', marginLeft: '16px' }}>
+                    {[1, 2, 3, 4, 5].map(n => (
+                      <div
+                        key={n}
+                        style={{
+                          width: '24px',
+                          height: '6px',
+                          borderRadius: '3px',
+                          backgroundColor: n <= (selectedDimension.score || 0)
+                            ? getScoreColor((selectedDimension.score || 0) * 20)
+                            : '#D8DEE4',
+                        }}
+                      />
+                    ))}
+                  </div>
+                </div>
+                {selectedDimension.weight && (
+                  <span style={{ ...styles.dimensionPanelWeight, marginTop: '8px', display: 'inline-block' }}>
+                    Weight: {selectedDimension.weight}%
+                  </span>
+                )}
+              </div>
+
+              {/* 3. AI Reasoning */}
+              {selectedDimension.reasoning && (
+                <div style={styles.dimensionPanelSection}>
+                  <h4 style={styles.dimensionPanelSectionTitle}>AI Reasoning</h4>
+                  <p style={styles.dimensionPanelReasoning}>{selectedDimension.reasoning}</p>
+                </div>
+              )}
+
+              {/* 4. Scoring Scale (Anchors) */}
+              {selectedDimension.anchors && selectedDimension.anchors.length > 0 && (
+                <div style={styles.dimensionPanelSection}>
+                  <h4 style={styles.dimensionPanelSectionTitle}>Scoring Scale</h4>
+                  <div style={styles.dimensionAnchorsGrid}>
+                    {selectedDimension.anchors.map((anchor) => {
+                      const isCurrentLevel = anchor.level === selectedDimension.score;
+                      const levelColor = getScoreColor(anchor.level * 20);
+                      return (
+                        <div
+                          key={anchor.level}
+                          style={{
+                            ...styles.dimensionAnchorItem,
+                            backgroundColor: isCurrentLevel ? `${levelColor}10` : 'transparent',
+                            borderColor: isCurrentLevel ? levelColor : '#D0D7DE',
+                          }}
+                        >
+                          <div style={styles.dimensionAnchorHeader}>
+                            <span style={{
+                              ...styles.dimensionAnchorLevel,
+                              color: levelColor
+                            }}>
+                              {anchor.level}
+                            </span>
+                            <span style={styles.dimensionAnchorRange}>{anchor.score_range}</span>
+                            {isCurrentLevel && (
+                              <span style={{
+                                marginLeft: 'auto',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                color: levelColor,
+                                backgroundColor: `${levelColor}15`,
+                                padding: '2px 8px',
+                                borderRadius: '4px',
+                              }}>
+                                Current
+                              </span>
+                            )}
+                          </div>
+                          <p style={styles.dimensionAnchorBehavior}>{anchor.behavior}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        </>
+      )}
+    </div>
   );
 }
+
+// Premium Dashboard Styles
+const dashboardStyles: Record<string, React.CSSProperties> = {
+  container: {
+    backgroundColor: '#F6F8FA',
+    minHeight: '100vh',
+  },
+  // Header
+  header: {
+    backgroundColor: '#FFFFFF',
+    borderBottom: '1px solid #D0D7DE',
+    padding: '16px 24px 20px',
+  },
+  breadcrumb: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '16px',
+  },
+  breadcrumbLink: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '13px',
+    color: '#0969DA',
+    background: 'none',
+    border: 'none',
+    cursor: 'pointer',
+    padding: 0,
+  },
+  breadcrumbSep: {
+    color: '#8C959F',
+    fontSize: '13px',
+  },
+  breadcrumbText: {
+    fontSize: '13px',
+    color: '#57606A',
+  },
+  breadcrumbCurrent: {
+    fontSize: '13px',
+    color: '#24292F',
+    fontWeight: 600,
+  },
+  titleRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+  },
+  titleLeft: {
+    display: 'flex',
+    alignItems: 'center',
+  },
+  idBadge: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+  },
+  idBadgeIcon: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    width: '44px',
+    height: '44px',
+    borderRadius: '10px',
+    backgroundColor: '#F6F8FA',
+    border: '1px solid #D0D7DE',
+    color: '#57606A',
+  },
+  idTitle: {
+    fontSize: '20px',
+    fontWeight: 600,
+    color: '#24292F',
+    margin: 0,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  idSubtitle: {
+    fontSize: '13px',
+    color: '#57606A',
+    margin: '2px 0 0 0',
+  },
+  titleRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  confidenceBadge: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'flex-end',
+    gap: '2px',
+  },
+  confidenceLabel: {
+    fontSize: '11px',
+    color: '#8C959F',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  confidenceValue: {
+    fontSize: '14px',
+    fontWeight: 600,
+    color: '#24292F',
+  },
+  // Summary Section
+  summarySection: {
+    display: 'grid',
+    gridTemplateColumns: '320px 1fr',
+    gap: '20px',
+    padding: '20px 24px',
+  },
+  // Score Card
+  scoreCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '12px',
+    border: '1px solid #D0D7DE',
+    padding: '20px',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+  },
+  scoreCardHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '12px',
+  },
+  scoreCardLabel: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#57606A',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  ragBadge: {
+    fontSize: '11px',
+    fontWeight: 600,
+    padding: '3px 8px',
+    borderRadius: '4px',
+    letterSpacing: '0.3px',
+  },
+  scoreCardMain: {
+    display: 'flex',
+    alignItems: 'baseline',
+    gap: '4px',
+    marginBottom: '12px',
+  },
+  scoreNumber: {
+    fontSize: '56px',
+    fontWeight: 600,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+    lineHeight: 1,
+  },
+  scoreOutOf: {
+    fontSize: '20px',
+    color: '#8C959F',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  scoreBarContainer: {
+    marginBottom: '20px',
+  },
+  scoreBarBg: {
+    height: '8px',
+    backgroundColor: '#E5E7EB',
+    borderRadius: '4px',
+    overflow: 'hidden',
+  },
+  scoreBarFill: {
+    height: '100%',
+    borderRadius: '4px',
+    transition: 'width 0.3s ease',
+  },
+  quickStats: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-around',
+    padding: '16px 0 0',
+    borderTop: '1px solid #E5E7EB',
+  },
+  quickStat: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '4px',
+  },
+  quickStatValue: {
+    fontSize: '20px',
+    fontWeight: 600,
+    color: '#24292F',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  quickStatLabel: {
+    fontSize: '11px',
+    color: '#8C959F',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  quickStatDivider: {
+    width: '1px',
+    height: '32px',
+    backgroundColor: '#E5E7EB',
+  },
+  // Performance Card
+  performanceCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '12px',
+    border: '1px solid #D0D7DE',
+    padding: '20px',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.04)',
+  },
+  // Metric Strip
+  metricStripSection: {
+    marginBottom: '20px',
+    paddingBottom: '20px',
+    borderBottom: '1px solid #E5E7EB',
+  },
+  sectionHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'baseline',
+    marginBottom: '12px',
+  },
+  sectionTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#24292F',
+  },
+  sectionSubtitle: {
+    fontSize: '12px',
+    color: '#8C959F',
+  },
+  metricStrip: {
+    display: 'flex',
+    gap: '4px',
+    marginBottom: '12px',
+  },
+  metricBlock: {
+    flex: 1,
+    height: '32px',
+    borderRadius: '4px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    cursor: 'default',
+    transition: 'transform 0.15s, box-shadow 0.15s',
+  },
+  metricBlockCode: {
+    fontSize: '10px',
+    fontWeight: 600,
+    color: '#FFFFFF',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+    textShadow: '0 1px 2px rgba(0,0,0,0.2)',
+  },
+  metricLegend: {
+    display: 'flex',
+    gap: '16px',
+    flexWrap: 'wrap' as const,
+  },
+  legendItem: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '11px',
+    color: '#57606A',
+  },
+  legendDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '2px',
+  },
+  // Performers
+  performersSection: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '24px',
+  },
+  performerColumn: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '8px',
+  },
+  performerTitle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#57606A',
+    marginBottom: '4px',
+  },
+  performerBar: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  performerInfo: {
+    width: '140px',
+    flexShrink: 0,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  performerCode: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#24292F',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  performerName: {
+    fontSize: '12px',
+    color: '#57606A',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  performerBarContainer: {
+    flex: 1,
+    height: '6px',
+    backgroundColor: '#E5E7EB',
+    borderRadius: '3px',
+    overflow: 'hidden',
+  },
+  performerBarFill: {
+    height: '100%',
+    borderRadius: '3px',
+    transition: 'width 0.3s ease',
+  },
+  performerScore: {
+    fontSize: '13px',
+    fontWeight: 600,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+    width: '32px',
+    textAlign: 'right' as const,
+  },
+  // Tab Navigation
+  tabNav: {
+    backgroundColor: '#FFFFFF',
+    borderBottom: '1px solid #D0D7DE',
+    padding: '0 24px',
+  },
+  tabNavInner: {
+    display: 'flex',
+    gap: '0',
+  },
+  tab: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '14px 20px',
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#57606A',
+    background: 'none',
+    border: 'none',
+    borderBottom: '2px solid transparent',
+    cursor: 'pointer',
+    transition: 'color 0.15s, border-color 0.15s',
+    marginBottom: '-1px',
+  },
+  tabActive: {
+    color: '#24292F',
+    borderBottomColor: '#0969DA',
+  },
+  tabCount: {
+    fontSize: '12px',
+    fontWeight: 500,
+    padding: '2px 8px',
+    borderRadius: '10px',
+    backgroundColor: '#E5E7EB',
+    color: '#57606A',
+  },
+  tabCountActive: {
+    backgroundColor: 'rgba(9, 105, 218, 0.1)',
+    color: '#0969DA',
+  },
+  tabCountAlert: {
+    backgroundColor: 'rgba(207, 34, 46, 0.1)',
+    color: '#CF222E',
+  },
+  // Tab Content
+  tabContent: {
+    padding: '20px 24px',
+  },
+};
 
 // Institutional Design System Styles
 const institutionalStyles: Record<string, React.CSSProperties> = {
@@ -1504,20 +2161,298 @@ const institutionalStyles: Record<string, React.CSSProperties> = {
   },
 };
 
+// Premium Minimalist Styles for Question Detail Expansion
+// Inspired by Apple HIG, Material Design 3, Stripe, and Notion
+const premiumStyles: Record<string, React.CSSProperties> = {
+  // Container - stronger contrast with white cards
+  expandedContainer: {
+    padding: '20px',
+    backgroundColor: '#F0F2F5',
+    borderBottom: '1px solid #D0D7DE',
+  },
+
+  // Question text block
+  questionBlock: {
+    marginBottom: '16px',
+  },
+  questionText: {
+    fontSize: '15px',
+    fontWeight: 500,
+    color: '#24292F',
+    lineHeight: 1.6,
+    margin: 0,
+  },
+
+  // Response block - white card with subtle shadow for contrast
+  responseBlock: {
+    padding: '16px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    marginBottom: '16px',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+  },
+  responseText: {
+    fontSize: '14px',
+    color: '#57606A',
+    lineHeight: 1.7,
+    margin: 0,
+    whiteSpace: 'pre-wrap' as const,
+  },
+
+  // Metadata row - inline pills
+  metaRow: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: '8px',
+    marginBottom: '16px',
+  },
+  metaPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '4px 10px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
+    border: '1px solid #D8DEE4',
+    fontSize: '12px',
+  },
+  metaPillLabel: {
+    color: '#8C959F',
+    fontWeight: 400,
+  },
+  metaPillValue: {
+    color: '#24292F',
+    fontWeight: 500,
+  },
+  reviewPill: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    padding: '4px 10px',
+    backgroundColor: '#FFF8C5',
+    color: '#9A6700',
+    borderRadius: '16px',
+    fontSize: '12px',
+    fontWeight: 500,
+  },
+
+  // AI Reasoning block - white card with shadow
+  reasoningBlock: {
+    padding: '14px 16px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    marginBottom: '16px',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+  },
+  reasoningHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '10px',
+  },
+  reasoningLabel: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#8C959F',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+  },
+  reasoningText: {
+    fontSize: '14px',
+    color: '#57606A',
+    lineHeight: 1.6,
+    margin: 0,
+  },
+
+  // Section label - consistent
+  sectionLabel: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#8C959F',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+    marginBottom: '12px',
+  },
+
+  // Dimensions block - horizontal rows with pips
+  dimensionsBlock: {
+    marginBottom: '16px',
+  },
+  dimensionsList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+  },
+  dimensionRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    padding: '10px 14px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '6px',
+    border: 'none',
+    cursor: 'pointer',
+    textAlign: 'left' as const,
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+    transition: 'box-shadow 0.15s',
+  },
+  dimensionName: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#24292F',
+  },
+  dimensionRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+  },
+  dimensionPips: {
+    display: 'flex',
+    gap: '3px',
+  },
+  pip: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '2px',
+    backgroundColor: '#D8DEE4',
+  },
+  pipFilled: {
+    // Color set dynamically
+  },
+  dimensionScore: {
+    fontSize: '13px',
+    fontWeight: 500,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+    color: '#57606A',
+    minWidth: '28px',
+    textAlign: 'right' as const,
+  },
+
+  // Checks block
+  checksBlock: {
+    marginBottom: '0',
+  },
+  checkCount: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: '18px',
+    height: '18px',
+    padding: '0 6px',
+    backgroundColor: '#E5E7EB',
+    borderRadius: '9px',
+    fontSize: '11px',
+    fontWeight: 500,
+    color: '#57606A',
+  },
+  checksList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '8px',
+  },
+  checkCard: {
+    padding: '12px 14px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+  },
+  checkHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: '8px',
+  },
+  checkCodes: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+  },
+  checkCodePrimary: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#24292F',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  checkCodeLinked: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#0969DA',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  checkStatus: {
+    fontSize: '11px',
+    fontWeight: 600,
+    padding: '2px 8px',
+    borderRadius: '4px',
+  },
+  checkType: {
+    fontSize: '11px',
+    fontWeight: 500,
+    color: '#8C959F',
+    padding: '2px 8px',
+    backgroundColor: '#F6F8FA',
+    borderRadius: '4px',
+    marginBottom: '8px',
+    display: 'inline-block',
+  },
+  checkDescription: {
+    fontSize: '13px',
+    color: '#57606A',
+    lineHeight: 1.5,
+    margin: '0 0 10px 0',
+  },
+  checkScores: {
+    display: 'flex',
+    gap: '8px',
+    marginBottom: '10px',
+  },
+  checkScoreChip: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    fontSize: '12px',
+    color: '#57606A',
+    padding: '4px 10px',
+    backgroundColor: '#F6F8FA',
+    borderRadius: '4px',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  checkReasoning: {
+    fontSize: '13px',
+    color: '#57606A',
+    lineHeight: 1.5,
+    margin: 0,
+    fontStyle: 'italic' as const,
+  },
+  checkFlag: {
+    display: 'inline-block',
+    fontSize: '11px',
+    fontWeight: 500,
+    color: '#9A6700',
+    padding: '2px 8px',
+    backgroundColor: '#FFF8C5',
+    borderRadius: '4px',
+    marginTop: '8px',
+  },
+};
+
 // ============ Interview Metrics Tab (Expandable) ============
 
 function InterviewMetricsTab({
   metrics,
   questionScores,
-  flags
+  flags,
+  onSelectDimension,
 }: {
   metrics: MetricScoreDetail[];
   questionScores: QuestionScoreDetail[];
   flags: EvaluationFlag[];
+  onSelectDimension?: (dimension: DimensionScoreDetail) => void;
 }) {
   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
-  const [selectedDimension, setSelectedDimension] = useState<DimensionScoreDetail | null>(null);
 
   if (metrics.length === 0) {
     return <p style={styles.emptyTabText}>No metrics calculated for this interview.</p>;
@@ -1661,170 +2596,183 @@ function InterviewMetricsTab({
                               </span>
                             </button>
 
-                            {/* Question Detail (expanded) */}
+                            {/* Question Detail (expanded) - Premium Minimalist Design */}
                             {isQuestionExpanded && questionDetail && (
-                              <div style={styles.questionDetailExpanded}>
-                                {/* 1. Question Text */}
+                              <div style={premiumStyles.expandedContainer}>
+                                {/* Question Text - Clean typography */}
                                 {questionDetail.question_text && (
-                                  <p style={styles.questionDetailText}>
-                                    <strong>Q:</strong> {questionDetail.question_text}
-                                  </p>
-                                )}
-
-                                {/* 2. User Response */}
-                                {questionDetail.raw_response && (
-                                  <div style={styles.rawResponseSection}>
-                                    <h5 style={styles.rawResponseTitle}>User Response</h5>
-                                    <p style={styles.rawResponseText}>{questionDetail.raw_response}</p>
+                                  <div style={premiumStyles.questionBlock}>
+                                    <p style={premiumStyles.questionText}>{questionDetail.question_text}</p>
                                   </div>
                                 )}
 
-                                {/* 3. Quality & Confidence */}
-                                <div style={styles.questionDetailMeta}>
-                                  <span style={styles.questionDetailMetaItem}>
-                                    <strong>Quality:</strong> {questionDetail.response_quality}
+                                {/* User Response - Prominent but clean */}
+                                {questionDetail.raw_response && (
+                                  <div style={premiumStyles.responseBlock}>
+                                    <p style={premiumStyles.responseText}>{questionDetail.raw_response}</p>
+                                  </div>
+                                )}
+
+                                {/* Inline Metadata Pills */}
+                                <div style={premiumStyles.metaRow}>
+                                  <span style={premiumStyles.metaPill}>
+                                    <span style={premiumStyles.metaPillLabel}>Quality</span>
+                                    <span style={premiumStyles.metaPillValue}>{questionDetail.response_quality}</span>
                                   </span>
-                                  <span style={styles.questionDetailMetaItem}>
-                                    <strong>Confidence:</strong> {questionDetail.confidence}
+                                  <span style={premiumStyles.metaPill}>
+                                    <span style={premiumStyles.metaPillLabel}>Confidence</span>
+                                    <span style={premiumStyles.metaPillValue}>{questionDetail.confidence}</span>
                                   </span>
                                   {questionDetail.requires_review && (
-                                    <span style={styles.questionDetailReviewBadge}>Needs Review</span>
+                                    <span style={premiumStyles.reviewPill}>Review needed</span>
                                   )}
                                 </div>
 
-                                {/* 4. AI Scoring Reasoning */}
+                                {/* AI Reasoning - Subtle card */}
                                 {questionDetail.scoring_reasoning && (
-                                  <div style={styles.aiReasoningSection}>
-                                    <h5 style={styles.aiReasoningTitle}>AI Reasoning</h5>
-                                    <p style={styles.aiReasoningText}>{questionDetail.scoring_reasoning}</p>
+                                  <div style={premiumStyles.reasoningBlock}>
+                                    <div style={premiumStyles.reasoningHeader}>
+                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="#8C959F">
+                                        <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM6.5 7.75A.75.75 0 0 0 5 7.75v0c0 1.64.425 2.786 1.025 3.56.577.745 1.29 1.19 1.975 1.19s1.398-.445 1.975-1.19c.6-.774 1.025-1.92 1.025-3.56a.75.75 0 0 0-1.5 0c0 1.36-.35 2.214-.775 2.762-.402.52-.775.688-1.225.688s-.823-.168-1.225-.688C6.85 9.964 6.5 9.11 6.5 7.75Zm1-3a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/>
+                                      </svg>
+                                      <span style={premiumStyles.reasoningLabel}>AI Analysis</span>
+                                    </div>
+                                    <p style={premiumStyles.reasoningText}>{questionDetail.scoring_reasoning}</p>
                                   </div>
                                 )}
 
-                                {/* 5. Dimension Scores (clickable for details panel) */}
+                                {/* Dimension Scores - Horizontal rows with pips */}
                                 {questionDetail.dimension_scores && questionDetail.dimension_scores.length > 0 && (
-                                  <div style={styles.dimensionScoresSection}>
-                                    <h5 style={styles.dimensionScoresTitle}>Dimension Scores</h5>
-                                    {questionDetail.dimension_scores.map((ds, idx) => (
-                                      <div key={idx} style={styles.dimensionScoreItem}>
-                                        <div style={styles.dimensionScoreHeader}>
+                                  <div style={premiumStyles.dimensionsBlock}>
+                                    <span style={premiumStyles.sectionLabel}>Dimensions</span>
+                                    <div style={premiumStyles.dimensionsList}>
+                                      {questionDetail.dimension_scores.map((ds, idx) => {
+                                        const dimScoreColor = getScoreColor((ds.score || 0) * 20);
+                                        return (
                                           <button
-                                            onClick={() => setSelectedDimension(ds)}
-                                            style={styles.dimensionScoreButton}
+                                            key={idx}
+                                            onClick={() => onSelectDimension?.(ds)}
+                                            style={premiumStyles.dimensionRow}
                                           >
-                                            {ds.dimension_name}
-                                            <svg
-                                              width="14" height="14" viewBox="0 0 24 24" fill="none"
-                                              stroke="currentColor" strokeWidth="2"
-                                              style={{ marginLeft: '6px', opacity: 0.5, verticalAlign: 'middle' }}
-                                            >
-                                              <circle cx="12" cy="12" r="10" />
-                                              <path d="M12 16v-4M12 8h.01" />
-                                            </svg>
+                                            <span style={premiumStyles.dimensionName}>{ds.dimension_name}</span>
+                                            <div style={premiumStyles.dimensionRight}>
+                                              {/* Pips visualization */}
+                                              <div style={premiumStyles.dimensionPips}>
+                                                {[1, 2, 3, 4, 5].map(n => (
+                                                  <div
+                                                    key={n}
+                                                    style={{
+                                                      ...premiumStyles.pip,
+                                                      backgroundColor: n <= (ds.score || 0)
+                                                        ? dimScoreColor
+                                                        : '#D8DEE4',
+                                                    }}
+                                                  />
+                                                ))}
+                                              </div>
+                                              <span style={premiumStyles.dimensionScore}>{ds.score}/5</span>
+                                            </div>
                                           </button>
-                                          <span style={{
-                                            ...styles.dimensionScoreValue,
-                                            color: getScoreColor((ds.score || 0) * 20)
-                                          }}>
-                                            {ds.score}/5
-                                          </span>
-                                        </div>
-                                        {ds.reasoning && (
-                                          <p style={styles.dimensionScoreReasoning}>{ds.reasoning}</p>
-                                        )}
-                                      </div>
-                                    ))}
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 )}
 
-                                {/* 6. Interdependency Checks (what AI actually found) */}
+                                {/* Interdependency Checks - Premium minimal */}
                                 {questionDetail.check_results && questionDetail.check_results.length > 0 && (
-                                  <div style={styles.interdependenciesSection}>
-                                    <h5 style={styles.interdependenciesTitle}>
-                                      Interdependency Checks ({questionDetail.check_results.length})
-                                    </h5>
-                                    {questionDetail.check_results.map((cr, idx) => {
-                                      const isCurrentQuestion = cr.primary_question_code === questionDetail.question_code;
-                                      const linkedCode = isCurrentQuestion ? cr.linked_question_code : cr.primary_question_code;
-                                      const passedColor = cr.passed
-                                        ? { bg: 'rgba(22, 163, 74, 0.1)', text: '#16A34A' }
-                                        : { bg: 'rgba(220, 38, 38, 0.1)', text: '#DC2626' };
+                                  <div style={premiumStyles.checksBlock}>
+                                    <span style={premiumStyles.sectionLabel}>
+                                      Interdependency Checks
+                                      <span style={premiumStyles.checkCount}>{questionDetail.check_results.length}</span>
+                                    </span>
+                                    <div style={premiumStyles.checksList}>
+                                      {questionDetail.check_results.map((cr, idx) => {
+                                        const isCurrentQuestion = cr.primary_question_code === questionDetail.question_code;
+                                        const linkedCode = isCurrentQuestion ? cr.linked_question_code : cr.primary_question_code;
+                                        const passed = cr.passed;
 
-                                      return (
-                                        <div key={cr.id || idx} style={styles.interdependencyItem}>
-                                          <div style={styles.interdependencyHeader}>
-                                            <span style={styles.interdependencyLinkedCode}>
-                                              → {linkedCode}
-                                            </span>
-                                            <span style={styles.interdependencyType}>{cr.check_type}</span>
-                                            <span style={{
-                                              ...styles.checkResultBadge,
-                                              background: passedColor.bg,
-                                              color: passedColor.text,
-                                            }}>
-                                              {cr.passed ? '✓ Passed' : '⚠ Issue Found'}
-                                            </span>
-                                          </div>
-
-                                          {/* What should be checked (expectation) */}
-                                          <p style={styles.interdependencyDescription}>
-                                            <strong>Check:</strong> {cr.interdependency_description}
-                                          </p>
-
-                                          {/* Scores compared */}
-                                          {(cr.primary_score !== null || cr.linked_score !== null) && (
-                                            <div style={styles.checkScoresRow}>
-                                              <span style={styles.checkScoreItem}>
-                                                {cr.primary_question_code}: {cr.primary_score?.toFixed(0) ?? 'N/A'}
-                                              </span>
-                                              <span style={styles.checkScoreArrow}>↔</span>
-                                              <span style={styles.checkScoreItem}>
-                                                {cr.linked_question_code}: {cr.linked_score?.toFixed(0) ?? 'N/A'}
+                                        return (
+                                          <div key={cr.id || idx} style={premiumStyles.checkCard}>
+                                            {/* Check header */}
+                                            <div style={premiumStyles.checkHeader}>
+                                              <div style={premiumStyles.checkCodes}>
+                                                <span style={premiumStyles.checkCodePrimary}>{questionDetail.question_code}</span>
+                                                <svg width="12" height="12" viewBox="0 0 12 12" fill="#8C959F">
+                                                  <path d="M4 2.5L7.5 6 4 9.5" stroke="#8C959F" strokeWidth="1.5" fill="none"/>
+                                                </svg>
+                                                <span style={premiumStyles.checkCodeLinked}>{linkedCode}</span>
+                                              </div>
+                                              <span style={{
+                                                ...premiumStyles.checkStatus,
+                                                backgroundColor: passed ? '#DAFBE1' : '#FFEBE9',
+                                                color: passed ? '#1A7F37' : '#CF222E',
+                                              }}>
+                                                {passed ? 'Passed' : 'Issue'}
                                               </span>
                                             </div>
-                                          )}
 
-                                          {/* AI's reasoning/finding */}
-                                          <div style={styles.checkResultReasoning}>
-                                            <strong style={{ color: '#1e293b' }}>AI Finding:</strong>
-                                            <p style={{ margin: '4px 0 0 0', color: '#475569' }}>{cr.reasoning}</p>
+                                            {/* Check type badge */}
+                                            <span style={premiumStyles.checkType}>{cr.check_type}</span>
+
+                                            {/* Description */}
+                                            <p style={premiumStyles.checkDescription}>{cr.interdependency_description}</p>
+
+                                            {/* Score comparison - inline */}
+                                            {(cr.primary_score !== null || cr.linked_score !== null) && (
+                                              <div style={premiumStyles.checkScores}>
+                                                <span style={premiumStyles.checkScoreChip}>
+                                                  {cr.primary_question_code}
+                                                  <strong style={{ marginLeft: '4px', color: getScoreColor(cr.primary_score || 0) }}>
+                                                    {cr.primary_score?.toFixed(0) ?? '—'}
+                                                  </strong>
+                                                </span>
+                                                <span style={premiumStyles.checkScoreChip}>
+                                                  {cr.linked_question_code}
+                                                  <strong style={{ marginLeft: '4px', color: getScoreColor(cr.linked_score || 0) }}>
+                                                    {cr.linked_score?.toFixed(0) ?? '—'}
+                                                  </strong>
+                                                </span>
+                                              </div>
+                                            )}
+
+                                            {/* AI reasoning */}
+                                            {cr.reasoning && (
+                                              <p style={premiumStyles.checkReasoning}>{cr.reasoning}</p>
+                                            )}
+
+                                            {cr.flag_id && (
+                                              <span style={premiumStyles.checkFlag}>Flag: {cr.flag_id}</span>
+                                            )}
                                           </div>
-
-                                          {cr.flag_id && (
-                                            <p style={styles.interdependencyImpact}>
-                                              <strong>Flag Created:</strong> {cr.flag_id}
-                                            </p>
-                                          )}
-                                        </div>
-                                      );
-                                    })}
+                                        );
+                                      })}
+                                    </div>
                                   </div>
                                 )}
 
                                 {/* Fallback: Static interdependencies (if no check_results) */}
                                 {(!questionDetail.check_results || questionDetail.check_results.length === 0) &&
                                  questionDetail.interdependencies && questionDetail.interdependencies.length > 0 && (
-                                  <div style={styles.interdependenciesSection}>
-                                    <h5 style={styles.interdependenciesTitle}>
-                                      Interdependencies ({questionDetail.interdependencies.length})
-                                    </h5>
-                                    {questionDetail.interdependencies.map((dep, idx) => (
-                                      <div key={idx} style={styles.interdependencyItem}>
-                                        <div style={styles.interdependencyHeader}>
-                                          <span style={styles.interdependencyLinkedCode}>
-                                            → {dep.linked_question_code}
-                                          </span>
-                                          {dep.type && (
-                                            <span style={styles.interdependencyType}>{dep.type}</span>
+                                  <div style={premiumStyles.checksBlock}>
+                                    <span style={premiumStyles.sectionLabel}>
+                                      Interdependencies
+                                      <span style={premiumStyles.checkCount}>{questionDetail.interdependencies.length}</span>
+                                    </span>
+                                    <div style={premiumStyles.checksList}>
+                                      {questionDetail.interdependencies.map((dep, idx) => (
+                                        <div key={idx} style={premiumStyles.checkCard}>
+                                          <div style={premiumStyles.checkHeader}>
+                                            <span style={premiumStyles.checkCodeLinked}>{dep.linked_question_code}</span>
+                                            {dep.type && <span style={premiumStyles.checkType}>{dep.type}</span>}
+                                          </div>
+                                          <p style={premiumStyles.checkDescription}>{dep.description}</p>
+                                          {dep.scoring_impact && (
+                                            <p style={premiumStyles.checkReasoning}>{dep.scoring_impact}</p>
                                           )}
                                         </div>
-                                        <p style={styles.interdependencyDescription}>{dep.description}</p>
-                                        {dep.scoring_impact && (
-                                          <p style={styles.interdependencyImpact}>
-                                            <strong>Impact:</strong> {dep.scoring_impact}
-                                          </p>
-                                        )}
-                                      </div>
-                                    ))}
+                                      ))}
+                                    </div>
                                   </div>
                                 )}
                               </div>
@@ -1887,100 +2835,6 @@ function InterviewMetricsTab({
         );
       })}
 
-      {/* Dimension Details Side Panel */}
-      {selectedDimension && (
-        <>
-          {/* Overlay */}
-          <div
-            style={styles.dimensionPanelOverlay}
-            onClick={() => setSelectedDimension(null)}
-          />
-          {/* Panel */}
-          <div style={styles.dimensionPanel}>
-            <div style={styles.dimensionPanelHeader}>
-              <h3 style={styles.dimensionPanelTitle}>{selectedDimension.dimension_name}</h3>
-              <button
-                onClick={() => setSelectedDimension(null)}
-                style={styles.dimensionPanelClose}
-              >
-                <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                  <path d="M18 6L6 18M6 6l12 12" />
-                </svg>
-              </button>
-            </div>
-
-            <div style={styles.dimensionPanelContent}>
-              {/* Description */}
-              <div style={styles.dimensionPanelSection}>
-                <h4 style={styles.dimensionPanelSectionTitle}>What This Measures</h4>
-                <p style={styles.dimensionPanelDescription}>
-                  {selectedDimension.description || 'No description available.'}
-                </p>
-              </div>
-
-              {/* Current Score */}
-              <div style={styles.dimensionPanelSection}>
-                <h4 style={styles.dimensionPanelSectionTitle}>Score Given</h4>
-                <div style={styles.dimensionPanelScoreBadge}>
-                  <span style={{
-                    ...styles.dimensionPanelScoreValue,
-                    color: getScoreColor((selectedDimension.score || 0) * 20)
-                  }}>
-                    {selectedDimension.score}/5
-                  </span>
-                  {selectedDimension.weight && (
-                    <span style={styles.dimensionPanelWeight}>
-                      Weight: {selectedDimension.weight}%
-                    </span>
-                  )}
-                </div>
-              </div>
-
-              {/* Scoring Anchors */}
-              {selectedDimension.anchors && selectedDimension.anchors.length > 0 && (
-                <div style={styles.dimensionPanelSection}>
-                  <h4 style={styles.dimensionPanelSectionTitle}>Scoring Scale</h4>
-                  <div style={styles.dimensionAnchorsGrid}>
-                    {selectedDimension.anchors.map((anchor) => (
-                      <div
-                        key={anchor.level}
-                        style={{
-                          ...styles.dimensionAnchorItem,
-                          backgroundColor: anchor.level === selectedDimension.score
-                            ? 'rgba(99, 102, 241, 0.1)'
-                            : 'transparent',
-                          borderColor: anchor.level === selectedDimension.score
-                            ? 'rgba(99, 102, 241, 0.3)'
-                            : 'rgba(0, 0, 0, 0.08)',
-                        }}
-                      >
-                        <div style={styles.dimensionAnchorHeader}>
-                          <span style={{
-                            ...styles.dimensionAnchorLevel,
-                            color: getScoreColor(anchor.level * 20)
-                          }}>
-                            Level {anchor.level}
-                          </span>
-                          <span style={styles.dimensionAnchorRange}>{anchor.score_range}</span>
-                        </div>
-                        <p style={styles.dimensionAnchorBehavior}>{anchor.behavior}</p>
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-
-              {/* AI Reasoning */}
-              {selectedDimension.reasoning && (
-                <div style={styles.dimensionPanelSection}>
-                  <h4 style={styles.dimensionPanelSectionTitle}>AI Reasoning</h4>
-                  <p style={styles.dimensionPanelReasoning}>{selectedDimension.reasoning}</p>
-                </div>
-              )}
-            </div>
-          </div>
-        </>
-      )}
     </div>
   );
 }
@@ -2062,9 +2916,15 @@ function _MetricsTab({ metrics }: { metrics: MetricScoreDetail[] }) {
   );
 }
 
-// ============ Questions Tab ============
+// ============ Questions Tab (Premium Minimalist Design) ============
 
-function QuestionsTab({ questions }: { questions: QuestionScoreDetail[] }) {
+function QuestionsTab({
+  questions,
+  onSelectDimension
+}: {
+  questions: QuestionScoreDetail[];
+  onSelectDimension?: (dimension: DimensionScoreDetail) => void;
+}) {
   const [expandedQuestion, setExpandedQuestion] = useState<string | null>(null);
 
   if (questions.length === 0) {
@@ -2082,96 +2942,238 @@ function QuestionsTab({ questions }: { questions: QuestionScoreDetail[] }) {
     const numA = getQuestionNumber(a.question_code);
     const numB = getQuestionNumber(b.question_code);
     if (numA !== numB) return numA - numB;
-    // If same number, sort alphabetically (e.g., X3a before X3b)
     return a.question_code.localeCompare(b.question_code);
   });
 
   return (
-    <div style={styles.questionsGrid}>
+    <div style={questionsTabStyles.container}>
+      {/* Table Header - Institutional Style */}
+      <div style={questionsTabStyles.tableHeader}>
+        <span style={{ width: '56px', ...questionsTabStyles.headerLabel, textAlign: 'center' as const }}>#</span>
+        <span style={{ flex: 2, ...questionsTabStyles.headerLabel }}>Question</span>
+        <span style={{ width: '100px', ...questionsTabStyles.headerLabel, textAlign: 'center' as const }}>Score</span>
+        <span style={{ width: '80px', ...questionsTabStyles.headerLabel, textAlign: 'center' as const }}>Confidence</span>
+        <span style={{ width: '40px' }} />
+      </div>
+
       {sortedQuestions.map((q, index) => {
         const isExpanded = expandedQuestion === q.id;
         const scoreColor = getScoreColor(q.overall_score || 0);
         const questionNum = index + 1;
         const truncatedText = q.question_text
-          ? (q.question_text.length > 60 ? q.question_text.slice(0, 60) + '...' : q.question_text)
+          ? (q.question_text.length > 80 ? q.question_text.slice(0, 80) + '...' : q.question_text)
           : '';
+        const isLast = index === sortedQuestions.length - 1;
 
         return (
-          <div key={q.id} style={styles.questionCard}>
+          <div key={q.id} style={{
+            ...questionsTabStyles.questionRow,
+            borderRadius: isLast && !isExpanded ? '0 0 6px 6px' : '0',
+          }}>
+            {/* Question Row (clickable) */}
             <button
               onClick={() => setExpandedQuestion(isExpanded ? null : q.id)}
-              style={styles.questionHeader}
+              style={questionsTabStyles.questionButton}
             >
-              <div style={styles.questionInfoExpanded}>
-                <div style={styles.questionCodeRow}>
-                  <span style={styles.questionNumber}>#{questionNum}</span>
-                  <span style={styles.questionCode}>{q.question_code}</span>
-                  <span style={styles.questionConfidence}>{q.confidence}</span>
-                  {q.requires_review && <span style={styles.reviewBadge}>Review</span>}
-                </div>
-                {truncatedText && (
-                  <span style={styles.questionPreviewText}>{truncatedText}</span>
-                )}
-              </div>
-              <div style={styles.questionScoreContainer}>
-                <span style={{ ...styles.questionScore, color: scoreColor }}>
-                  {Math.round(q.overall_score || 0)}
-                </span>
+              {/* Number Column */}
+              <div style={questionsTabStyles.numberColumn}>
                 <svg
-                  width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"
-                  style={{ transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)', transition: 'transform 0.2s' }}
+                  width="14" height="14" viewBox="0 0 16 16" fill="#8C959F"
+                  style={{
+                    transform: isExpanded ? 'rotate(180deg)' : 'rotate(0)',
+                    transition: 'transform 0.15s',
+                    flexShrink: 0,
+                  }}
                 >
-                  <path d="M6 9l6 6 6-6" />
+                  <path d="M4.427 9.573l3.396-3.396a.25.25 0 01.354 0l3.396 3.396a.25.25 0 01-.177.427H4.604a.25.25 0 01-.177-.427z" />
                 </svg>
+                <span style={questionsTabStyles.questionNumber}>{questionNum}</span>
+              </div>
+              {/* Question Info Column */}
+              <div style={questionsTabStyles.questionLeft}>
+                <span style={questionsTabStyles.questionCode}>{q.question_code}</span>
+                <span style={questionsTabStyles.questionPreview}>{truncatedText}</span>
+              </div>
+              <div style={questionsTabStyles.questionRight}>
+                <div style={{ width: '100px', textAlign: 'center' as const }}>
+                  <span style={{ ...questionsTabStyles.scoreValue, color: scoreColor }}>
+                    {Math.round(q.overall_score || 0)}
+                  </span>
+                </div>
+                <div style={{ width: '80px', textAlign: 'center' as const }}>
+                  <span style={questionsTabStyles.confidenceBadge}>{q.confidence}</span>
+                </div>
+                {q.requires_review && (
+                  <span style={questionsTabStyles.reviewBadge}>Review</span>
+                )}
               </div>
             </button>
 
+            {/* Premium Expanded Content */}
             {isExpanded && (
-              <div style={styles.questionDetail}>
-                {/* Full Question Text */}
+              <div style={premiumStyles.expandedContainer}>
+                {/* Question Text */}
                 {q.question_text && (
-                  <div style={styles.questionTextBox}>
-                    <h5 style={styles.questionTextLabel}>Question</h5>
-                    <p style={styles.questionText}>{q.question_text}</p>
+                  <div style={premiumStyles.questionBlock}>
+                    <p style={premiumStyles.questionText}>{q.question_text}</p>
                   </div>
                 )}
 
                 {/* User Response */}
                 {q.raw_response && (
-                  <div style={styles.userResponseBox}>
-                    <h5 style={styles.userResponseLabel}>User Response</h5>
-                    <p style={styles.userResponseText}>{q.raw_response}</p>
+                  <div style={premiumStyles.responseBlock}>
+                    <p style={premiumStyles.responseText}>{q.raw_response}</p>
                   </div>
                 )}
 
-                {/* Response Quality */}
-                <div style={styles.qualityRow}>
-                  <span style={styles.qualityLabel}>Response Quality:</span>
-                  <span style={styles.qualityValue}>{q.response_quality}</span>
+                {/* Meta Pills Row */}
+                <div style={premiumStyles.metaRow}>
+                  <span style={premiumStyles.metaPill}>
+                    <span style={premiumStyles.metaPillLabel}>Quality</span>
+                    <span style={premiumStyles.metaPillValue}>{q.response_quality}</span>
+                  </span>
+                  <span style={premiumStyles.metaPill}>
+                    <span style={premiumStyles.metaPillLabel}>Confidence</span>
+                    <span style={premiumStyles.metaPillValue}>{q.confidence}</span>
+                  </span>
+                  {q.requires_review && (
+                    <span style={premiumStyles.reviewPill}>Review needed</span>
+                  )}
                 </div>
 
                 {/* AI Reasoning */}
                 {q.scoring_reasoning && (
-                  <div style={styles.reasoningBox}>
-                    <h5 style={styles.reasoningTitle}>AI Scoring Summary</h5>
-                    <p style={styles.reasoningText}>{q.scoring_reasoning}</p>
+                  <div style={premiumStyles.reasoningBlock}>
+                    <div style={premiumStyles.reasoningHeader}>
+                      <svg width="16" height="16" viewBox="0 0 16 16" fill="#8C959F">
+                        <path d="M8 0a8 8 0 110 16A8 8 0 018 0zM5.78 8.75a9.64 9.64 0 001.363 4.177c.255.426.542.832.857 1.215.245-.296.551-.705.857-1.215A9.64 9.64 0 0010.22 8.75H5.78zm4.44-1.5a9.64 9.64 0 00-1.363-4.177c-.307-.51-.612-.919-.857-1.215a9.927 9.927 0 00-.857 1.215A9.64 9.64 0 005.78 7.25h4.44zm-5.944 1.5H1.543a6.507 6.507 0 004.666 5.5c-.123-.181-.24-.365-.352-.552-.715-1.192-1.437-2.874-1.581-4.948zm-2.733-1.5h2.733c.144-2.074.866-3.756 1.58-4.948.12-.197.237-.381.353-.552a6.507 6.507 0 00-4.666 5.5zm10.181 1.5c-.144 2.074-.866 3.756-1.58 4.948-.12.197-.237.381-.353.552a6.507 6.507 0 004.666-5.5h-2.733zm2.733-1.5a6.507 6.507 0 00-4.666-5.5c.123.181.24.365.353.552.714 1.192 1.436 2.874 1.58 4.948h2.733z" />
+                      </svg>
+                      <span style={premiumStyles.reasoningLabel}>AI Analysis</span>
+                    </div>
+                    <p style={premiumStyles.reasoningText}>{q.scoring_reasoning}</p>
                   </div>
                 )}
 
-                {/* Dimension Scores */}
+                {/* Dimensions with Pips */}
                 {q.dimension_scores && q.dimension_scores.length > 0 && (
-                  <div style={styles.dimensionsContainer}>
-                    <h5 style={styles.dimensionsTitle}>Dimension Scores</h5>
-                    <div style={styles.dimensionsList}>
-                      {q.dimension_scores.map((ds, i) => (
-                        <div key={i} style={styles.dimensionItem}>
-                          <div style={styles.dimensionHeader}>
-                            <span style={styles.dimensionName}>{ds.dimension_name}</span>
-                            <span style={{ ...styles.dimensionScore, color: getScoreColor((ds.score || 0) * 20) }}>
-                              {ds.score}/5
-                            </span>
+                  <div style={premiumStyles.dimensionsBlock}>
+                    <span style={premiumStyles.sectionLabel}>Dimensions</span>
+                    <div style={premiumStyles.dimensionsList}>
+                      {q.dimension_scores.map((ds, idx) => {
+                        const dimScore = ds.score || 0;
+                        const dimScoreColor = getScoreColor(dimScore * 20);
+                        return (
+                          <button
+                            key={idx}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              if (onSelectDimension) onSelectDimension(ds);
+                            }}
+                            style={premiumStyles.dimensionRow}
+                          >
+                            <span style={premiumStyles.dimensionName}>{ds.dimension_name}</span>
+                            <div style={premiumStyles.dimensionRight}>
+                              {/* Pip Visualization */}
+                              <div style={premiumStyles.dimensionPips}>
+                                {[1, 2, 3, 4, 5].map(n => (
+                                  <div
+                                    key={n}
+                                    style={{
+                                      ...premiumStyles.pip,
+                                      backgroundColor: n <= dimScore ? dimScoreColor : '#D8DEE4',
+                                    }}
+                                  />
+                                ))}
+                              </div>
+                              <span style={premiumStyles.dimensionScore}>{dimScore}/5</span>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Interdependency Checks */}
+                {q.check_results && q.check_results.length > 0 && (
+                  <div style={premiumStyles.checksBlock}>
+                    <span style={premiumStyles.sectionLabel}>
+                      Interdependency Checks
+                      <span style={premiumStyles.checkCount}>{q.check_results.length}</span>
+                    </span>
+                    <div style={premiumStyles.checksList}>
+                      {q.check_results.map((cr, idx) => {
+                        const linkedCode = cr.question_ids?.filter(id => id !== q.question_id)[0] || cr.linked_question_code;
+                        return (
+                          <div key={cr.id || idx} style={premiumStyles.checkCard}>
+                            {/* Header: Codes + Status */}
+                            <div style={premiumStyles.checkHeader}>
+                              <div style={premiumStyles.checkCodes}>
+                                <span style={premiumStyles.checkCodePrimary}>{q.question_code}</span>
+                                {linkedCode && (
+                                  <>
+                                    <span style={{ color: '#8C959F' }}>↔</span>
+                                    <span style={premiumStyles.checkCodeLinked}>{linkedCode}</span>
+                                  </>
+                                )}
+                              </div>
+                              <span style={{
+                                ...premiumStyles.checkStatus,
+                                backgroundColor: cr.passed ? 'rgba(26, 127, 55, 0.1)' : 'rgba(207, 34, 46, 0.1)',
+                                color: cr.passed ? '#1A7F37' : '#CF222E',
+                              }}>
+                                {cr.passed ? 'PASS' : 'FAIL'}
+                              </span>
+                            </div>
+                            <span style={premiumStyles.checkType}>{cr.check_type}</span>
+                            {/* Description */}
+                            <p style={premiumStyles.checkDescription}>{cr.interdependency_description}</p>
+                            {/* Score chips */}
+                            {(cr.q1_score !== undefined || cr.q2_score !== undefined) && (
+                              <div style={premiumStyles.checkScores}>
+                                <span style={premiumStyles.checkScoreChip}>
+                                  Q1 Score: {Math.round(cr.q1_score || 0)}
+                                </span>
+                                {cr.q2_score !== undefined && (
+                                  <span style={premiumStyles.checkScoreChip}>
+                                    Q2 Score: {Math.round(cr.q2_score || 0)}
+                                  </span>
+                                )}
+                              </div>
+                            )}
+                            {/* Reasoning */}
+                            {cr.reasoning && (
+                              <p style={premiumStyles.checkReasoning}>{cr.reasoning}</p>
+                            )}
+                            {/* Flag indicator */}
+                            {cr.flag_id && (
+                              <span style={premiumStyles.checkFlag}>Flag: {cr.flag_id}</span>
+                            )}
                           </div>
-                          <p style={styles.dimensionReasoning}>{ds.reasoning}</p>
+                        );
+                      })}
+                    </div>
+                  </div>
+                )}
+
+                {/* Interdependencies (legacy format support) */}
+                {q.interdependencies && q.interdependencies.length > 0 && !q.check_results?.length && (
+                  <div style={premiumStyles.checksBlock}>
+                    <span style={premiumStyles.sectionLabel}>
+                      Question Dependencies
+                      <span style={premiumStyles.checkCount}>{q.interdependencies.length}</span>
+                    </span>
+                    <div style={premiumStyles.checksList}>
+                      {q.interdependencies.map((dep, idx) => (
+                        <div key={idx} style={premiumStyles.checkCard}>
+                          <div style={premiumStyles.checkHeader}>
+                            <span style={premiumStyles.checkCodeLinked}>{dep.linked_question_code}</span>
+                            {dep.type && <span style={premiumStyles.checkType}>{dep.type}</span>}
+                          </div>
+                          <p style={premiumStyles.checkDescription}>{dep.description}</p>
+                          {dep.scoring_impact && (
+                            <p style={premiumStyles.checkReasoning}>{dep.scoring_impact}</p>
+                          )}
                         </div>
                       ))}
                     </div>
@@ -2186,7 +3188,115 @@ function QuestionsTab({ questions }: { questions: QuestionScoreDetail[] }) {
   );
 }
 
-// ============ Flags Tab ============
+// Questions Tab Premium Styles
+const questionsTabStyles: Record<string, React.CSSProperties> = {
+  container: {
+    border: '1px solid #D0D7DE',
+    borderRadius: '6px',
+    overflow: 'hidden',
+  },
+  tableHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    padding: '8px 16px',
+    backgroundColor: '#F6F8FA',
+    borderBottom: '1px solid #D0D7DE',
+  },
+  headerLabel: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#8C959F',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  questionRow: {
+    borderBottom: '1px solid #D0D7DE',
+  },
+  questionButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    padding: '12px 16px',
+    backgroundColor: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    textAlign: 'left' as const,
+  },
+  numberColumn: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '6px',
+    width: '56px',
+    flexShrink: 0,
+  },
+  questionLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    flex: 2,
+    minWidth: 0,
+  },
+  questionNumber: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    minWidth: '24px',
+    height: '24px',
+    borderRadius: '50%',
+    backgroundColor: '#F6F8FA',
+    border: '1px solid #D8DEE4',
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#57606A',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+    flexShrink: 0,
+  },
+  questionCode: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#24292F',
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+    flexShrink: 0,
+  },
+  questionPreview: {
+    fontSize: '13px',
+    color: '#57606A',
+    overflow: 'hidden',
+    textOverflow: 'ellipsis',
+    whiteSpace: 'nowrap' as const,
+  },
+  questionRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexShrink: 0,
+  },
+  scoreValue: {
+    fontSize: '16px',
+    fontWeight: 600,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+  },
+  confidenceBadge: {
+    fontSize: '11px',
+    fontWeight: 500,
+    color: '#57606A',
+    padding: '2px 8px',
+    backgroundColor: '#F6F8FA',
+    borderRadius: '4px',
+  },
+  reviewBadge: {
+    fontSize: '11px',
+    fontWeight: 500,
+    color: '#9A6700',
+    padding: '2px 8px',
+    backgroundColor: '#FFF8C5',
+    borderRadius: '4px',
+  },
+};
+
+// ============ Flags Tab (Premium Minimalist Design) ============
 
 function FlagsTab({
   flags,
@@ -2200,11 +3310,14 @@ function FlagsTab({
 
   if (!flags || flags.length === 0) {
     return (
-      <div style={styles.noFlagsContainer}>
-        <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="1.5">
-          <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-        </svg>
-        <p style={styles.noFlagsText}>No flags detected. Evaluation passed all checks.</p>
+      <div style={flagsTabStyles.emptyState}>
+        <div style={flagsTabStyles.emptyIcon}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="#1A7F37" strokeWidth="2">
+            <path d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+          </svg>
+        </div>
+        <h3 style={flagsTabStyles.emptyTitle}>No flags identified</h3>
+        <p style={flagsTabStyles.emptyText}>All responses passed quality validation checks.</p>
       </div>
     );
   }
@@ -2213,49 +3326,87 @@ function FlagsTab({
   const resolvedFlags = flags.filter(f => f.is_resolved);
 
   return (
-    <div style={styles.flagsContainer}>
+    <div style={flagsTabStyles.container}>
+      {/* Open Flags Section */}
       {unresolvedFlags.length > 0 && (
-        <div style={styles.flagsSection}>
-          <h4 style={styles.flagsSectionTitle}>Open Flags ({unresolvedFlags.length})</h4>
-          <div style={styles.flagsList}>
+        <div style={flagsTabStyles.section}>
+          <div style={flagsTabStyles.sectionHeader}>
+            <span style={flagsTabStyles.sectionLabel}>Open Flags</span>
+            <span style={flagsTabStyles.countBadge}>{unresolvedFlags.length}</span>
+          </div>
+          <div style={flagsTabStyles.flagsList}>
             {unresolvedFlags.map((flag) => {
-              const severityColor = getSeverityColor(flag.severity);
               const isResolving = resolvingFlag === flag.id;
+              const severityStyle = getSeverityStyle(flag.severity);
 
               return (
-                <div key={flag.id} style={styles.flagCard}>
-                  <div style={styles.flagHeader}>
-                    <span style={{ ...styles.severityBadge, background: severityColor.bg, color: severityColor.text }}>
-                      {flag.severity}
+                <div
+                  key={flag.id}
+                  style={{
+                    ...flagsTabStyles.flagCard,
+                    borderLeft: `3px solid ${severityStyle.accent}`,
+                  }}
+                >
+                  {/* Flag Header */}
+                  <div style={flagsTabStyles.flagHeader}>
+                    <span style={{
+                      ...flagsTabStyles.severityBadge,
+                      backgroundColor: severityStyle.bg,
+                      color: severityStyle.text,
+                    }}>
+                      {flag.severity.toUpperCase()}
                     </span>
-                    <span style={styles.flagType}>{flag.flag_type?.replace('_', ' ')}</span>
+                    <span style={flagsTabStyles.flagType}>
+                      {flag.flag_type?.replace(/_/g, ' ')}
+                    </span>
+                    <span style={flagsTabStyles.impactBadge}>
+                      Impact: {flag.severity === 'critical' ? 'High' : flag.severity === 'warning' ? 'Medium' : 'Low'}
+                    </span>
                   </div>
-                  <h5 style={styles.flagTitle}>{flag.title}</h5>
-                  {flag.description && <p style={styles.flagDescription}>{flag.description}</p>}
 
+                  {/* Flag Title */}
+                  <h3 style={flagsTabStyles.flagTitle}>{flag.title}</h3>
+
+                  {/* Flag Description */}
+                  {flag.description && (
+                    <p style={flagsTabStyles.flagDescription}>{flag.description}</p>
+                  )}
+
+                  {/* AI Analysis */}
                   {flag.ai_explanation && (
-                    <div style={styles.aiExplanation}>
-                      <span style={styles.aiLabel}>AI Analysis:</span>
-                      <p style={styles.aiText}>{flag.ai_explanation}</p>
+                    <div style={flagsTabStyles.analysisBlock}>
+                      <span style={flagsTabStyles.analysisLabel}>Analysis</span>
+                      <p style={flagsTabStyles.analysisText}>{flag.ai_explanation}</p>
                     </div>
                   )}
 
+                  {/* Related Questions */}
+                  {flag.question_ids && flag.question_ids.length > 0 && (
+                    <div style={flagsTabStyles.relatedRow}>
+                      <span style={flagsTabStyles.relatedLabel}>Related:</span>
+                      {flag.question_ids.map((qid, idx) => (
+                        <span key={idx} style={flagsTabStyles.relatedCode}>{qid}</span>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Resolve Form or Button */}
                   {isResolving ? (
-                    <div style={styles.resolveForm}>
+                    <div style={flagsTabStyles.resolveForm}>
                       <textarea
                         value={resolution}
                         onChange={(e) => setResolution(e.target.value)}
                         placeholder="Enter resolution notes..."
-                        style={styles.resolveTextarea}
-                        rows={2}
+                        style={flagsTabStyles.resolveTextarea}
+                        rows={3}
                       />
-                      <div style={styles.resolveActions}>
+                      <div style={flagsTabStyles.resolveActions}>
                         <button
                           onClick={() => {
                             setResolvingFlag(null);
                             setResolution('');
                           }}
-                          style={styles.cancelButton}
+                          style={flagsTabStyles.cancelButton}
                         >
                           Cancel
                         </button>
@@ -2265,7 +3416,7 @@ function FlagsTab({
                             setResolvingFlag(null);
                             setResolution('');
                           }}
-                          style={styles.confirmButton}
+                          style={flagsTabStyles.confirmButton}
                           disabled={!resolution.trim()}
                         >
                           Resolve Flag
@@ -2275,9 +3426,9 @@ function FlagsTab({
                   ) : (
                     <button
                       onClick={() => setResolvingFlag(flag.id)}
-                      style={styles.resolveButton}
+                      style={flagsTabStyles.resolveButton}
                     >
-                      Resolve
+                      Mark Resolved
                     </button>
                   )}
                 </div>
@@ -2287,21 +3438,28 @@ function FlagsTab({
         </div>
       )}
 
+      {/* Resolved Flags Section */}
       {resolvedFlags.length > 0 && (
-        <div style={styles.flagsSection}>
-          <h4 style={styles.flagsSectionTitle}>Resolved ({resolvedFlags.length})</h4>
-          <div style={styles.flagsList}>
+        <div style={flagsTabStyles.section}>
+          <div style={flagsTabStyles.sectionHeader}>
+            <span style={flagsTabStyles.sectionLabel}>Resolved</span>
+            <span style={flagsTabStyles.countBadgeResolved}>{resolvedFlags.length}</span>
+          </div>
+          <div style={flagsTabStyles.flagsList}>
             {resolvedFlags.map((flag) => (
-              <div key={flag.id} style={{ ...styles.flagCard, opacity: 0.7 }}>
-                <div style={styles.flagHeader}>
-                  <span style={styles.resolvedBadge}>Resolved</span>
-                  <span style={styles.flagType}>{flag.flag_type?.replace('_', ' ')}</span>
+              <div key={flag.id} style={flagsTabStyles.resolvedCard}>
+                <div style={flagsTabStyles.flagHeader}>
+                  <span style={flagsTabStyles.resolvedBadge}>Resolved</span>
+                  <span style={flagsTabStyles.flagType}>
+                    {flag.flag_type?.replace(/_/g, ' ')}
+                  </span>
                 </div>
-                <h5 style={styles.flagTitle}>{flag.title}</h5>
-                <p style={styles.resolutionText}>
-                  <strong>Resolution:</strong> {flag.resolution}
-                </p>
-                <span style={styles.resolvedBy}>
+                <h3 style={flagsTabStyles.flagTitleResolved}>{flag.title}</h3>
+                <div style={flagsTabStyles.resolutionBlock}>
+                  <span style={flagsTabStyles.resolutionLabel}>Resolution</span>
+                  <p style={flagsTabStyles.resolutionText}>{flag.resolution}</p>
+                </div>
+                <span style={flagsTabStyles.resolvedMeta}>
                   Resolved by {flag.resolved_by} on {formatDate(flag.resolved_at)}
                 </span>
               </div>
@@ -2312,6 +3470,277 @@ function FlagsTab({
     </div>
   );
 }
+
+// Get severity style helper
+function getSeverityStyle(severity: string): { bg: string; text: string; accent: string } {
+  const styles: Record<string, { bg: string; text: string; accent: string }> = {
+    critical: { bg: 'rgba(207, 34, 46, 0.1)', text: '#CF222E', accent: '#CF222E' },
+    warning: { bg: 'rgba(154, 103, 0, 0.1)', text: '#9A6700', accent: '#9A6700' },
+    info: { bg: 'rgba(9, 105, 218, 0.1)', text: '#0969DA', accent: '#0969DA' },
+  };
+  return styles[severity] || styles.info;
+}
+
+// Flags Tab Premium Styles
+const flagsTabStyles: Record<string, React.CSSProperties> = {
+  container: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '24px',
+  },
+  // Empty state
+  emptyState: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '48px 24px',
+    textAlign: 'center' as const,
+  },
+  emptyIcon: {
+    width: '48px',
+    height: '48px',
+    borderRadius: '50%',
+    backgroundColor: 'rgba(26, 127, 55, 0.1)',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginBottom: '16px',
+  },
+  emptyTitle: {
+    fontSize: '16px',
+    fontWeight: 600,
+    color: '#24292F',
+    margin: '0 0 4px 0',
+  },
+  emptyText: {
+    fontSize: '14px',
+    color: '#57606A',
+    margin: 0,
+  },
+  // Section
+  section: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
+  },
+  sectionHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+  },
+  sectionLabel: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#8C959F',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  countBadge: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#CF222E',
+    backgroundColor: 'rgba(207, 34, 46, 0.1)',
+    padding: '2px 8px',
+    borderRadius: '10px',
+  },
+  countBadgeResolved: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#1A7F37',
+    backgroundColor: 'rgba(26, 127, 55, 0.1)',
+    padding: '2px 8px',
+    borderRadius: '10px',
+  },
+  flagsList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '8px',
+  },
+  // Flag Card
+  flagCard: {
+    padding: '16px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+    border: '1px solid #D0D7DE',
+  },
+  flagHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    marginBottom: '12px',
+  },
+  severityBadge: {
+    fontSize: '11px',
+    fontWeight: 600,
+    padding: '2px 8px',
+    borderRadius: '4px',
+  },
+  flagType: {
+    fontSize: '12px',
+    color: '#57606A',
+    textTransform: 'capitalize' as const,
+  },
+  impactBadge: {
+    marginLeft: 'auto',
+    fontSize: '11px',
+    color: '#8C959F',
+  },
+  flagTitle: {
+    fontSize: '15px',
+    fontWeight: 600,
+    color: '#24292F',
+    margin: '0 0 8px 0',
+  },
+  flagDescription: {
+    fontSize: '14px',
+    color: '#57606A',
+    lineHeight: 1.5,
+    margin: '0 0 16px 0',
+  },
+  // Analysis block
+  analysisBlock: {
+    padding: '12px',
+    backgroundColor: '#F6F8FA',
+    borderRadius: '6px',
+    marginBottom: '16px',
+  },
+  analysisLabel: {
+    display: 'block',
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#8C959F',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+    marginBottom: '6px',
+  },
+  analysisText: {
+    fontSize: '13px',
+    color: '#57606A',
+    lineHeight: 1.5,
+    margin: 0,
+  },
+  // Related questions
+  relatedRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    marginBottom: '16px',
+  },
+  relatedLabel: {
+    fontSize: '12px',
+    color: '#8C959F',
+  },
+  relatedCode: {
+    fontSize: '12px',
+    fontWeight: 500,
+    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
+    color: '#0969DA',
+    backgroundColor: 'rgba(9, 105, 218, 0.1)',
+    padding: '2px 6px',
+    borderRadius: '4px',
+  },
+  // Resolve form
+  resolveForm: {
+    marginTop: '16px',
+    padding: '16px',
+    backgroundColor: '#F6F8FA',
+    borderRadius: '6px',
+  },
+  resolveTextarea: {
+    width: '100%',
+    padding: '10px 12px',
+    fontSize: '14px',
+    border: '1px solid #D0D7DE',
+    borderRadius: '6px',
+    resize: 'vertical' as const,
+    fontFamily: 'inherit',
+    marginBottom: '12px',
+  },
+  resolveActions: {
+    display: 'flex',
+    justifyContent: 'flex-end',
+    gap: '8px',
+  },
+  cancelButton: {
+    padding: '8px 16px',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#24292F',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #D0D7DE',
+    borderRadius: '6px',
+    cursor: 'pointer',
+  },
+  confirmButton: {
+    padding: '8px 16px',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#FFFFFF',
+    backgroundColor: '#1A7F37',
+    border: 'none',
+    borderRadius: '6px',
+    cursor: 'pointer',
+  },
+  resolveButton: {
+    padding: '8px 16px',
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#24292F',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #D0D7DE',
+    borderRadius: '6px',
+    cursor: 'pointer',
+  },
+  // Resolved card
+  resolvedCard: {
+    padding: '16px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    border: '1px solid #D0D7DE',
+    opacity: 0.75,
+  },
+  resolvedBadge: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#1A7F37',
+    backgroundColor: 'rgba(26, 127, 55, 0.1)',
+    padding: '2px 8px',
+    borderRadius: '4px',
+  },
+  flagTitleResolved: {
+    fontSize: '15px',
+    fontWeight: 500,
+    color: '#57606A',
+    margin: '0 0 12px 0',
+  },
+  resolutionBlock: {
+    padding: '12px',
+    backgroundColor: '#F6F8FA',
+    borderRadius: '6px',
+    marginBottom: '8px',
+  },
+  resolutionLabel: {
+    display: 'block',
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#8C959F',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+    marginBottom: '6px',
+  },
+  resolutionText: {
+    fontSize: '13px',
+    color: '#57606A',
+    lineHeight: 1.5,
+    margin: 0,
+  },
+  resolvedMeta: {
+    fontSize: '12px',
+    color: '#8C959F',
+  },
+};
 
 // ============ Trigger Evaluation Modal ============
 
