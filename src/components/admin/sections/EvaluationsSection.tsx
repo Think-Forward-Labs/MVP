@@ -749,6 +749,29 @@ function BusinessesList({
 
 // ============ NEW: Split-Pane Master-Detail View ============
 
+// Logo color generator for business avatars
+const LOGO_COLORS = [
+  { bg: '#1A1A1A', text: '#FFFFFF' }, // Black
+  { bg: '#6366F1', text: '#FFFFFF' }, // Indigo
+  { bg: '#8B5CF6', text: '#FFFFFF' }, // Violet
+  { bg: '#EC4899', text: '#FFFFFF' }, // Pink
+  { bg: '#F59E0B', text: '#FFFFFF' }, // Amber
+  { bg: '#10B981', text: '#FFFFFF' }, // Emerald
+  { bg: '#3B82F6', text: '#FFFFFF' }, // Blue
+  { bg: '#EF4444', text: '#FFFFFF' }, // Red
+  { bg: '#14B8A6', text: '#FFFFFF' }, // Teal
+  { bg: '#F97316', text: '#FFFFFF' }, // Orange
+];
+
+function getLogoColor(name: string): { bg: string; text: string } {
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) {
+    hash = name.charCodeAt(i) + ((hash << 5) - hash);
+  }
+  const index = Math.abs(hash) % LOGO_COLORS.length;
+  return LOGO_COLORS[index];
+}
+
 interface AssessmentWithRuns {
   id: string;
   name: string;
@@ -842,17 +865,30 @@ function SplitPaneEvaluations({
                     Math.max(1, business.assessments.filter(a => a.latestRun).length)
                   )
                 : null;
+              const logoColor = getLogoColor(business.name);
 
               return (
-                <button
+                <div
                   key={business.id}
                   onClick={() => setSelectedBusinessId(business.id)}
                   style={{
-                    ...splitStyles.businessItem,
+                    ...splitStyles.businessItemWrapper,
                     backgroundColor: isSelected ? '#F5F5F5' : 'transparent',
-                    borderLeft: isSelected ? '2px solid #1A1A1A' : '2px solid transparent',
                   }}
                 >
+                  {/* Selection Indicator */}
+                  <div style={{
+                    ...splitStyles.selectionIndicator,
+                    backgroundColor: isSelected ? '#1A1A1A' : 'transparent',
+                  }} />
+                  {/* Circular Logo */}
+                  <div style={{
+                    ...splitStyles.businessLogo,
+                    backgroundColor: logoColor.bg,
+                    color: logoColor.text,
+                  }}>
+                    {business.name.charAt(0).toUpperCase()}
+                  </div>
                   <div style={splitStyles.businessItemContent}>
                     <span style={splitStyles.businessName}>{business.name}</span>
                     <span style={splitStyles.businessMeta}>
@@ -867,7 +903,7 @@ function SplitPaneEvaluations({
                       {avgScore}
                     </span>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -1090,23 +1126,41 @@ const splitStyles: Record<string, React.CSSProperties> = {
   businessList: {
     flex: 1,
     overflowY: 'auto' as const,
-    padding: '8px 0',
+    padding: '4px 0',
   },
-  businessItem: {
+  businessItemWrapper: {
     display: 'flex',
     alignItems: 'center',
-    justifyContent: 'space-between',
     width: '100%',
-    padding: '12px 20px',
-    border: 'none',
+    padding: '12px 16px 12px 0',
     cursor: 'pointer',
-    textAlign: 'left' as const,
     transition: 'background-color 0.15s',
   },
+  selectionIndicator: {
+    width: '3px',
+    alignSelf: 'stretch',
+    borderRadius: '0 2px 2px 0',
+    flexShrink: 0,
+    marginRight: '12px',
+  },
+  businessLogo: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '50%',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    fontSize: '14px',
+    fontWeight: 600,
+    flexShrink: 0,
+    marginRight: '12px',
+  },
   businessItemContent: {
+    flex: 1,
     display: 'flex',
     flexDirection: 'column' as const,
     gap: '2px',
+    minWidth: 0,
   },
   businessName: {
     fontSize: '14px',

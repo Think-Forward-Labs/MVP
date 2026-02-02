@@ -1836,15 +1836,19 @@ function SplitPaneReviews({
               const logoColor = getLogoColor(business.name);
 
               return (
-                <button
+                <div
                   key={business.id}
                   onClick={() => setSelectedBusinessId(business.id)}
                   style={{
-                    ...splitStyles.businessItem,
+                    ...splitStyles.businessItemWrapper,
                     backgroundColor: isSelected ? '#F5F5F5' : 'transparent',
-                    borderLeft: isSelected ? '2px solid #1A1A1A' : '2px solid transparent',
                   }}
                 >
+                  {/* Selection Indicator */}
+                  <div style={{
+                    ...splitStyles.selectionIndicator,
+                    backgroundColor: isSelected ? '#1A1A1A' : 'transparent',
+                  }} />
                   {/* Circular Logo */}
                   <div style={{
                     ...splitStyles.businessLogo,
@@ -1864,7 +1868,7 @@ function SplitPaneReviews({
                       {business.pending_reviews}
                     </span>
                   )}
-                </button>
+                </div>
               );
             })}
           </div>
@@ -2078,20 +2082,23 @@ const splitStyles: Record<string, React.CSSProperties> = {
   businessList: {
     flex: 1,
     overflowY: 'auto',
-    padding: '8px',
+    padding: '4px 0',
   },
-  businessItem: {
+  businessItemWrapper: {
     width: '100%',
     display: 'flex',
     alignItems: 'center',
     gap: '12px',
-    padding: '12px 14px',
-    border: 'none',
-    background: 'transparent',
+    padding: '12px 16px 12px 0',
     cursor: 'pointer',
-    borderRadius: '8px',
-    textAlign: 'left',
     transition: 'background-color 0.15s',
+  },
+  selectionIndicator: {
+    width: '3px',
+    alignSelf: 'stretch',
+    borderRadius: '0 2px 2px 0',
+    flexShrink: 0,
+    marginRight: '12px',
   },
   businessLogo: {
     width: '36px',
