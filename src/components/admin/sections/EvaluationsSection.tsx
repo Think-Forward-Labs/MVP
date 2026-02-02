@@ -1416,6 +1416,9 @@ function RunSummaryView({
   const [activeTab, setActiveTab] = useState<SummaryTabType>('issues');
   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
   const [expandedAIReasoning, setExpandedAIReasoning] = useState<string | null>(null);
+  const [showStrategicReasoning, setShowStrategicReasoning] = useState(false);
+  const [showSummaryReasoning, setShowSummaryReasoning] = useState(false);
+  const [showActionsReasoning, setShowActionsReasoning] = useState(false);
 
   const statusColor = getStatusColor(run.status);
   const totalFlags = run.flags?.filter(f => !f.is_resolved) || [];
@@ -1556,6 +1559,47 @@ function RunSummaryView({
               <span style={dashStyles.keyStatLabel}>Overall</span>
             </div>
           </div>
+
+          {/* How we reached this conclusion */}
+          <div style={dashStyles.reasoningToggleSection}>
+            <button
+              onClick={() => setShowStrategicReasoning(!showStrategicReasoning)}
+              style={dashStyles.reasoningToggleBtn}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.6 }}>
+                <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              <span>How we reached this conclusion</span>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                style={{
+                  marginLeft: 'auto',
+                  opacity: 0.4,
+                  transform: showStrategicReasoning ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease',
+                }}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            {showStrategicReasoning && (
+              <div style={dashStyles.reasoningContent}>
+                <p style={dashStyles.reasoningText}>
+                  Strategic position is calculated by mapping Technical Fitness (operational strength, execution speed, knowledge leverage)
+                  against Evolutionary Fitness (future readiness, market sensing, innovation capacity). Your position in the "{quadrant.name}"
+                  quadrant indicates {technicalFitness > evolutionaryFitness
+                    ? 'stronger operational capabilities relative to adaptive capacity'
+                    : 'stronger adaptive capacity relative to operational execution'}.
+                  The {pointGap}-point gap suggests {pointGap > 15 ? 'significant imbalance requiring attention' : 'reasonable balance between dimensions'}.
+                </p>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Executive Summary */}
@@ -1595,6 +1639,45 @@ function RunSummaryView({
               </span>
               <span style={dashStyles.quickStatLabel}>Flags</span>
             </div>
+          </div>
+
+          {/* How we reached this conclusion */}
+          <div style={dashStyles.reasoningToggleSection}>
+            <button
+              onClick={() => setShowSummaryReasoning(!showSummaryReasoning)}
+              style={dashStyles.reasoningToggleBtn}
+            >
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.6 }}>
+                <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+              </svg>
+              <span>How we reached this conclusion</span>
+              <svg
+                width="12"
+                height="12"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                style={{
+                  marginLeft: 'auto',
+                  opacity: 0.4,
+                  transform: showSummaryReasoning ? 'rotate(180deg)' : 'rotate(0deg)',
+                  transition: 'transform 0.2s ease',
+                }}
+              >
+                <path d="M6 9l6 6 6-6" />
+              </svg>
+            </button>
+            {showSummaryReasoning && (
+              <div style={dashStyles.reasoningContent}>
+                <p style={dashStyles.reasoningText}>
+                  This executive summary synthesizes insights from {sortedMetrics.length} metrics across {run.total_sources || 'multiple'} data sources.
+                  Critical issues are flagged based on scores below 50% or significant gaps between related metrics.
+                  Strengths represent areas scoring above 70% with consistent performance across dimensions.
+                  The analysis weighs recency, source reliability, and cross-validation between interview responses.
+                </p>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -1646,6 +1729,45 @@ function RunSummaryView({
               </div>
             );
           })}
+        </div>
+
+        {/* How we reached this conclusion */}
+        <div style={{ ...dashStyles.reasoningToggleSection, marginTop: '16px' }}>
+          <button
+            onClick={() => setShowActionsReasoning(!showActionsReasoning)}
+            style={dashStyles.reasoningToggleBtn}
+          >
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.6 }}>
+              <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+            </svg>
+            <span>How we reached this conclusion</span>
+            <svg
+              width="12"
+              height="12"
+              viewBox="0 0 24 24"
+              fill="none"
+              stroke="currentColor"
+              strokeWidth="2"
+              style={{
+                marginLeft: 'auto',
+                opacity: 0.4,
+                transform: showActionsReasoning ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 0.2s ease',
+              }}
+            >
+              <path d="M6 9l6 6 6-6" />
+            </svg>
+          </button>
+          {showActionsReasoning && (
+            <div style={dashStyles.reasoningContent}>
+              <p style={dashStyles.reasoningText}>
+                Key actions are prioritized using a weighted scoring model that considers: (1) potential business impact based on metric gaps,
+                (2) feasibility given current resource capacity, (3) interdependencies between metrics, and (4) time-to-value.
+                Critical actions address scores below 40% in high-impact areas. High-priority actions target the largest gaps between
+                current state and industry benchmarks.
+              </p>
+            </div>
+          )}
         </div>
       </div>
 
@@ -1808,9 +1930,8 @@ function RunSummaryView({
                                 onClick={() => setExpandedAIReasoning(isAIReasoningExpanded ? null : insight.metric_code)}
                                 style={dashStyles.metricExpandedAIToggle}
                               >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.5 }}>
-                                  <circle cx="12" cy="12" r="10" />
-                                  <path d="M12 16v-4M12 8h.01" />
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.6 }}>
+                                  <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                 </svg>
                                 <span>How we reached this conclusion</span>
                                 <svg
@@ -4371,6 +4492,40 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
   metricInsightAIReasoningListIcon: {},
   metricInsightAIReasoningDataBadge: {},
 
+  // Reasoning Toggle Section - "How we reached this conclusion"
+  reasoningToggleSection: {
+    marginTop: '16px',
+    paddingTop: '16px',
+    borderTop: '1px solid #EEEEEE',
+  },
+  reasoningToggleBtn: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    width: '100%',
+    padding: '10px 0',
+    background: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '13px',
+    color: '#888888',
+    fontWeight: 500,
+    transition: 'color 0.15s',
+  },
+  reasoningContent: {
+    marginTop: '12px',
+    padding: '16px',
+    backgroundColor: '#FAFAFA',
+    borderRadius: '6px',
+    border: '1px solid #EEEEEE',
+  },
+  reasoningText: {
+    fontSize: '13px',
+    color: '#555555',
+    lineHeight: 1.7,
+    margin: 0,
+  },
+
   // Footer
   metricInsightFooter: {
     display: 'flex',
@@ -5105,10 +5260,10 @@ function InterviewMetricsTab({
                                 {questionDetail.scoring_reasoning && (
                                   <div style={premiumStyles.reasoningBlock}>
                                     <div style={premiumStyles.reasoningHeader}>
-                                      <svg width="16" height="16" viewBox="0 0 16 16" fill="#8C959F">
-                                        <path d="M8 0a8 8 0 1 1 0 16A8 8 0 0 1 8 0ZM6.5 7.75A.75.75 0 0 0 5 7.75v0c0 1.64.425 2.786 1.025 3.56.577.745 1.29 1.19 1.975 1.19s1.398-.445 1.975-1.19c.6-.774 1.025-1.92 1.025-3.56a.75.75 0 0 0-1.5 0c0 1.36-.35 2.214-.775 2.762-.402.52-.775.688-1.225.688s-.823-.168-1.225-.688C6.85 9.964 6.5 9.11 6.5 7.75Zm1-3a.75.75 0 1 0 0 1.5.75.75 0 0 0 0-1.5Z"/>
+                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888888" strokeWidth="2">
+                                        <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                       </svg>
-                                      <span style={premiumStyles.reasoningLabel}>AI Analysis</span>
+                                      <span style={premiumStyles.reasoningLabel}>How we reached this conclusion</span>
                                     </div>
                                     <p style={premiumStyles.reasoningText}>{questionDetail.scoring_reasoning}</p>
                                   </div>
@@ -5518,10 +5673,10 @@ function QuestionsTab({
                 {q.scoring_reasoning && (
                   <div style={premiumStyles.reasoningBlock}>
                     <div style={premiumStyles.reasoningHeader}>
-                      <svg width="16" height="16" viewBox="0 0 16 16" fill="#8C959F">
-                        <path d="M8 0a8 8 0 110 16A8 8 0 018 0zM5.78 8.75a9.64 9.64 0 001.363 4.177c.255.426.542.832.857 1.215.245-.296.551-.705.857-1.215A9.64 9.64 0 0010.22 8.75H5.78zm4.44-1.5a9.64 9.64 0 00-1.363-4.177c-.307-.51-.612-.919-.857-1.215a9.927 9.927 0 00-.857 1.215A9.64 9.64 0 005.78 7.25h4.44zm-5.944 1.5H1.543a6.507 6.507 0 004.666 5.5c-.123-.181-.24-.365-.352-.552-.715-1.192-1.437-2.874-1.581-4.948zm-2.733-1.5h2.733c.144-2.074.866-3.756 1.58-4.948.12-.197.237-.381.353-.552a6.507 6.507 0 00-4.666 5.5zm10.181 1.5c-.144 2.074-.866 3.756-1.58 4.948-.12.197-.237.381-.353.552a6.507 6.507 0 004.666-5.5h-2.733zm2.733-1.5a6.507 6.507 0 00-4.666-5.5c.123.181.24.365.353.552.714 1.192 1.436 2.874 1.58 4.948h2.733z" />
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888888" strokeWidth="2">
+                        <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
-                      <span style={premiumStyles.reasoningLabel}>AI Analysis</span>
+                      <span style={premiumStyles.reasoningLabel}>How we reached this conclusion</span>
                     </div>
                     <p style={premiumStyles.reasoningText}>{q.scoring_reasoning}</p>
                   </div>
