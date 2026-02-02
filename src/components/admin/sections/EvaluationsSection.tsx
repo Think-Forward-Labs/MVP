@@ -64,7 +64,7 @@ function getMetricDisplayName(metricCode: string, metricName?: string): string {
 }
 
 // Helper to sort metrics by CABAS order (strategic priority)
-function sortMetricsByCABASOrder(metrics: MetricScoreDetail[]): MetricScoreDetail[] {
+function _sortMetricsByCABASOrder(metrics: MetricScoreDetail[]): MetricScoreDetail[] {
   return [...metrics].sort((a, b) => {
     const aIndex = METRIC_ORDER.findIndex(m => m.code === a.metric_code);
     const bIndex = METRIC_ORDER.findIndex(m => m.code === b.metric_code);
@@ -279,8 +279,8 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
     if (nav.level === 'detail') {
       // Handle sub-navigation within detail view
       if (nav.detailSubLevel === 'interview') {
-        // Go back to breakdown
-        setNav(prev => ({ ...prev, detailSubLevel: 'breakdown', selectedSourceId: undefined }));
+        // Go back to summary (main aggregated view)
+        setNav(prev => ({ ...prev, detailSubLevel: 'summary', selectedSourceId: undefined }));
       } else if (nav.detailSubLevel === 'breakdown') {
         // Go back to summary
         setNav(prev => ({ ...prev, detailSubLevel: 'summary' }));
@@ -425,6 +425,7 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
               scores={scores}
               onBack={goBack}
               onViewBreakdown={goToBreakdown}
+              onViewInterview={goToInterviewDetail}
             />
           )}
           {nav.detailSubLevel === 'breakdown' && (
@@ -851,21 +852,575 @@ function getMetricsForInterview(metricScores: MetricScoreDetail[], sourceId: str
 
 // ============ Run Summary View (Aggregated) ============
 
+// Dummy data for the new dashboard design
+const DUMMY_EXECUTIVE_SUMMARY = `Your organization excels at executing today's work but is blind to market shifts. Frontline workers see problems first but have learned to "keep their heads down" unless issues are safety-critical. This creates a dangerous gap: the people closest to operational reality are systematically excluded from shaping how work gets done.
+
+The data reveals strong operational execution (Technical Fitness: 62) but concerning gaps in adaptability (Evolutionary Fitness: 28). Multiple perception-reality contradictions suggest leadership may not have accurate visibility into actual organizational dynamics.`;
+
+const DUMMY_KEY_ACTIONS = [
+  {
+    id: 'action_1',
+    action: 'Protect 10% exploration time for frontline teams',
+    owner: 'Operations Director',
+    timeline: '30 days',
+    priority: 'critical' as const,
+    impact: 'High',
+    effort: 'Medium',
+  },
+  {
+    id: 'action_2',
+    action: 'Establish skip-level sensing sessions',
+    owner: 'CEO',
+    timeline: '14 days',
+    priority: 'high' as const,
+    impact: 'High',
+    effort: 'Low',
+  },
+  {
+    id: 'action_3',
+    action: 'Conduct tool friction audit across teams',
+    owner: 'IT Lead',
+    timeline: '45 days',
+    priority: 'medium' as const,
+    impact: 'Medium',
+    effort: 'Medium',
+  },
+];
+
+const DUMMY_CRITICAL_ISSUES = [
+  {
+    id: 'issue_1',
+    title: 'The Invisible Innovation Gap',
+    severity: 'critical',
+    metrics: ['M2', 'M5', 'M8'],
+    avgScore: 18,
+    description: 'Your frontline workers see problems first but have zero capacity to solve them creatively. 95% of time is spent on prescribed tasks with no slack for improvement.',
+    evidence: [
+      { quote: "Pretty much all of it, like 95%. I'm here to do the work, not think about how to improve the work.", role: 'Field Technician' },
+      { quote: "Risks and experiments happen higher up. We just do what we're told.", role: 'Field Technician' },
+    ],
+    rootCauses: ['Optimization Lock', 'Risk Paralysis'],
+    businessImpact: 'Competitive vulnerability as market evolves',
+  },
+  {
+    id: 'issue_2',
+    title: 'Perception-Reality Gap in Collaboration',
+    severity: 'warning',
+    metrics: ['M1', 'M4'],
+    avgScore: 42,
+    description: 'Teams rate cross-team collaboration highly but describe isolated working patterns. This gap suggests leadership may have inaccurate visibility into actual team dynamics.',
+    evidence: [
+      { quote: "Don't really have cross-team meetings at my level. Coordination mostly happens above us.", role: 'Field Technician' },
+    ],
+    rootCauses: ['Information Flow Gap'],
+    businessImpact: 'Missed alignment opportunities, duplicated efforts',
+  },
+];
+
+const DUMMY_STRENGTHS = [
+  {
+    id: 'strength_1',
+    title: 'Strong Operational Execution',
+    metrics: ['M1', 'M4'],
+    avgScore: 66,
+    description: 'Your teams deliver reliably on current commitments. Work gets done, deadlines are met, and quality is maintained.',
+    evidence: [
+      { quote: "The core work is solid - climb up, fix things, climb down. We know what we're doing.", role: 'Field Technician' },
+    ],
+    opportunity: 'Leverage this foundation for controlled experimentation',
+  },
+  {
+    id: 'strength_2',
+    title: 'Safety Culture Foundation',
+    metrics: ['M6'],
+    avgScore: 72,
+    description: 'Safety-critical concerns are taken seriously and can stop work when needed. This psychological safety around safety issues is a foundation to build on.',
+    evidence: [
+      { quote: "For immediate safety issues, yes, we can stop work and that's respected.", role: 'Field Technician' },
+    ],
+    opportunity: 'Extend this safety culture to include operational improvement ideas',
+  },
+];
+
+// Dummy Metric Insights - narrative-focused per-metric descriptions (all 14 metrics)
+const DUMMY_METRIC_INSIGHTS = [
+  // TECHNICAL FITNESS
+  {
+    metric_code: 'M1',
+    metric_name: 'Operational Strength',
+    category: 'Technical Fitness',
+    health_status: 'strong' as const,
+    score: 66,
+    summary: 'Your operational execution is a clear strength. Teams deliver reliably on commitments, and work quality remains consistent.',
+    observations: [
+      'Strong alignment between stated processes and actual practice',
+      'Day-to-day task completion is reliable and predictable',
+      'However, this strength may mask deeper rigidity — improvement opportunities go unexplored',
+    ],
+    evidence: [
+      { quote: "The core work is solid. Climb up, fix things, climb down. We know what we're doing.", role: 'Field Technician', supports: 'strength' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Analyzed 12 responses across questions measuring process adherence, task completion quality, and delivery reliability.',
+      data_points_analyzed: 12,
+      confidence_factors: ['High consistency across all frontline responses', 'Clear examples cited in multiple interviews'],
+      key_signals: ['100% reported reliable task completion', '83% described clear process understanding', 'Zero missed delivery complaints mentioned'],
+      limitations: ['Limited senior leadership perspective', 'No quantitative delivery metrics available'],
+    },
+    benchmark_narrative: "You're performing above industry median (66 vs 58) but below top-quartile performers (78+).",
+    recommendations: [
+      'Leverage this foundation to introduce controlled experiments',
+      'Protect execution while creating space for small innovations',
+    ],
+    related_issue_ids: [],
+    related_strength_ids: ['strength_1'],
+    related_action_ids: [],
+  },
+  {
+    metric_code: 'M4',
+    metric_name: 'Implementation Speed',
+    category: 'Technical Fitness',
+    health_status: 'developing' as const,
+    score: 56,
+    summary: 'Changes happen, but slowly. Approval processes and hierarchical decision-making create bottlenecks.',
+    observations: [
+      'Good ideas take months to move through approval chains',
+      'Frontline can identify improvements but lacks authority to implement',
+      'Speed is acceptable for routine work but too slow for adaptation',
+    ],
+    evidence: [
+      { quote: "We can suggest things, but it goes up the chain and... you know, it takes time.", role: 'Field Technician', supports: 'gap' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Evaluated responses about decision-making speed, approval processes, and time-to-implementation for improvements.',
+      data_points_analyzed: 9,
+      confidence_factors: ['Consistent complaints about approval delays', 'Multiple examples of slow implementation'],
+      key_signals: ['Average reported approval time: 2-3 months', 'No examples of rapid iteration', 'Hierarchical approval cited as main bottleneck'],
+      limitations: ['No comparison to actual project timelines', 'Self-reported estimates only'],
+    },
+    benchmark_narrative: "At 56, you're near the median but significantly behind agile organizations (75+).",
+    recommendations: [
+      'Delegate more decision authority to frontline teams',
+      'Create fast-track approval for low-risk improvements',
+    ],
+    related_issue_ids: ['issue_2'],
+    related_strength_ids: [],
+    related_action_ids: [],
+  },
+  {
+    metric_code: 'M7',
+    metric_name: 'Resource Efficiency',
+    category: 'Technical Fitness',
+    health_status: 'strong' as const,
+    score: 72,
+    summary: 'Resources are well-utilized for current operations. Teams make do with what they have.',
+    observations: [
+      'Strong culture of resourcefulness and making things work',
+      'Good allocation of people to tasks based on skills',
+      'However, efficiency focus may crowd out investment in new capabilities',
+    ],
+    evidence: [
+      { quote: "We're pretty efficient. Everyone knows their job and gets on with it.", role: 'Field Technician', supports: 'strength' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Assessed resource utilization patterns, skill-task matching, and efficiency culture indicators.',
+      data_points_analyzed: 8,
+      confidence_factors: ['Consistent positive efficiency narratives', 'No complaints about resource waste'],
+      key_signals: ['High task ownership reported', 'Clear role definitions mentioned', 'Resourcefulness praised as cultural value'],
+      limitations: ['No quantitative utilization metrics', 'May reflect optimization bias'],
+    },
+    benchmark_narrative: "You're performing well (72) against the 65 median. Top performers balance efficiency with slack for innovation.",
+    recommendations: [
+      'Maintain efficiency while protecting time for improvement work',
+      'Ensure efficiency doesn\'t become a barrier to necessary investment',
+    ],
+    related_issue_ids: [],
+    related_strength_ids: ['strength_1'],
+    related_action_ids: [],
+  },
+  {
+    metric_code: 'M10',
+    metric_name: 'Quality Standards',
+    category: 'Technical Fitness',
+    health_status: 'strong' as const,
+    score: 68,
+    summary: 'Quality is taken seriously. Clear standards exist and are generally followed.',
+    observations: [
+      'Strong quality culture especially for safety-critical work',
+      'Standards are documented and understood',
+      'Quality checks are embedded in workflows',
+    ],
+    evidence: [
+      { quote: "Quality matters here. We don't cut corners on the important stuff.", role: 'Field Technician', supports: 'strength' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Evaluated quality awareness, standards adherence, and quality culture indicators.',
+      data_points_analyzed: 10,
+      confidence_factors: ['Strong safety-quality link in responses', 'Consistent quality-first language'],
+      key_signals: ['Zero tolerance for safety shortcuts mentioned', 'Quality checks described as routine', 'Pride in work quality evident'],
+      limitations: ['No defect rate data available', 'Self-reported quality perceptions'],
+    },
+    benchmark_narrative: "At 68, you're above median (60) with room to reach excellence (80+).",
+    recommendations: [
+      'Extend quality mindset from safety-critical to all improvement work',
+      'Create quality metrics for process improvements, not just outputs',
+    ],
+    related_issue_ids: [],
+    related_strength_ids: ['strength_2'],
+    related_action_ids: [],
+  },
+  // EVOLUTIONARY FITNESS
+  {
+    metric_code: 'M2',
+    metric_name: 'Future Readiness',
+    category: 'Evolutionary Fitness',
+    health_status: 'critical' as const,
+    score: 18,
+    summary: 'Your organization is optimized for today but dangerously blind to tomorrow.',
+    observations: [
+      '95% of frontline time is allocated to prescribed tasks with no slack',
+      'Zero formal mechanisms for environmental scanning at operational levels',
+      'Risk-taking is explicitly discouraged — experimentation happens "higher up"',
+    ],
+    evidence: [
+      { quote: "Pretty much all of it, like 95%. No slack time for extras. I'm here to do the work, not think about how to improve the work.", role: 'Field Technician', supports: 'gap' as const },
+      { quote: "Risks and experiments happen higher up. We just do what we're told.", role: 'Field Technician', supports: 'gap' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Analyzed 28 responses across 3 questions (S1, RA1, X3b) that directly measure future-oriented thinking and scanning behavior.',
+      data_points_analyzed: 28,
+      confidence_factors: ['High response consistency across all frontline interviews', 'Multiple corroborating quotes', 'Clear pattern across different question types'],
+      key_signals: ['95% time allocation to prescribed tasks (X3b)', 'Zero examples of environmental scanning at frontline (S1)', 'All risk-taking examples cited were senior-level (RA1)'],
+      limitations: ['Only frontline roles represented', 'No external market data to validate competitive position', 'Senior leadership perspective not captured'],
+    },
+    benchmark_narrative: "Your score of 18 is significantly below industry median of 45. Top-quartile organizations score 72+ by protecting exploration time.",
+    recommendations: [
+      'Protect 10% exploration time for frontline teams',
+      'Establish simple "signal surfacing" mechanisms',
+      'Recognize and reward small experiments, even failures',
+    ],
+    related_issue_ids: ['issue_1'],
+    related_strength_ids: [],
+    related_action_ids: ['action_1'],
+  },
+  {
+    metric_code: 'M5',
+    metric_name: 'Market Radar',
+    category: 'Evolutionary Fitness',
+    health_status: 'critical' as const,
+    score: 0,
+    summary: 'Your frontline has zero visibility into market shifts or competitive dynamics.',
+    observations: [
+      'Market intelligence stays at senior levels and doesn\'t reach operators',
+      'No mechanisms for frontline to surface customer or competitor signals',
+      'People find out about problems "when standing in front of them"',
+    ],
+    evidence: [
+      { quote: "Market stuff I don't really see from my level. That's more senior management territory.", role: 'Field Technician', supports: 'gap' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Evaluated market awareness, competitive intelligence access, and signal-sharing behaviors.',
+      data_points_analyzed: 6,
+      confidence_factors: ['Complete absence of market awareness at frontline', 'Unanimous responses indicating information gap'],
+      key_signals: ['Zero market information reaching frontline', 'No formal or informal signal-sharing described', 'Market awareness explicitly delegated to "management"'],
+      limitations: ['Small sample size for this specific metric', 'No management perspective to contrast'],
+    },
+    benchmark_narrative: "A score of 0 indicates complete absence of frontline market sensing. Industry leaders score 60+ through systematic signal-sharing.",
+    recommendations: [
+      'Create bi-weekly "signal sharing" sessions across levels',
+      'Establish simple channels for frontline to report market observations',
+    ],
+    related_issue_ids: ['issue_1'],
+    related_strength_ids: [],
+    related_action_ids: ['action_2'],
+  },
+  {
+    metric_code: 'M8',
+    metric_name: 'Innovation Capacity',
+    category: 'Evolutionary Fitness',
+    health_status: 'attention' as const,
+    score: 24,
+    summary: 'Frontline has no time, permission, or mechanisms for creative problem-solving.',
+    observations: [
+      'Time allocation is 95%+ on prescribed tasks',
+      'Innovation is seen as "not their job" at operational levels',
+      'Good ideas exist but have no pathway to implementation',
+    ],
+    evidence: [
+      { quote: "We have ideas, sure. But there's no time or place to do anything about them.", role: 'Field Technician', supports: 'gap' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Assessed innovation time allocation, idea generation mechanisms, and implementation pathways.',
+      data_points_analyzed: 11,
+      confidence_factors: ['Consistent time-pressure complaints', 'Ideas exist but lack outlet'],
+      key_signals: ['<5% time available for non-prescribed work', 'No formal idea capture system mentioned', 'Innovation attributed to "other levels"'],
+      limitations: ['No data on actual ideas generated', 'Self-reported time estimates'],
+    },
+    benchmark_narrative: "At 24, you're well below the 52 median. Top performers create structured 'innovation time' for all levels.",
+    recommendations: [
+      'Pilot a "20% time" program with one team',
+      'Create a simple idea submission and tracking system',
+    ],
+    related_issue_ids: ['issue_1'],
+    related_strength_ids: [],
+    related_action_ids: ['action_1'],
+  },
+  {
+    metric_code: 'M11',
+    metric_name: 'Adaptability',
+    category: 'Evolutionary Fitness',
+    health_status: 'attention' as const,
+    score: 32,
+    summary: 'The organization can respond to change, but only through top-down directives, not organic adaptation.',
+    observations: [
+      'Change happens when mandated from above',
+      'Frontline waits for instructions rather than adapting proactively',
+      'Resilience exists but is reactive, not anticipatory',
+    ],
+    evidence: [
+      { quote: "When things change, we wait for the new procedure. That's how it works.", role: 'Field Technician', supports: 'gap' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Evaluated change response patterns, proactive vs reactive adaptation, and adaptation speed.',
+      data_points_analyzed: 8,
+      confidence_factors: ['Consistent "wait for instructions" pattern', 'No proactive adaptation examples'],
+      key_signals: ['Adaptation only through formal procedure changes', 'No local adaptation authority', 'Reactive stance described as normal'],
+      limitations: ['No data on actual change events', 'May underestimate informal adaptation'],
+    },
+    benchmark_narrative: "At 32, you trail the 55 median. Adaptable organizations score 70+ through distributed adaptation authority.",
+    recommendations: [
+      'Empower teams to make local adaptations within guardrails',
+      'Create "adaptation retrospectives" after change events',
+    ],
+    related_issue_ids: ['issue_1'],
+    related_strength_ids: [],
+    related_action_ids: [],
+  },
+  // CULTURAL HEALTH
+  {
+    metric_code: 'M3',
+    metric_name: 'Insight-to-Action',
+    category: 'Cultural Health',
+    health_status: 'attention' as const,
+    score: 34,
+    summary: 'Insights are generated but rarely translate into action. Good observations die in the system.',
+    observations: [
+      'People notice problems and opportunities but lack pathways to act',
+      'Suggestions go "up the chain" and disappear',
+      'Learned helplessness about driving change',
+    ],
+    evidence: [
+      { quote: "I've suggested things before. Nothing really happens. You learn to just do your job.", role: 'Field Technician', supports: 'gap' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Tracked insight generation, suggestion outcomes, and action-taking patterns.',
+      data_points_analyzed: 14,
+      confidence_factors: ['Multiple "suggestions go nowhere" examples', 'Resignation language detected'],
+      key_signals: ['High insight generation, low action conversion', 'No feedback loops described', 'Learned helplessness patterns evident'],
+      limitations: ['No tracking of actual suggestion outcomes', 'Perception-based assessment'],
+    },
+    benchmark_narrative: "At 34, you're below the 50 median. High-performing cultures score 70+ by closing the insight-to-action loop.",
+    recommendations: [
+      'Create visible feedback loops for suggestions',
+      'Track and report on suggestion outcomes monthly',
+    ],
+    related_issue_ids: ['issue_2'],
+    related_strength_ids: [],
+    related_action_ids: ['action_2'],
+  },
+  {
+    metric_code: 'M6',
+    metric_name: 'Psychological Safety',
+    category: 'Cultural Health',
+    health_status: 'developing' as const,
+    score: 42,
+    summary: 'Safety-critical concerns are taken seriously, but speaking up about operational improvements is risky.',
+    observations: [
+      'Physical safety concerns can stop work — this is respected',
+      'However, suggesting process improvements or questioning decisions feels unsafe',
+      'People have learned to "keep their heads down" on non-safety issues',
+    ],
+    evidence: [
+      { quote: "For immediate safety issues, yes, we can stop work and that's respected.", role: 'Field Technician', supports: 'strength' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Assessed speaking-up behaviors across different domains: safety, process, and strategic.',
+      data_points_analyzed: 15,
+      confidence_factors: ['Clear bifurcation between safety and non-safety voice', 'Consistent "keep head down" language'],
+      key_signals: ['100% safety-voice confidence', '<30% process-improvement voice confidence', 'Self-censorship on non-safety topics'],
+      limitations: ['Limited examples of actual speaking-up outcomes', 'May reflect individual rather than systemic patterns'],
+    },
+    benchmark_narrative: "You're at 42 vs industry median of 55. The gap suggests safety culture hasn't extended to operational voice.",
+    recommendations: [
+      'Extend the safety culture model to include improvement ideas',
+      'Create safe channels for anonymous operational feedback',
+    ],
+    related_issue_ids: [],
+    related_strength_ids: ['strength_2'],
+    related_action_ids: [],
+  },
+  {
+    metric_code: 'M9',
+    metric_name: 'Learning Culture',
+    category: 'Cultural Health',
+    health_status: 'strong' as const,
+    score: 64,
+    summary: 'Learning from mistakes happens, especially for safety incidents. Broader learning culture is less developed.',
+    observations: [
+      'Safety incidents trigger thorough review and learning',
+      'Operational learning is more ad-hoc and informal',
+      'Knowledge sharing between teams is limited',
+    ],
+    evidence: [
+      { quote: "After any safety incident, we do a proper review. Everyone learns from it.", role: 'Field Technician', supports: 'strength' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Evaluated learning behaviors, knowledge sharing, and post-incident review practices.',
+      data_points_analyzed: 12,
+      confidence_factors: ['Strong safety-learning connection', 'Learning mechanisms exist but are narrow'],
+      key_signals: ['Structured safety learning in place', 'Informal operational learning only', 'Limited cross-team knowledge flow'],
+      limitations: ['No data on learning outcomes', 'May overweight safety-learning due to prominence'],
+    },
+    benchmark_narrative: "At 64, you're above median (55). Extending safety-learning practices to operations could reach 80+.",
+    recommendations: [
+      'Apply safety incident review practices to operational challenges',
+      'Create regular cross-team learning sessions',
+    ],
+    related_issue_ids: [],
+    related_strength_ids: ['strength_2'],
+    related_action_ids: [],
+  },
+  {
+    metric_code: 'M12',
+    metric_name: 'Collaboration Quality',
+    category: 'Cultural Health',
+    health_status: 'developing' as const,
+    score: 48,
+    summary: 'Teams work well internally but cross-team collaboration is limited and mostly top-down coordinated.',
+    observations: [
+      'Strong within-team cooperation and support',
+      'Cross-team interaction happens mainly through management',
+      'Siloed knowledge and limited horizontal communication',
+    ],
+    evidence: [
+      { quote: "Within my team, we're solid. Other teams... we don't really interact much.", role: 'Field Technician', supports: 'gap' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Assessed within-team and cross-team collaboration patterns and quality.',
+      data_points_analyzed: 10,
+      confidence_factors: ['Clear internal/external collaboration gap', 'Consistent silo descriptions'],
+      key_signals: ['High within-team trust', 'Low cross-team interaction', 'Management as primary coordination mechanism'],
+      limitations: ['Limited data on actual collaboration outcomes', 'May reflect role constraints'],
+    },
+    benchmark_narrative: "At 48, you're near median (50) but below collaborative organizations (70+).",
+    recommendations: [
+      'Create regular cross-team touchpoints at frontline level',
+      'Establish peer networks across team boundaries',
+    ],
+    related_issue_ids: ['issue_2'],
+    related_strength_ids: [],
+    related_action_ids: [],
+  },
+  // RESOURCE CAPABILITY
+  {
+    metric_code: 'M13',
+    metric_name: 'Skills & Capabilities',
+    category: 'Resource Capability',
+    health_status: 'strong' as const,
+    score: 70,
+    summary: 'Teams have the skills needed for current work. Future capability development is less clear.',
+    observations: [
+      'Strong technical skills for existing operations',
+      'Good training for current role requirements',
+      'Less investment in emerging or future-oriented skills',
+    ],
+    evidence: [
+      { quote: "We're well trained for what we do. The company invests in that.", role: 'Field Technician', supports: 'strength' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Evaluated current skill adequacy, training investment, and future capability preparation.',
+      data_points_analyzed: 9,
+      confidence_factors: ['Consistent skill confidence for current work', 'Training investment acknowledged'],
+      key_signals: ['High current-skill confidence', 'Training focused on existing role', 'No future-skill development mentioned'],
+      limitations: ['Self-assessed skill levels', 'No skills gap analysis data'],
+    },
+    benchmark_narrative: "At 70, you're above median (62). Future-ready organizations invest equally in emerging skills (80+).",
+    recommendations: [
+      'Assess emerging skill needs for next 3-5 years',
+      'Create development pathways for future capabilities',
+    ],
+    related_issue_ids: [],
+    related_strength_ids: [],
+    related_action_ids: [],
+  },
+  {
+    metric_code: 'M14',
+    metric_name: 'Tools & Technology',
+    category: 'Resource Capability',
+    health_status: 'developing' as const,
+    score: 52,
+    summary: 'Tools work for current needs but create friction. Technology is adequate, not enabling.',
+    observations: [
+      'Basic tools are in place and functional',
+      'Technology creates friction rather than removing it',
+      'Limited technology for improvement or innovation support',
+    ],
+    evidence: [
+      { quote: "The tools do the job. Could they be better? Sure. But they work.", role: 'Field Technician', supports: 'context' as const },
+    ],
+    ai_reasoning: {
+      methodology: 'Assessed tool adequacy, technology friction, and enablement vs burden balance.',
+      data_points_analyzed: 7,
+      confidence_factors: ['Consistent "adequate but not great" sentiment', 'Friction examples provided'],
+      key_signals: ['Basic functionality confirmed', 'Improvement friction mentioned', 'No technology as enabler examples'],
+      limitations: ['Limited specific tool feedback', 'No comparison to alternatives'],
+    },
+    benchmark_narrative: "At 52, you're at median. Technology-enabled organizations score 75+ by removing friction.",
+    recommendations: [
+      'Conduct a "tool friction audit" with frontline teams',
+      'Prioritize technology investments that remove friction',
+    ],
+    related_issue_ids: [],
+    related_strength_ids: [],
+    related_action_ids: ['action_3'],
+  },
+];
+
+// Helper to get health status color and label
+const getHealthStatus = (status: string) => {
+  switch (status) {
+    case 'exceptional': return { color: '#1A7F37', bg: 'rgba(52, 199, 89, 0.10)', label: 'Exceptional' };
+    case 'strong': return { color: '#0969DA', bg: 'rgba(0, 122, 255, 0.10)', label: 'Strong' };
+    case 'developing': return { color: '#9A6700', bg: 'rgba(255, 149, 0, 0.10)', label: 'Developing' };
+    case 'attention': return { color: '#CF222E', bg: 'rgba(255, 59, 48, 0.10)', label: 'Attention' };
+    case 'critical': return { color: '#CF222E', bg: 'rgba(255, 59, 48, 0.12)', label: 'Critical' };
+    default: return { color: '#86868B', bg: 'rgba(0, 0, 0, 0.05)', label: 'Unknown' };
+  }
+};
+
+type SummaryTabType = 'issues' | 'strengths' | 'sources';
+
 function RunSummaryView({
   run,
   scores,
   onBack,
   onViewBreakdown,
+  onViewInterview,
 }: {
   run: EvaluationRunDetail;
   scores: EvaluationScoresResponse | null;
   onBack: () => void;
   onViewBreakdown: () => void;
+  onViewInterview: (sourceId: string) => void;
 }) {
+  const [activeTab, setActiveTab] = useState<SummaryTabType>('issues');
+  const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
+  const [expandedAIReasoning, setExpandedAIReasoning] = useState<string | null>(null);
+
   const statusColor = getStatusColor(run.status);
   const totalFlags = run.flags?.filter(f => !f.is_resolved) || [];
 
-  // Get aggregated metrics (deduplicated by metric_code) and sort by numerical order
+  // Get aggregated metrics
   const aggregatedMetrics = getAggregatedMetrics(scores?.metric_scores || []);
   const sortedMetrics = sortMetricsByNumber(aggregatedMetrics);
 
@@ -874,132 +1429,713 @@ function RunSummaryView({
     ? Math.round(sortedMetrics.reduce((sum, m) => sum + (m.overall_score || 0), 0) / sortedMetrics.length)
     : 0;
 
-  // Get RAG status
-  const getRAGStatus = (score: number) => {
-    if (score >= 70) return { label: 'Strong', color: '#16A34A', bg: 'rgba(22, 163, 74, 0.1)' };
-    if (score >= 50) return { label: 'Moderate', color: '#D97706', bg: 'rgba(217, 119, 6, 0.1)' };
-    return { label: 'Needs Work', color: '#DC2626', bg: 'rgba(220, 38, 38, 0.1)' };
+  // Calculate Technical vs Evolutionary Fitness (dummy calculation for now)
+  const technicalMetrics = sortedMetrics.filter(m => ['M1', 'M4', 'M7', 'M10'].includes(m.metric_code || ''));
+  const evolutionaryMetrics = sortedMetrics.filter(m => ['M2', 'M5', 'M8', 'M11'].includes(m.metric_code || ''));
+
+  const technicalFitness = technicalMetrics.length > 0
+    ? Math.round(technicalMetrics.reduce((sum, m) => sum + (m.overall_score || 0), 0) / technicalMetrics.length)
+    : 62; // Fallback dummy value
+
+  const evolutionaryFitness = evolutionaryMetrics.length > 0
+    ? Math.round(evolutionaryMetrics.reduce((sum, m) => sum + (m.overall_score || 0), 0) / evolutionaryMetrics.length)
+    : 28; // Fallback dummy value
+
+  // Determine quadrant
+  const getQuadrant = (tech: number, evol: number) => {
+    if (tech >= 50 && evol >= 50) return { name: 'Ambidextrous Leader', color: '#1A7F37' };
+    if (tech >= 50 && evol < 50) return { name: 'Efficient Executor', color: '#0969DA' };
+    if (tech < 50 && evol >= 50) return { name: 'Chaotic Innovator', color: '#9A6700' };
+    return { name: 'Vulnerable Drifter', color: '#CF222E' };
   };
 
-  const ragStatus = getRAGStatus(avgScore);
+  const quadrant = getQuadrant(technicalFitness, evolutionaryFitness);
+  const pointGap = Math.abs(technicalFitness - evolutionaryFitness);
 
-  // Count metrics by status
-  const strongCount = sortedMetrics.filter(m => (m.overall_score || 0) >= 70).length;
-  const moderateCount = sortedMetrics.filter(m => (m.overall_score || 0) >= 50 && (m.overall_score || 0) < 70).length;
-  const needsWorkCount = sortedMetrics.filter(m => (m.overall_score || 0) < 50).length;
+  const dashStyles = dashboardStyles;
 
   return (
-    <>
+    <div style={dashStyles.container}>
       {/* Header */}
-      <div style={styles.detailHeader}>
-        <button onClick={onBack} style={styles.backButton}>
+      <div style={dashStyles.header}>
+        <button onClick={onBack} style={dashStyles.backButton}>
           <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
             <path d="M19 12H5M12 19l-7-7 7-7" />
           </svg>
           Back to Runs
         </button>
 
-        <div style={styles.detailTitle}>
-          <h1 style={styles.title}>Evaluation Run #{run.run_number}</h1>
-          <span style={{ ...styles.statusBadge, background: statusColor.bg, color: statusColor.text }}>
-            {run.status}
-          </span>
-        </div>
-
-        <p style={styles.detailMeta}>
-          Started {formatDateTime(run.started_at)} • {run.sources?.length || 0} interview{(run.sources?.length || 0) !== 1 ? 's' : ''}
-        </p>
-      </div>
-
-      {/* Executive Summary Card */}
-      <div style={styles.executiveSummary}>
-        <div style={styles.execScoreSection}>
-          <div style={styles.execScoreCircle}>
-            <span style={{ ...styles.execScoreValue, color: ragStatus.color }}>{avgScore}</span>
-            <span style={styles.execScoreLabel}>Overall Score</span>
+        <div style={dashStyles.headerMain}>
+          <div style={dashStyles.headerLeft}>
+            <h1 style={dashStyles.title}>Evaluation Summary</h1>
+            <p style={dashStyles.subtitle}>
+              Run #{run.run_number} • {formatDateTime(run.started_at)} • {run.sources?.length || 0} data source{(run.sources?.length || 0) !== 1 ? 's' : ''}
+            </p>
           </div>
-          <span style={{ ...styles.ragBadge, background: ragStatus.bg, color: ragStatus.color }}>
-            {ragStatus.label}
-          </span>
-        </div>
-
-        <div style={styles.execStatsRow}>
-          <div style={styles.execStat}>
-            <span style={styles.execStatValue}>{run.sources?.length || 0}</span>
-            <span style={styles.execStatLabel}>Interviews</span>
-          </div>
-          <div style={styles.execStat}>
-            <span style={styles.execStatValue}>{sortedMetrics.length}</span>
-            <span style={styles.execStatLabel}>Metrics</span>
-          </div>
-          <div style={styles.execStat}>
-            <span style={{ ...styles.execStatValue, color: '#16A34A' }}>{strongCount}</span>
-            <span style={styles.execStatLabel}>Strong</span>
-          </div>
-          <div style={styles.execStat}>
-            <span style={{ ...styles.execStatValue, color: '#D97706' }}>{moderateCount}</span>
-            <span style={styles.execStatLabel}>Moderate</span>
-          </div>
-          <div style={styles.execStat}>
-            <span style={{ ...styles.execStatValue, color: '#DC2626' }}>{needsWorkCount}</span>
-            <span style={styles.execStatLabel}>Needs Work</span>
-          </div>
-          <div style={styles.execStat}>
-            <span style={{ ...styles.execStatValue, color: totalFlags.length > 0 ? '#DC2626' : '#16A34A' }}>
-              {totalFlags.length}
+          <div style={dashStyles.headerRight}>
+            <span style={{ ...dashStyles.statusBadge, background: statusColor.bg, color: statusColor.text }}>
+              {run.status}
             </span>
-            <span style={styles.execStatLabel}>Flags</span>
+            <button style={dashStyles.downloadButton}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+              </svg>
+              Download Report
+            </button>
           </div>
         </div>
       </div>
 
-      {/* Aggregated Metrics Breakdown - CABAS Order */}
-      <div style={styles.sectionHeader}>
-        <h2 style={styles.sectionTitle}>Aggregated Metrics</h2>
-        <p style={styles.sectionSubtitle}>Weighted averages across all {run.sources?.length || 0} interviews</p>
+      {/* Two Column Layout: Strategic Position + Executive Summary */}
+      <div style={dashStyles.twoColumnGrid}>
+        {/* Strategic Position Quadrant */}
+        <div style={dashStyles.quadrantCard}>
+          <h3 style={dashStyles.cardTitle}>Strategic Position</h3>
+
+          <div style={dashStyles.quadrantContainer}>
+            {/* Quadrant Grid */}
+            <div style={dashStyles.quadrantGrid}>
+              {/* Y-axis label */}
+              <div style={dashStyles.yAxisLabel}>
+                <span style={dashStyles.axisText}>Evolutionary Fitness</span>
+              </div>
+
+              {/* Quadrant boxes */}
+              <div style={dashStyles.quadrantBoxes}>
+                <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantTL }}>
+                  <span style={dashStyles.quadrantLabel}>Chaotic Innovator</span>
+                </div>
+                <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantTR }}>
+                  <span style={dashStyles.quadrantLabel}>Ambidextrous Leader</span>
+                </div>
+                <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantBL }}>
+                  <span style={dashStyles.quadrantLabel}>Vulnerable Drifter</span>
+                </div>
+                <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantBR }}>
+                  <span style={dashStyles.quadrantLabel}>Efficient Executor</span>
+                </div>
+
+                {/* Position dot */}
+                <div style={{
+                  ...dashStyles.positionDot,
+                  left: `${technicalFitness}%`,
+                  bottom: `${evolutionaryFitness}%`,
+                }} />
+              </div>
+
+              {/* X-axis label */}
+              <div style={dashStyles.xAxisLabel}>
+                <span style={dashStyles.axisText}>Technical Fitness</span>
+              </div>
+            </div>
+          </div>
+
+          {/* Quadrant Result */}
+          <div style={dashStyles.quadrantResult}>
+            <span style={{ ...dashStyles.quadrantResultLabel, color: quadrant.color }}>
+              {quadrant.name}
+            </span>
+          </div>
+
+          {/* Key Stats */}
+          <div style={dashStyles.keyStatsRow}>
+            <div style={dashStyles.keyStat}>
+              <span style={dashStyles.keyStatValue}>{technicalFitness}</span>
+              <span style={dashStyles.keyStatLabel}>Technical</span>
+            </div>
+            <div style={dashStyles.keyStat}>
+              <span style={dashStyles.keyStatValue}>{evolutionaryFitness}</span>
+              <span style={dashStyles.keyStatLabel}>Evolutionary</span>
+            </div>
+            <div style={dashStyles.keyStat}>
+              <span style={dashStyles.keyStatValue}>{pointGap}</span>
+              <span style={dashStyles.keyStatLabel}>Gap</span>
+            </div>
+            <div style={dashStyles.keyStat}>
+              <span style={dashStyles.keyStatValue}>{avgScore}</span>
+              <span style={dashStyles.keyStatLabel}>Overall</span>
+            </div>
+          </div>
+        </div>
+
+        {/* Executive Summary */}
+        <div style={dashStyles.summaryCard}>
+          <div style={dashStyles.summaryHeader}>
+            <h3 style={dashStyles.cardTitle}>Executive Summary</h3>
+            <button style={dashStyles.editButton}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+              </svg>
+              Edit
+            </button>
+          </div>
+
+          <p style={dashStyles.summaryText}>{DUMMY_EXECUTIVE_SUMMARY}</p>
+
+          {/* Quick Stats */}
+          <div style={dashStyles.quickStatsRow}>
+            <div style={dashStyles.quickStat}>
+              <span style={{ ...dashStyles.quickStatValue, color: DUMMY_CRITICAL_ISSUES.length > 0 ? '#CF222E' : '#1A7F37' }}>
+                {DUMMY_CRITICAL_ISSUES.length}
+              </span>
+              <span style={dashStyles.quickStatLabel}>Critical Issues</span>
+            </div>
+            <div style={dashStyles.quickStat}>
+              <span style={{ ...dashStyles.quickStatValue, color: '#1A7F37' }}>{DUMMY_STRENGTHS.length}</span>
+              <span style={dashStyles.quickStatLabel}>Strengths</span>
+            </div>
+            <div style={dashStyles.quickStat}>
+              <span style={dashStyles.quickStatValue}>{DUMMY_KEY_ACTIONS.length}</span>
+              <span style={dashStyles.quickStatLabel}>Actions</span>
+            </div>
+            <div style={dashStyles.quickStat}>
+              <span style={{ ...dashStyles.quickStatValue, color: totalFlags.length > 0 ? '#9A6700' : '#1A7F37' }}>
+                {totalFlags.length}
+              </span>
+              <span style={dashStyles.quickStatLabel}>Flags</span>
+            </div>
+          </div>
+        </div>
       </div>
 
-      <div style={styles.metricsBarChart}>
-        {sortedMetrics.map((metric) => {
-          const scoreColor = getScoreColor(metric.overall_score || 0);
-          const displayName = getMetricDisplayName(metric.metric_code, metric.metric_name);
+      {/* Key Actions Section */}
+      <div style={dashStyles.actionsSection}>
+        <div style={dashStyles.actionsSectionHeader}>
+          <h3 style={dashStyles.sectionTitle}>Key Actions to Take</h3>
+          <button style={dashStyles.addButton}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 5v14M5 12h14" />
+            </svg>
+            Add Action
+          </button>
+        </div>
+
+        <div style={dashStyles.actionsList}>
+          {DUMMY_KEY_ACTIONS.map((action, index) => {
+            const priorityColors = {
+              critical: { bg: '#FFEBE9', text: '#CF222E', icon: '🔴' },
+              high: { bg: '#FFF8C5', text: '#9A6700', icon: '🟡' },
+              medium: { bg: '#DDF4FF', text: '#0969DA', icon: '🔵' },
+              low: { bg: '#DAFBE1', text: '#1A7F37', icon: '🟢' },
+            };
+            const pStyle = priorityColors[action.priority];
+
+            return (
+              <div key={action.id} style={dashStyles.actionCard}>
+                <div style={dashStyles.actionPriority}>
+                  <span>{pStyle.icon}</span>
+                </div>
+                <div style={dashStyles.actionContent}>
+                  <div style={dashStyles.actionMain}>
+                    <span style={dashStyles.actionNumber}>{index + 1}.</span>
+                    <span style={dashStyles.actionText}>{action.action}</span>
+                  </div>
+                  <div style={dashStyles.actionMeta}>
+                    <span style={dashStyles.actionOwner}>Owner: {action.owner}</span>
+                    <span style={dashStyles.actionDivider}>•</span>
+                    <span style={dashStyles.actionTimeline}>Timeline: {action.timeline}</span>
+                    <span style={dashStyles.actionDivider}>•</span>
+                    <span style={dashStyles.actionImpact}>Impact: {action.impact}</span>
+                  </div>
+                </div>
+                <div style={dashStyles.actionActions}>
+                  <button style={dashStyles.actionEditBtn}>Edit</button>
+                  <button style={dashStyles.actionDismissBtn}>Dismiss</button>
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      </div>
+
+      {/* Metric Insights Section - McKinsey "Insight Headlines" Style */}
+      <div style={dashStyles.metricInsightsSection}>
+        <div style={dashStyles.metricInsightsHeader}>
+          <h3 style={dashStyles.metricInsightsTitle}>Where You Stand</h3>
+          <p style={dashStyles.metricInsightsSubtitle}>
+            14 dimensions analyzed • Benchmarked against 2,600+ organizations
+          </p>
+        </div>
+
+        {/* Group metrics by category */}
+        {[
+          { name: 'Technical Fitness', subtitle: 'How well you execute today', codes: ['M1', 'M4', 'M7', 'M10'] },
+          { name: 'Evolutionary Fitness', subtitle: 'How ready you are for tomorrow', codes: ['M2', 'M5', 'M8', 'M11'] },
+          { name: 'Cultural Health', subtitle: 'How your people enable change', codes: ['M3', 'M6', 'M9', 'M12'] },
+          { name: 'Resource Capability', subtitle: 'Whether you have what you need', codes: ['M13', 'M14'] },
+        ].map((category) => {
+          const categoryMetrics = DUMMY_METRIC_INSIGHTS.filter(m => category.codes.includes(m.metric_code));
+          if (categoryMetrics.length === 0) return null;
+
+          // Calculate category average
+          const categoryAvg = Math.round(categoryMetrics.reduce((sum, m) => sum + m.score, 0) / categoryMetrics.length);
+          const categoryHealth = getHealthStatus(
+            categoryAvg >= 70 ? 'strong' : categoryAvg >= 50 ? 'developing' : categoryAvg >= 30 ? 'attention' : 'critical'
+          );
 
           return (
-            <div key={metric.id} style={styles.metricBarRow}>
-              <div style={styles.metricBarLabel}>
-                <span style={styles.metricBarCode}>{metric.metric_code}</span>
-                <span style={styles.metricBarName}>{displayName}</span>
+            <div key={category.name} style={dashStyles.metricInsightsCategorySection}>
+              {/* Category Header */}
+              <div style={dashStyles.metricInsightsCategoryHeader}>
+                <span style={dashStyles.metricInsightsCategoryTitle}>{category.name}</span>
+                <span style={{ ...dashStyles.metricInsightsCategoryAvg, color: categoryHealth.color }}>
+                  Avg: {categoryAvg}
+                </span>
               </div>
-              <div style={styles.metricBarContainer}>
-                <div style={{ ...styles.metricBarFillAgg, width: `${metric.overall_score || 0}%`, background: scoreColor }} />
+
+              {/* Metrics in this category - Insight Headlines */}
+              <div style={dashStyles.metricInsightsList}>
+                {categoryMetrics.map((insight, idx) => {
+                  const health = getHealthStatus(insight.health_status);
+                  const isExpanded = expandedMetric === insight.metric_code;
+                  const isAIReasoningExpanded = expandedAIReasoning === insight.metric_code;
+                  const isLastInCategory = idx === categoryMetrics.length - 1;
+
+                  // Create mini health bar segments (10 segments)
+                  const filledSegments = Math.round(insight.score / 10);
+
+                  return (
+                    <div
+                      key={insight.metric_code}
+                      style={{
+                        ...dashStyles.metricInsightCard,
+                        borderBottom: isLastInCategory ? 'none' : '1px solid #EEEEEE',
+                      }}
+                    >
+                      {/* Insight Headline Row */}
+                      <div
+                        style={{
+                          ...dashStyles.metricInsightCardHeader,
+                          backgroundColor: isExpanded ? '#F7F7F7' : 'transparent',
+                        }}
+                        onClick={() => setExpandedMetric(isExpanded ? null : insight.metric_code)}
+                      >
+                        {/* Mini health bar - fills from bottom */}
+                        <div style={dashStyles.metricInsightHealthBar}>
+                          {[...Array(10)].map((_, i) => (
+                            <div
+                              key={i}
+                              style={{
+                                ...dashStyles.metricInsightHealthBarSegment,
+                                backgroundColor: i >= (10 - filledSegments) ? health.color : '#E8E8E8',
+                              }}
+                            />
+                          ))}
+                        </div>
+
+                        {/* Insight headline + metric name */}
+                        <div style={dashStyles.metricInsightCardLeft}>
+                          <h4 style={dashStyles.metricInsightHeadline}>{insight.summary}</h4>
+                          <p style={dashStyles.metricInsightMetricName}>{insight.metric_name}</p>
+                        </div>
+
+                        {/* Status badge + chevron */}
+                        <div style={dashStyles.metricInsightCardRight}>
+                          <span style={{
+                            ...dashStyles.metricInsightHealthBadge,
+                            backgroundColor: health.bg,
+                            color: health.color,
+                          }}>
+                            {health.label}
+                          </span>
+                          <svg
+                            width="16"
+                            height="16"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="2"
+                            style={{
+                              ...dashStyles.metricInsightChevron,
+                              transform: isExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                            }}
+                          >
+                            <path d="M6 9l6 6 6-6" />
+                          </svg>
+                        </div>
+                      </div>
+
+                      {/* Expanded Content - Clean & Elegant */}
+                      {isExpanded && (
+                        <div style={dashStyles.metricInsightExpandedContent} onClick={(e) => e.stopPropagation()}>
+
+                          {/* Two Column Layout */}
+                          <div style={dashStyles.metricExpandedGrid}>
+                            {/* Left Column - What We Found */}
+                            <div style={dashStyles.metricExpandedColumn}>
+                              <span style={dashStyles.metricExpandedLabel}>What we found</span>
+                              <div style={dashStyles.metricExpandedObsList}>
+                                {insight.observations.map((obs, obsIdx) => (
+                                  <p key={obsIdx} style={dashStyles.metricExpandedObsItem}>{obs}</p>
+                                ))}
+                              </div>
+
+                              {/* Quote */}
+                              {insight.evidence.slice(0, 1).map((ev, evIdx) => (
+                                <div key={evIdx} style={dashStyles.metricExpandedQuote}>
+                                  <p style={dashStyles.metricExpandedQuoteText}>"{ev.quote}"</p>
+                                  <span style={dashStyles.metricExpandedQuoteSource}>{ev.role}</span>
+                                </div>
+                              ))}
+                            </div>
+
+                            {/* Right Column - What To Do */}
+                            <div style={dashStyles.metricExpandedColumn}>
+                              <span style={dashStyles.metricExpandedLabel}>What to consider</span>
+                              <div style={dashStyles.metricExpandedRecList}>
+                                {insight.recommendations.slice(0, 3).map((rec, recIdx) => (
+                                  <div key={recIdx} style={dashStyles.metricExpandedRecItem}>
+                                    <span style={dashStyles.metricExpandedRecNum}>{recIdx + 1}</span>
+                                    <span style={dashStyles.metricExpandedRecText}>{rec}</span>
+                                  </div>
+                                ))}
+                              </div>
+
+                              {/* Benchmark - subtle inline */}
+                              {insight.benchmark_narrative && (
+                                <p style={dashStyles.metricExpandedBenchmark}>
+                                  {insight.benchmark_narrative}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          {/* AI Reasoning - Minimal Toggle */}
+                          {insight.ai_reasoning && (
+                            <div style={dashStyles.metricExpandedAISection}>
+                              <button
+                                onClick={() => setExpandedAIReasoning(isAIReasoningExpanded ? null : insight.metric_code)}
+                                style={dashStyles.metricExpandedAIToggle}
+                              >
+                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.5 }}>
+                                  <circle cx="12" cy="12" r="10" />
+                                  <path d="M12 16v-4M12 8h.01" />
+                                </svg>
+                                <span>How we reached this conclusion</span>
+                                <svg
+                                  width="12"
+                                  height="12"
+                                  viewBox="0 0 24 24"
+                                  fill="none"
+                                  stroke="currentColor"
+                                  strokeWidth="2"
+                                  style={{
+                                    marginLeft: 'auto',
+                                    opacity: 0.4,
+                                    transform: isAIReasoningExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
+                                    transition: 'transform 0.2s ease',
+                                  }}
+                                >
+                                  <path d="M6 9l6 6 6-6" />
+                                </svg>
+                              </button>
+
+                              {isAIReasoningExpanded && (
+                                <div style={dashStyles.metricExpandedAIContent}>
+                                  <div style={dashStyles.metricExpandedAIGrid}>
+                                    {/* Methodology */}
+                                    <div style={dashStyles.metricExpandedAIBlock}>
+                                      <span style={dashStyles.metricExpandedAIBlockLabel}>Methodology</span>
+                                      <p style={dashStyles.metricExpandedAIBlockText}>{insight.ai_reasoning.methodology}</p>
+                                      <span style={dashStyles.metricExpandedAIBadge}>{insight.ai_reasoning.data_points_analyzed} data points analyzed</span>
+                                    </div>
+
+                                    {/* Key Signals */}
+                                    <div style={dashStyles.metricExpandedAIBlock}>
+                                      <span style={dashStyles.metricExpandedAIBlockLabel}>Key signals detected</span>
+                                      {insight.ai_reasoning.key_signals.map((signal, i) => (
+                                        <p key={i} style={dashStyles.metricExpandedAIListItem}>• {signal}</p>
+                                      ))}
+                                    </div>
+
+                                    {/* Confidence */}
+                                    <div style={dashStyles.metricExpandedAIBlock}>
+                                      <span style={dashStyles.metricExpandedAIBlockLabel}>Confidence factors</span>
+                                      {insight.ai_reasoning.confidence_factors.map((factor, i) => (
+                                        <p key={i} style={{ ...dashStyles.metricExpandedAIListItem, color: '#1A7F37' }}>✓ {factor}</p>
+                                      ))}
+                                    </div>
+
+                                    {/* Limitations */}
+                                    <div style={dashStyles.metricExpandedAIBlock}>
+                                      <span style={dashStyles.metricExpandedAIBlockLabel}>Limitations</span>
+                                      {insight.ai_reasoning.limitations.map((lim, i) => (
+                                        <p key={i} style={{ ...dashStyles.metricExpandedAIListItem, color: '#9A6700' }}>– {lim}</p>
+                                      ))}
+                                    </div>
+                                  </div>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Footer with related links */}
+                          {(insight.related_issue_ids.length > 0 || insight.related_action_ids.length > 0) && (
+                            <div style={dashStyles.metricInsightFooter}>
+                              {insight.related_issue_ids.length > 0 && (
+                                <span style={{
+                                  ...dashStyles.metricInsightRelatedTag,
+                                  backgroundColor: '#FEE2E2',
+                                  color: '#B91C1C',
+                                }}>
+                                  Related Issue
+                                </span>
+                              )}
+                              {insight.related_action_ids.length > 0 && (
+                                <span style={{
+                                  ...dashStyles.metricInsightRelatedTag,
+                                  backgroundColor: '#DBEAFE',
+                                  color: '#1D4ED8',
+                                }}>
+                                  Has Action
+                                </span>
+                              )}
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
               </div>
-              <span style={{ ...styles.metricBarScore, color: scoreColor }}>
-                {Math.round(metric.overall_score || 0)}
-              </span>
             </div>
           );
         })}
       </div>
 
-      {/* View Breakdown Button */}
-      <div style={styles.viewBreakdownSection}>
-        <button onClick={onViewBreakdown} style={styles.viewBreakdownButton}>
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M17 21v-2a4 4 0 00-4-4H5a4 4 0 00-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M23 21v-2a4 4 0 00-3-3.87" />
-            <path d="M16 3.13a4 4 0 010 7.75" />
-          </svg>
-          View Interview Breakdown
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M9 18l6-6-6-6" />
-          </svg>
-        </button>
-        <p style={styles.viewBreakdownHint}>
-          See individual interview scores, interdependency analysis, and detailed flags
-        </p>
+      {/* Tabbed Content */}
+      <div style={dashStyles.tabbedSection}>
+        <div style={dashStyles.tabsHeader}>
+          {[
+            { id: 'issues', label: 'Critical Issues', count: DUMMY_CRITICAL_ISSUES.length },
+            { id: 'strengths', label: 'Strengths', count: DUMMY_STRENGTHS.length },
+            { id: 'sources', label: 'Data Sources', count: run.sources?.length || 0 },
+          ].map((tab) => (
+            <button
+              key={tab.id}
+              onClick={() => setActiveTab(tab.id as SummaryTabType)}
+              style={{
+                ...dashStyles.tab,
+                ...(activeTab === tab.id ? dashStyles.tabActive : {}),
+              }}
+            >
+              {tab.label}
+              <span style={{
+                ...dashStyles.tabCount,
+                ...(activeTab === tab.id ? dashStyles.tabCountActive : {}),
+              }}>
+                {tab.count}
+              </span>
+            </button>
+          ))}
+        </div>
+
+        <div style={dashStyles.tabContent}>
+          {/* Critical Issues Tab - Premium Redesign */}
+          {activeTab === 'issues' && (
+            <div style={dashStyles.premiumList}>
+              {DUMMY_CRITICAL_ISSUES.map((issue, idx) => {
+                const isLast = idx === DUMMY_CRITICAL_ISSUES.length - 1;
+                const severityColor = issue.severity === 'critical' ? '#CF222E' : '#9A6700';
+
+                return (
+                  <div
+                    key={issue.id}
+                    style={{
+                      ...dashStyles.premiumCard,
+                      borderBottom: isLast ? 'none' : '1px solid #EEEEEE',
+                    }}
+                  >
+                    {/* Header Row */}
+                    <div style={dashStyles.premiumCardHeader}>
+                      {/* Severity indicator */}
+                      <div style={{
+                        ...dashStyles.premiumSeverityDot,
+                        backgroundColor: severityColor,
+                      }} />
+
+                      {/* Title & Description */}
+                      <div style={dashStyles.premiumCardMain}>
+                        <h4 style={dashStyles.premiumCardTitle}>{issue.title}</h4>
+                        <p style={dashStyles.premiumCardDesc}>{issue.description}</p>
+                      </div>
+
+                      {/* Metrics badge */}
+                      <div style={dashStyles.premiumCardMeta}>
+                        <span style={dashStyles.premiumMetricsBadge}>
+                          {issue.metrics.join(' · ')}
+                        </span>
+                        <span style={{ ...dashStyles.premiumScoreBadge, color: severityColor }}>
+                          {issue.avgScore}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Evidence & Context - Two Column */}
+                    <div style={dashStyles.premiumCardBody}>
+                      <div style={dashStyles.premiumCardColumn}>
+                        <span style={dashStyles.premiumLabel}>Supporting Evidence</span>
+                        {issue.evidence.slice(0, 1).map((ev, evIdx) => (
+                          <div key={evIdx} style={dashStyles.premiumQuote}>
+                            <p style={dashStyles.premiumQuoteText}>"{ev.quote}"</p>
+                            <span style={dashStyles.premiumQuoteSource}>{ev.role}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={dashStyles.premiumCardColumn}>
+                        <span style={dashStyles.premiumLabel}>Root Cause</span>
+                        <div style={dashStyles.premiumTagsRow}>
+                          {issue.rootCauses.map((cause, cIdx) => (
+                            <span key={cIdx} style={dashStyles.premiumTag}>{cause}</span>
+                          ))}
+                        </div>
+                        <span style={{ ...dashStyles.premiumLabel, marginTop: '16px' }}>Business Impact</span>
+                        <p style={dashStyles.premiumImpactText}>{issue.businessImpact}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Strengths Tab - Premium Redesign */}
+          {activeTab === 'strengths' && (
+            <div style={dashStyles.premiumList}>
+              {DUMMY_STRENGTHS.map((strength, idx) => {
+                const isLast = idx === DUMMY_STRENGTHS.length - 1;
+
+                return (
+                  <div
+                    key={strength.id}
+                    style={{
+                      ...dashStyles.premiumCard,
+                      borderBottom: isLast ? 'none' : '1px solid #EEEEEE',
+                    }}
+                  >
+                    {/* Header Row */}
+                    <div style={dashStyles.premiumCardHeader}>
+                      {/* Strength indicator */}
+                      <div style={{
+                        ...dashStyles.premiumSeverityDot,
+                        backgroundColor: '#1A7F37',
+                      }} />
+
+                      {/* Title & Description */}
+                      <div style={dashStyles.premiumCardMain}>
+                        <h4 style={dashStyles.premiumCardTitle}>{strength.title}</h4>
+                        <p style={dashStyles.premiumCardDesc}>{strength.description}</p>
+                      </div>
+
+                      {/* Metrics badge */}
+                      <div style={dashStyles.premiumCardMeta}>
+                        <span style={dashStyles.premiumMetricsBadge}>
+                          {strength.metrics.join(' · ')}
+                        </span>
+                        <span style={{ ...dashStyles.premiumScoreBadge, color: '#1A7F37' }}>
+                          {strength.avgScore}
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Evidence & Opportunity - Two Column */}
+                    <div style={dashStyles.premiumCardBody}>
+                      <div style={dashStyles.premiumCardColumn}>
+                        <span style={dashStyles.premiumLabel}>Supporting Evidence</span>
+                        {strength.evidence.slice(0, 1).map((ev, evIdx) => (
+                          <div key={evIdx} style={dashStyles.premiumQuote}>
+                            <p style={dashStyles.premiumQuoteText}>"{ev.quote}"</p>
+                            <span style={dashStyles.premiumQuoteSource}>{ev.role}</span>
+                          </div>
+                        ))}
+                      </div>
+
+                      <div style={dashStyles.premiumCardColumn}>
+                        <span style={dashStyles.premiumLabel}>Opportunity</span>
+                        <p style={dashStyles.premiumOpportunityText}>{strength.opportunity}</p>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Data Sources Tab - Premium Redesign */}
+          {activeTab === 'sources' && (
+            <div style={dashStyles.premiumSourcesList}>
+              {(run.sources || []).map((source, idx) => {
+                const isVoice = source.source_type?.toLowerCase().includes('voice');
+                const isLast = idx === (run.sources?.length || 0) - 1;
+                const questionCount = scores?.question_scores?.filter(q => q.source_id === source.id).length || 28;
+
+                return (
+                  <div
+                    key={source.id}
+                    style={{
+                      ...dashStyles.premiumSourceRow,
+                      borderBottom: isLast ? 'none' : '1px solid #EEEEEE',
+                    }}
+                    onClick={() => onViewInterview(source.id)}
+                  >
+                    {/* Type Icon */}
+                    <div style={dashStyles.premiumSourceIcon}>
+                      {isVoice ? (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="1.5">
+                          <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z" />
+                          <path d="M19 10v2a7 7 0 0 1-14 0v-2M12 19v4M8 23h8" />
+                        </svg>
+                      ) : (
+                        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#666" strokeWidth="1.5">
+                          <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                          <path d="M14 2v6h6M16 13H8M16 17H8M10 9H8" />
+                        </svg>
+                      )}
+                    </div>
+
+                    {/* Main Info */}
+                    <div style={dashStyles.premiumSourceMain}>
+                      <span style={dashStyles.premiumSourceId}>{formatInterviewId(source.id)}</span>
+                      <span style={dashStyles.premiumSourceType}>{isVoice ? 'Voice Interview' : 'Form Response'}</span>
+                    </div>
+
+                    {/* Meta */}
+                    <div style={dashStyles.premiumSourceMeta}>
+                      <span style={dashStyles.premiumSourceDate}>{formatDate(run.started_at)}</span>
+                      <span style={dashStyles.premiumSourceQuestions}>{questionCount} questions</span>
+                    </div>
+
+                    {/* Arrow */}
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#CCC" strokeWidth="2" style={{ flexShrink: 0 }}>
+                      <path d="M9 18l6-6-6-6" />
+                    </svg>
+                  </div>
+                );
+              })}
+
+              {/* Add Source Button */}
+              <button style={dashStyles.premiumAddSource}>
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M12 5v14M5 12h14" />
+                </svg>
+                Add Data Source
+              </button>
+
+              {/* Coming Soon */}
+              <div style={dashStyles.premiumComingSoon}>
+                <span style={dashStyles.premiumComingSoonLabel}>Coming Soon</span>
+                <div style={dashStyles.premiumComingSoonItems}>
+                  <span style={dashStyles.premiumComingSoonItem}>Document uploads (PDF, reports)</span>
+                  <span style={dashStyles.premiumComingSoonItem}>CRM & social media connectors</span>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
       </div>
-    </>
+    </div>
   );
 }
 
@@ -1571,16 +2707,8 @@ function InterviewDetailView({
 
 // Premium Dashboard Styles
 const dashboardStyles: Record<string, React.CSSProperties> = {
-  container: {
-    backgroundColor: '#F6F8FA',
-    minHeight: '100vh',
-  },
-  // Header
-  header: {
-    backgroundColor: '#FFFFFF',
-    borderBottom: '1px solid #D0D7DE',
-    padding: '16px 24px 20px',
-  },
+  // Note: container, header moved to AGGREGATED DASHBOARD STYLES section below
+
   breadcrumb: {
     display: 'flex',
     alignItems: 'center',
@@ -1743,24 +2871,7 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
     padding: '16px 0 0',
     borderTop: '1px solid #E5E7EB',
   },
-  quickStat: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    alignItems: 'center',
-    gap: '4px',
-  },
-  quickStatValue: {
-    fontSize: '20px',
-    fontWeight: 600,
-    color: '#24292F',
-    fontFamily: 'ui-monospace, SFMono-Regular, "SF Mono", Menlo, Consolas, monospace',
-  },
-  quickStatLabel: {
-    fontSize: '11px',
-    color: '#8C959F',
-    textTransform: 'uppercase' as const,
-    letterSpacing: '0.5px',
-  },
+  // Note: quickStat, quickStatValue, quickStatLabel moved to AGGREGATED section
   quickStatDivider: {
     width: '1px',
     height: '32px',
@@ -1780,21 +2891,7 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
     paddingBottom: '20px',
     borderBottom: '1px solid #E5E7EB',
   },
-  sectionHeader: {
-    display: 'flex',
-    justifyContent: 'space-between',
-    alignItems: 'baseline',
-    marginBottom: '12px',
-  },
-  sectionTitle: {
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#24292F',
-  },
-  sectionSubtitle: {
-    fontSize: '12px',
-    color: '#8C959F',
-  },
+  // Note: sectionHeader, sectionTitle, sectionSubtitle used in AGGREGATED section with premium styles
   metricStrip: {
     display: 'flex',
     gap: '4px',
@@ -1898,7 +2995,7 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
     width: '32px',
     textAlign: 'right' as const,
   },
-  // Tab Navigation
+  // Tab Navigation (for interview detail - see AGGREGATED DASHBOARD STYLES for summary view)
   tabNav: {
     backgroundColor: '#FFFFFF',
     borderBottom: '1px solid #D0D7DE',
@@ -1908,14 +3005,415 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
     display: 'flex',
     gap: '0',
   },
+  tabCountAlert: {
+    backgroundColor: 'rgba(207, 34, 46, 0.1)',
+    color: '#CF222E',
+  },
+  // Note: tab, tabActive, tabCount, tabCountActive, tabContent moved to AGGREGATED section
+
+  // ============ AGGREGATED DASHBOARD STYLES (Premium Minimal) ============
+  // Inspired by Apple HIG Liquid Glass + Material Design 3 tonal elevation
+
+  // Container with subtle background
+  container: {
+    padding: '24px 32px',
+    maxWidth: '1400px',
+    margin: '0 auto',
+  },
+
+  // Back Button - minimal ghost style
+  backButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 12px',
+    marginBottom: '20px',
+    borderRadius: '8px',
+    border: 'none',
+    background: 'transparent',
+    color: '#6E6E73',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'background 0.2s, color 0.2s',
+  },
+
+  // Header - clean, spacious
+  header: {
+    marginBottom: '32px',
+  },
+  headerMain: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+  },
+  headerLeft: {},
+  headerRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+  },
+  title: {
+    fontSize: '28px',
+    fontWeight: 600,
+    color: '#1D1D1F',
+    margin: '0 0 6px 0',
+    letterSpacing: '-0.02em',
+  },
+  subtitle: {
+    fontSize: '15px',
+    color: '#86868B',
+    margin: 0,
+    fontWeight: 400,
+  },
+  statusBadge: {
+    padding: '6px 14px',
+    borderRadius: '20px',
+    fontSize: '13px',
+    fontWeight: 500,
+    textTransform: 'capitalize' as const,
+  },
+  downloadButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: '10px 20px',
+    borderRadius: '10px',
+    border: 'none',
+    background: '#F5F5F7',
+    color: '#1D1D1F',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'background 0.2s',
+  },
+
+  // Two Column Grid - proper spacing
+  twoColumnGrid: {
+    display: 'grid',
+    gridTemplateColumns: '400px 1fr',
+    gap: '24px',
+    marginBottom: '24px',
+  },
+
+  // Card base style - minimal elevation
+  quadrantCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '12px',
+    border: '1px solid rgba(0, 0, 0, 0.06)',
+    padding: '24px',
+  },
+  cardTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#86868B',
+    margin: '0 0 20px 0',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  quadrantContainer: {
+    display: 'flex',
+    justifyContent: 'center',
+    marginBottom: '20px',
+  },
+  quadrantGrid: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+  },
+  yAxisLabel: {
+    writingMode: 'vertical-lr' as const,
+    transform: 'rotate(180deg)',
+    position: 'absolute' as const,
+    left: '-28px',
+    top: '50%',
+    marginTop: '-50px',
+  },
+  axisText: {
+    fontSize: '10px',
+    fontWeight: 500,
+    color: '#86868B',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  quadrantBoxes: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gridTemplateRows: '1fr 1fr',
+    width: '220px',
+    height: '220px',
+    position: 'relative' as const,
+    borderRadius: '12px',
+    overflow: 'hidden',
+    boxShadow: 'inset 0 0 0 1px rgba(0, 0, 0, 0.06)',
+  },
+  quadrantBox: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '12px',
+    transition: 'opacity 0.2s',
+  },
+  quadrantTL: { backgroundColor: 'rgba(255, 204, 0, 0.12)' },
+  quadrantTR: { backgroundColor: 'rgba(52, 199, 89, 0.12)' },
+  quadrantBL: { backgroundColor: 'rgba(255, 59, 48, 0.08)' },
+  quadrantBR: { backgroundColor: 'rgba(0, 122, 255, 0.10)' },
+  quadrantLabel: {
+    fontSize: '9px',
+    fontWeight: 600,
+    color: '#6E6E73',
+    textAlign: 'center' as const,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+  },
+  positionDot: {
+    position: 'absolute' as const,
+    width: '18px',
+    height: '18px',
+    borderRadius: '50%',
+    backgroundColor: '#1D1D1F',
+    border: '3px solid #FFFFFF',
+    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.2)',
+    transform: 'translate(-50%, 50%)',
+  },
+  xAxisLabel: {
+    marginTop: '12px',
+  },
+  quadrantResult: {
+    textAlign: 'center' as const,
+    marginBottom: '20px',
+  },
+  quadrantResultLabel: {
+    fontSize: '17px',
+    fontWeight: 600,
+    letterSpacing: '-0.01em',
+  },
+  keyStatsRow: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    padding: '20px 0 0',
+    borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+  },
+  keyStat: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '4px',
+  },
+  keyStatValue: {
+    fontSize: '22px',
+    fontWeight: 600,
+    color: '#1D1D1F',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif',
+    fontFeatureSettings: '"tnum"',
+  },
+  keyStatLabel: {
+    fontSize: '11px',
+    color: '#86868B',
+    fontWeight: 500,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+  },
+
+  // Summary Card - minimal
+  summaryCard: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '12px',
+    border: '1px solid rgba(0, 0, 0, 0.06)',
+    padding: '24px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  summaryHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '16px',
+  },
+  editButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 14px',
+    borderRadius: '8px',
+    border: 'none',
+    background: '#F5F5F7',
+    color: '#6E6E73',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'background 0.2s',
+  },
+  summaryText: {
+    fontSize: '15px',
+    color: '#1D1D1F',
+    lineHeight: 1.7,
+    margin: '0 0 20px 0',
+    flex: 1,
+  },
+  quickStatsRow: {
+    display: 'flex',
+    gap: '32px',
+    paddingTop: '20px',
+    borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+  },
+  quickStat: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'center',
+    gap: '4px',
+  },
+  quickStatValue: {
+    fontSize: '20px',
+    fontWeight: 600,
+    color: '#1D1D1F',
+    fontFeatureSettings: '"tnum"',
+  },
+  quickStatLabel: {
+    fontSize: '11px',
+    color: '#86868B',
+    fontWeight: 500,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+  },
+
+  // Actions Section - minimal
+  actionsSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '12px',
+    border: '1px solid rgba(0, 0, 0, 0.06)',
+    padding: '24px',
+    marginBottom: '24px',
+  },
+  actionsSectionHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '20px',
+  },
+  sectionTitle: {
+    fontSize: '17px',
+    fontWeight: 600,
+    color: '#1D1D1F',
+    margin: 0,
+    letterSpacing: '-0.01em',
+  },
+  addButton: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '6px',
+    padding: '8px 14px',
+    borderRadius: '8px',
+    border: 'none',
+    background: '#F5F5F7',
+    color: '#6E6E73',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'background 0.2s',
+  },
+  actionsList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
+  },
+  actionCard: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '16px',
+    padding: '16px 20px',
+    backgroundColor: '#F9FAFB',
+    borderRadius: '10px',
+    border: '1px solid rgba(0, 0, 0, 0.04)',
+  },
+  actionPriority: {
+    fontSize: '18px',
+    flexShrink: 0,
+    width: '24px',
+    textAlign: 'center' as const,
+  },
+  actionContent: {
+    flex: 1,
+  },
+  actionMain: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '8px',
+    marginBottom: '8px',
+  },
+  actionNumber: {
+    fontSize: '15px',
+    fontWeight: 600,
+    color: '#1D1D1F',
+  },
+  actionText: {
+    fontSize: '15px',
+    fontWeight: 500,
+    color: '#1D1D1F',
+    lineHeight: 1.4,
+  },
+  actionMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    fontSize: '13px',
+    color: '#86868B',
+  },
+  actionOwner: {},
+  actionDivider: { color: '#C7C7CC' },
+  actionTimeline: {},
+  actionImpact: {},
+  actionActions: {
+    display: 'flex',
+    gap: '8px',
+    flexShrink: 0,
+    alignSelf: 'center',
+  },
+  actionEditBtn: {
+    padding: '6px 12px',
+    borderRadius: '6px',
+    border: 'none',
+    background: 'rgba(0, 0, 0, 0.04)',
+    color: '#6E6E73',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'background 0.2s',
+  },
+  actionDismissBtn: {
+    padding: '6px 12px',
+    borderRadius: '6px',
+    border: 'none',
+    background: 'transparent',
+    color: '#AEAEB2',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'color 0.2s',
+  },
+
+  // Tabbed Section - minimal
+  tabbedSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    border: '1px solid #E0E0E0',
+    overflow: 'hidden',
+  },
+  tabsHeader: {
+    display: 'flex',
+    gap: '0',
+    padding: '0 24px',
+    borderBottom: '1px solid #EEEEEE',
+    backgroundColor: '#FAFAFA',
+  },
   tab: {
     display: 'flex',
     alignItems: 'center',
     gap: '8px',
     padding: '14px 20px',
-    fontSize: '14px',
+    fontSize: '13px',
     fontWeight: 500,
-    color: '#57606A',
+    color: '#888888',
     background: 'none',
     border: 'none',
     borderBottom: '2px solid transparent',
@@ -1924,33 +3422,957 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
     marginBottom: '-1px',
   },
   tabActive: {
-    color: '#24292F',
-    borderBottomColor: '#0969DA',
+    color: '#1A1A1A',
+    borderBottomColor: '#1A1A1A',
+    backgroundColor: '#FFFFFF',
   },
   tabCount: {
-    fontSize: '12px',
-    fontWeight: 500,
-    padding: '2px 8px',
-    borderRadius: '10px',
-    backgroundColor: '#E5E7EB',
-    color: '#57606A',
+    fontSize: '11px',
+    fontWeight: 600,
+    padding: '2px 7px',
+    borderRadius: '4px',
+    backgroundColor: '#EEEEEE',
+    color: '#888888',
+    fontFeatureSettings: '"tnum"',
   },
   tabCountActive: {
-    backgroundColor: 'rgba(9, 105, 218, 0.1)',
-    color: '#0969DA',
+    backgroundColor: '#E8E8E8',
+    color: '#1A1A1A',
   },
-  tabCountAlert: {
-    backgroundColor: 'rgba(207, 34, 46, 0.1)',
-    color: '#CF222E',
-  },
-  // Tab Content
   tabContent: {
-    padding: '20px 24px',
+    padding: '0',
   },
+
+  // Premium Card Styles (shared)
+  premiumList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  premiumCard: {
+    padding: '24px 28px',
+  },
+  premiumCardHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '16px',
+    marginBottom: '20px',
+  },
+  premiumSeverityDot: {
+    width: '8px',
+    height: '8px',
+    borderRadius: '4px',
+    flexShrink: 0,
+    marginTop: '7px',
+  },
+  premiumCardMain: {
+    flex: 1,
+    minWidth: 0,
+  },
+  premiumCardTitle: {
+    fontSize: '15px',
+    fontWeight: 600,
+    color: '#1A1A1A',
+    margin: '0 0 6px 0',
+    lineHeight: 1.4,
+  },
+  premiumCardDesc: {
+    fontSize: '14px',
+    color: '#666666',
+    margin: 0,
+    lineHeight: 1.5,
+  },
+  premiumCardMeta: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    flexShrink: 0,
+  },
+  premiumMetricsBadge: {
+    fontSize: '12px',
+    color: '#888888',
+    fontFamily: 'monospace',
+  },
+  premiumScoreBadge: {
+    fontSize: '14px',
+    fontWeight: 600,
+    fontFamily: 'monospace',
+  },
+  premiumCardBody: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '32px',
+    marginLeft: '24px',
+  },
+  premiumCardColumn: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  premiumLabel: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#999999',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+    marginBottom: '10px',
+  },
+  premiumQuote: {
+    paddingLeft: '14px',
+    borderLeft: '2px solid #E0E0E0',
+  },
+  premiumQuoteText: {
+    fontSize: '13px',
+    color: '#555555',
+    fontStyle: 'italic' as const,
+    lineHeight: 1.6,
+    margin: '0 0 6px 0',
+  },
+  premiumQuoteSource: {
+    fontSize: '12px',
+    color: '#999999',
+  },
+  premiumTagsRow: {
+    display: 'flex',
+    flexWrap: 'wrap' as const,
+    gap: '8px',
+    marginBottom: '4px',
+  },
+  premiumTag: {
+    padding: '5px 12px',
+    backgroundColor: '#F5F5F5',
+    borderRadius: '4px',
+    fontSize: '12px',
+    color: '#666666',
+  },
+  premiumImpactText: {
+    fontSize: '13px',
+    color: '#CF222E',
+    margin: 0,
+    lineHeight: 1.5,
+  },
+  premiumOpportunityText: {
+    fontSize: '13px',
+    color: '#0969DA',
+    margin: 0,
+    lineHeight: 1.5,
+  },
+
+  // Premium Sources List
+  premiumSourcesList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    padding: '0 0 20px 0',
+  },
+  premiumSourceRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+    padding: '16px 28px',
+    cursor: 'pointer',
+    transition: 'background-color 0.15s ease',
+  },
+  premiumSourceIcon: {
+    width: '36px',
+    height: '36px',
+    borderRadius: '8px',
+    backgroundColor: '#F5F5F5',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+  },
+  premiumSourceMain: {
+    flex: 1,
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '2px',
+  },
+  premiumSourceId: {
+    fontSize: '14px',
+    fontWeight: 500,
+    color: '#1A1A1A',
+  },
+  premiumSourceType: {
+    fontSize: '12px',
+    color: '#888888',
+  },
+  premiumSourceMeta: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'flex-end',
+    gap: '2px',
+    flexShrink: 0,
+    marginRight: '8px',
+  },
+  premiumSourceDate: {
+    fontSize: '13px',
+    color: '#666666',
+  },
+  premiumSourceQuestions: {
+    fontSize: '12px',
+    color: '#999999',
+  },
+  premiumAddSource: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    margin: '8px 28px',
+    padding: '12px',
+    borderRadius: '6px',
+    border: '1px dashed #D0D0D0',
+    backgroundColor: 'transparent',
+    color: '#888888',
+    fontSize: '13px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'border-color 0.15s, color 0.15s',
+  },
+  premiumComingSoon: {
+    margin: '16px 28px 0',
+    padding: '16px 20px',
+    backgroundColor: '#FAFAFA',
+    borderRadius: '6px',
+  },
+  premiumComingSoonLabel: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#AAAAAA',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+    display: 'block',
+    marginBottom: '10px',
+  },
+  premiumComingSoonItems: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+  },
+  premiumComingSoonItem: {
+    fontSize: '13px',
+    color: '#888888',
+  },
+
+  // Issues Tab - subtle surface tint for contrast
+  issuesList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
+  },
+  issueCard: {
+    padding: '20px',
+    backgroundColor: '#F9FAFB',
+    borderRadius: '10px',
+    border: '1px solid rgba(0, 0, 0, 0.04)',
+  },
+  issueHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    marginBottom: '14px',
+  },
+  severityBadge: {
+    padding: '4px 10px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: 600,
+  },
+  issueMetrics: {
+    fontSize: '13px',
+    color: '#86868B',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Mono", monospace',
+    fontFeatureSettings: '"tnum"',
+  },
+  issueTitle: {
+    fontSize: '17px',
+    fontWeight: 600,
+    color: '#1D1D1F',
+    margin: '0 0 10px 0',
+    letterSpacing: '-0.01em',
+  },
+  issueDescription: {
+    fontSize: '15px',
+    color: '#6E6E73',
+    lineHeight: 1.6,
+    margin: '0 0 20px 0',
+  },
+  evidenceSection: {
+    marginBottom: '20px',
+  },
+  evidenceLabel: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#86868B',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+    display: 'block',
+    marginBottom: '10px',
+  },
+  evidenceQuote: {
+    padding: '14px 16px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    marginBottom: '10px',
+    border: '1px solid rgba(0, 0, 0, 0.06)',
+  },
+  quoteText: {
+    fontSize: '14px',
+    color: '#1D1D1F',
+    fontStyle: 'italic' as const,
+    display: 'block',
+    marginBottom: '6px',
+    lineHeight: 1.5,
+  },
+  quoteRole: {
+    fontSize: '12px',
+    color: '#86868B',
+    fontWeight: 500,
+  },
+  issueFooter: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    gap: '16px',
+    paddingTop: '16px',
+    borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+  },
+  rootCauses: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    flexWrap: 'wrap' as const,
+  },
+  footerLabel: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#86868B',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+  },
+  rootCauseBadge: {
+    padding: '4px 10px',
+    backgroundColor: 'rgba(255, 149, 0, 0.12)',
+    color: '#C55F00',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: 500,
+  },
+  businessImpact: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    alignItems: 'flex-end',
+    gap: '4px',
+  },
+  impactText: {
+    fontSize: '13px',
+    color: '#FF3B30',
+    fontWeight: 500,
+  },
+
+  // Strengths Tab - subtle surface for contrast
+  strengthsList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
+  },
+  strengthCard: {
+    padding: '20px',
+    backgroundColor: '#F9FAFB',
+    borderRadius: '10px',
+    border: '1px solid rgba(0, 0, 0, 0.04)',
+  },
+  strengthHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    marginBottom: '14px',
+  },
+  strengthBadge: {
+    padding: '4px 10px',
+    borderRadius: '6px',
+    fontSize: '12px',
+    fontWeight: 600,
+    backgroundColor: 'rgba(52, 199, 89, 0.12)',
+    color: '#248A3D',
+  },
+  strengthMetrics: {
+    fontSize: '13px',
+    color: '#86868B',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Mono", monospace',
+    fontFeatureSettings: '"tnum"',
+  },
+  strengthTitle: {
+    fontSize: '17px',
+    fontWeight: 600,
+    color: '#1D1D1F',
+    margin: '0 0 10px 0',
+    letterSpacing: '-0.01em',
+  },
+  strengthDescription: {
+    fontSize: '15px',
+    color: '#6E6E73',
+    lineHeight: 1.6,
+    margin: '0 0 20px 0',
+  },
+  opportunitySection: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+    padding: '14px 16px',
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    border: '1px solid rgba(0, 122, 255, 0.2)',
+  },
+  opportunityLabel: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#007AFF',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.3px',
+  },
+  opportunityText: {
+    fontSize: '14px',
+    color: '#0055D4',
+    fontWeight: 500,
+    lineHeight: 1.4,
+  },
+
+  // Sources Tab - clean table
+  sourcesList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '16px',
+  },
+  sourcesTable: {
+    borderRadius: '10px',
+    overflow: 'hidden',
+    border: '1px solid rgba(0, 0, 0, 0.06)',
+  },
+  sourcesTableHeader: {
+    display: 'grid',
+    gridTemplateColumns: '100px 1fr 100px 100px 40px',
+    padding: '12px 20px',
+    backgroundColor: '#F9FAFB',
+    borderBottom: '1px solid rgba(0, 0, 0, 0.06)',
+  },
+  sourcesTableHeaderCell: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#86868B',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  sourcesTableRow: {
+    display: 'grid',
+    gridTemplateColumns: '100px 1fr 100px 100px 40px',
+    padding: '14px 20px',
+    backgroundColor: '#FFFFFF',
+    borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+    cursor: 'pointer',
+    transition: 'background 0.15s',
+  },
+  sourcesTableCell: {
+    fontSize: '14px',
+    color: '#1D1D1F',
+    display: 'flex',
+    alignItems: 'center',
+  },
+  sourcesTableCellAction: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'flex-end',
+    color: '#AEAEB2',
+  },
+  addSourceButton: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '8px',
+    padding: '14px',
+    width: '100%',
+    borderRadius: '10px',
+    border: '2px dashed rgba(0, 0, 0, 0.08)',
+    background: 'transparent',
+    color: '#86868B',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    transition: 'border-color 0.2s, color 0.2s',
+  },
+  futureSourcesHint: {
+    padding: '20px',
+    backgroundColor: '#F5F5F7',
+    borderRadius: '12px',
+    marginTop: '16px',
+  },
+  futureSourcesTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#6E6E73',
+    margin: '0 0 10px 0',
+  },
+  futureSourcesList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '6px',
+  },
+  futureSourceItem: {
+    fontSize: '14px',
+    color: '#86868B',
+  },
+
+  // Metrics Tab - clean grouped lists
+  metricsSection: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '28px',
+  },
+  metricCategory: {},
+  metricCategoryHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: '14px',
+  },
+  metricCategoryTitle: {
+    fontSize: '13px',
+    fontWeight: 600,
+    color: '#86868B',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+  },
+  metricCategoryAvg: {
+    fontSize: '14px',
+    fontWeight: 600,
+    fontFeatureSettings: '"tnum"',
+  },
+  metricCategoryList: {
+    borderRadius: '10px',
+    overflow: 'hidden',
+    border: '1px solid rgba(0, 0, 0, 0.06)',
+    backgroundColor: '#FFFFFF',
+  },
+  metricRow: {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    width: '100%',
+    padding: '14px 20px',
+    border: 'none',
+    borderTop: '1px solid rgba(0, 0, 0, 0.04)',
+    background: 'transparent',
+    cursor: 'pointer',
+    textAlign: 'left' as const,
+    transition: 'background 0.15s',
+  },
+  metricRowLeft: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+  },
+  metricRowCode: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#007AFF',
+    backgroundColor: 'rgba(0, 122, 255, 0.08)',
+    padding: '5px 10px',
+    borderRadius: '6px',
+    fontFamily: '-apple-system, BlinkMacSystemFont, "SF Mono", monospace',
+  },
+  metricRowName: {
+    fontSize: '15px',
+    color: '#1D1D1F',
+    fontWeight: 500,
+  },
+  metricRowRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '20px',
+  },
+  metricRowBar: {
+    width: '120px',
+    height: '6px',
+    backgroundColor: 'rgba(0, 0, 0, 0.06)',
+    borderRadius: '3px',
+    overflow: 'hidden',
+  },
+  metricRowBarFill: {
+    height: '100%',
+    borderRadius: '3px',
+    transition: 'width 0.4s ease-out',
+  },
+  metricRowScore: {
+    fontSize: '15px',
+    fontWeight: 600,
+    fontFeatureSettings: '"tnum"',
+    width: '36px',
+    textAlign: 'right' as const,
+  },
+  metricExpanded: {
+    padding: '20px',
+    backgroundColor: '#F5F5F7',
+    borderTop: '1px solid rgba(0, 0, 0, 0.06)',
+  },
+  metricExpandedText: {
+    fontSize: '14px',
+    color: '#6E6E73',
+    lineHeight: 1.6,
+    margin: '0 0 16px 0',
+  },
+  viewDetailButton: {
+    padding: '10px 18px',
+    borderRadius: '8px',
+    border: 'none',
+    background: '#FFFFFF',
+    color: '#007AFF',
+    fontSize: '14px',
+    fontWeight: 500,
+    cursor: 'pointer',
+    boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08)',
+    transition: 'box-shadow 0.2s',
+  },
+
+  // =====================================================
+  // METRIC INSIGHTS - McKinsey "Insight Headlines" Style
+  // =====================================================
+
+  metricInsightsSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '8px',
+    border: '1px solid #E0E0E0',
+    marginBottom: '24px',
+    overflow: 'hidden',
+  },
+  metricInsightsHeader: {
+    padding: '24px 32px 20px',
+    borderBottom: '1px solid #E0E0E0',
+  },
+  metricInsightsTitle: {
+    fontSize: '18px',
+    fontWeight: 600,
+    color: '#1A1A1A',
+    margin: '0 0 6px 0',
+    letterSpacing: '-0.01em',
+  },
+  metricInsightsSubtitle: {
+    fontSize: '14px',
+    color: '#666666',
+    margin: 0,
+  },
+
+  // Category section
+  metricInsightsCategorySection: {},
+  metricInsightsCategoryHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    padding: '16px 32px',
+    backgroundColor: '#F7F7F7',
+    borderBottom: '1px solid #E0E0E0',
+    borderTop: '1px solid #E0E0E0',
+  },
+  metricInsightsCategoryTitle: {
+    fontSize: '12px',
+    fontWeight: 600,
+    color: '#1A1A1A',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+    margin: 0,
+  },
+  metricInsightsCategoryAvg: {
+    fontSize: '13px',
+    fontWeight: 500,
+    color: '#666666',
+  },
+  metricInsightsCategoryLine: {
+    display: 'none',
+  },
+  metricInsightsList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+
+  // Metric row - Insight headline style
+  metricInsightCard: {
+    backgroundColor: '#FFFFFF',
+    borderBottom: '1px solid #EEEEEE',
+  },
+  metricInsightCardHeader: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '16px',
+    padding: '20px 32px',
+    cursor: 'pointer',
+    transition: 'background-color 0.15s ease',
+  },
+  metricInsightHealthBar: {
+    width: '32px',
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '2px',
+    paddingTop: '4px',
+    flexShrink: 0,
+  },
+  metricInsightHealthBarSegment: {
+    height: '3px',
+    borderRadius: '1px',
+    backgroundColor: '#E0E0E0',
+  },
+  metricInsightCardLeft: {
+    flex: 1,
+    minWidth: 0,
+  },
+  metricInsightHeadline: {
+    fontSize: '15px',
+    fontWeight: 500,
+    color: '#1A1A1A',
+    margin: '0 0 4px 0',
+    lineHeight: 1.4,
+  },
+  metricInsightMetricName: {
+    fontSize: '12px',
+    color: '#888888',
+    margin: 0,
+    fontWeight: 400,
+  },
+  metricInsightCardRight: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '12px',
+    flexShrink: 0,
+    paddingTop: '2px',
+  },
+  metricInsightHealthBadge: {
+    padding: '4px 10px',
+    borderRadius: '4px',
+    fontSize: '11px',
+    fontWeight: 600,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.03em',
+  },
+  metricInsightChevron: {
+    color: '#CCCCCC',
+    flexShrink: 0,
+    transition: 'transform 0.2s ease',
+  },
+
+  // Expanded content - Clean & Elegant
+  metricInsightExpandedContent: {
+    padding: '24px 32px 28px 80px',
+    backgroundColor: '#FAFAFA',
+    borderTop: '1px solid #EEEEEE',
+  },
+
+  // Two column grid
+  metricExpandedGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '40px',
+  },
+  metricExpandedColumn: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  metricExpandedLabel: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#999999',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.06em',
+    marginBottom: '14px',
+  },
+
+  // Observations
+  metricExpandedObsList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '10px',
+    marginBottom: '20px',
+  },
+  metricExpandedObsItem: {
+    fontSize: '14px',
+    color: '#444444',
+    lineHeight: 1.6,
+    margin: 0,
+  },
+
+  // Quote - elegant left border
+  metricExpandedQuote: {
+    paddingLeft: '16px',
+    borderLeft: '2px solid #D0D0D0',
+  },
+  metricExpandedQuoteText: {
+    fontSize: '13px',
+    color: '#666666',
+    fontStyle: 'italic' as const,
+    lineHeight: 1.6,
+    margin: '0 0 6px 0',
+  },
+  metricExpandedQuoteSource: {
+    fontSize: '12px',
+    color: '#999999',
+  },
+
+  // Recommendations - numbered
+  metricExpandedRecList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: '12px',
+    marginBottom: '20px',
+  },
+  metricExpandedRecItem: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '12px',
+  },
+  metricExpandedRecNum: {
+    width: '20px',
+    height: '20px',
+    borderRadius: '10px',
+    backgroundColor: '#E8E8E8',
+    color: '#666666',
+    fontSize: '11px',
+    fontWeight: 600,
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginTop: '1px',
+  },
+  metricExpandedRecText: {
+    fontSize: '14px',
+    color: '#333333',
+    lineHeight: 1.5,
+  },
+
+  // Benchmark - subtle
+  metricExpandedBenchmark: {
+    fontSize: '13px',
+    color: '#666666',
+    lineHeight: 1.5,
+    margin: 0,
+    paddingTop: '12px',
+    borderTop: '1px solid #E8E8E8',
+  },
+
+  // AI Reasoning - Minimal
+  metricExpandedAISection: {
+    marginTop: '24px',
+    paddingTop: '20px',
+    borderTop: '1px solid #E8E8E8',
+  },
+  metricExpandedAIToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '8px',
+    padding: 0,
+    backgroundColor: 'transparent',
+    border: 'none',
+    cursor: 'pointer',
+    fontSize: '13px',
+    color: '#888888',
+    transition: 'color 0.15s ease',
+  },
+  metricExpandedAIContent: {
+    marginTop: '20px',
+  },
+  metricExpandedAIGrid: {
+    display: 'grid',
+    gridTemplateColumns: '1fr 1fr',
+    gap: '24px 40px',
+  },
+  metricExpandedAIBlock: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+  },
+  metricExpandedAIBlockLabel: {
+    fontSize: '11px',
+    fontWeight: 600,
+    color: '#AAAAAA',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.05em',
+    marginBottom: '8px',
+  },
+  metricExpandedAIBlockText: {
+    fontSize: '13px',
+    color: '#555555',
+    lineHeight: 1.6,
+    margin: '0 0 8px 0',
+  },
+  metricExpandedAIBadge: {
+    display: 'inline-flex',
+    alignSelf: 'flex-start',
+    padding: '4px 10px',
+    backgroundColor: '#F0F0F0',
+    borderRadius: '4px',
+    fontSize: '11px',
+    color: '#666666',
+  },
+  metricExpandedAIListItem: {
+    fontSize: '13px',
+    color: '#555555',
+    lineHeight: 1.6,
+    margin: '0 0 4px 0',
+  },
+
+  // Legacy styles - kept for compatibility
+  metricInsightObservations: {},
+  metricInsightObservation: {},
+  metricInsightObservationBullet: {},
+  metricInsightEvidence: {},
+  metricInsightQuote: {},
+  metricInsightQuoteRole: {},
+  metricInsightBenchmark: {},
+  metricInsightBenchmarkIcon: {},
+  metricInsightBenchmarkText: {},
+  metricInsightRecommendations: {},
+  metricInsightRecommendationsLabel: {},
+  metricInsightRecommendation: {},
+  metricInsightRecommendationIcon: {},
+  metricInsightAIReasoning: {},
+  metricInsightAIReasoningToggle: {},
+  metricInsightAIReasoningIcon: {},
+  metricInsightAIReasoningText: {},
+  metricInsightAIReasoningChevron: {},
+  metricInsightAIReasoningContent: {},
+  metricInsightAIReasoningSection: {},
+  metricInsightAIReasoningSectionTitle: {},
+  metricInsightAIReasoningSectionText: {},
+  metricInsightAIReasoningList: {},
+  metricInsightAIReasoningListItem: {},
+  metricInsightAIReasoningListIcon: {},
+  metricInsightAIReasoningDataBadge: {},
+
+  // Footer
+  metricInsightFooter: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+    paddingTop: '16px',
+    borderTop: '1px solid #E0E0E0',
+  },
+  metricInsightRelatedTag: {
+    padding: '4px 10px',
+    borderRadius: '4px',
+    fontSize: '12px',
+    fontWeight: 500,
+    display: 'flex',
+    alignItems: 'center',
+    gap: '5px',
+  },
+
+  // Deprecated - keeping for compatibility
+  metricInsightSummary: {},
+  metricInsightPreview: {},
+  metricInsightCardCollapsed: {},
+  metricInsightHealthIndicator: {},
+  metricInsightTitleGroup: {},
+  metricInsightName: {},
+  metricInsightCategory: {},
+  metricInsightHealthBarFill: {},
 };
 
 // Institutional Design System Styles
-const institutionalStyles: Record<string, React.CSSProperties> = {
+const _institutionalStyles: Record<string, React.CSSProperties> = {
   // Colors
   trustBlue: { color: '#0969DA' },
 
