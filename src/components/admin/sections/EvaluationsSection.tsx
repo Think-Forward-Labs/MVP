@@ -1566,20 +1566,20 @@ function RunSummaryView({
               onClick={() => setShowStrategicReasoning(!showStrategicReasoning)}
               style={dashStyles.reasoningToggleBtn}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.6 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#FCD34D" stroke="#F59E0B" strokeWidth="1.5">
                 <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
               <span>How we reached this conclusion</span>
               <svg
-                width="12"
-                height="12"
+                width="10"
+                height="10"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
                 style={{
-                  marginLeft: 'auto',
-                  opacity: 0.4,
+                  marginLeft: '4px',
+                  opacity: 0.5,
                   transform: showStrategicReasoning ? 'rotate(180deg)' : 'rotate(0deg)',
                   transition: 'transform 0.2s ease',
                 }}
@@ -1647,20 +1647,20 @@ function RunSummaryView({
               onClick={() => setShowSummaryReasoning(!showSummaryReasoning)}
               style={dashStyles.reasoningToggleBtn}
             >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.6 }}>
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="#FCD34D" stroke="#F59E0B" strokeWidth="1.5">
                 <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
               </svg>
               <span>How we reached this conclusion</span>
               <svg
-                width="12"
-                height="12"
+                width="10"
+                height="10"
                 viewBox="0 0 24 24"
                 fill="none"
                 stroke="currentColor"
                 strokeWidth="2"
                 style={{
-                  marginLeft: 'auto',
-                  opacity: 0.4,
+                  marginLeft: '4px',
+                  opacity: 0.5,
                   transform: showSummaryReasoning ? 'rotate(180deg)' : 'rotate(0deg)',
                   transition: 'transform 0.2s ease',
                 }}
@@ -1737,20 +1737,20 @@ function RunSummaryView({
             onClick={() => setShowActionsReasoning(!showActionsReasoning)}
             style={dashStyles.reasoningToggleBtn}
           >
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.6 }}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="#FCD34D" stroke="#F59E0B" strokeWidth="1.5">
               <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
             </svg>
             <span>How we reached this conclusion</span>
             <svg
-              width="12"
-              height="12"
+              width="10"
+              height="10"
               viewBox="0 0 24 24"
               fill="none"
               stroke="currentColor"
               strokeWidth="2"
               style={{
-                marginLeft: 'auto',
-                opacity: 0.4,
+                marginLeft: '4px',
+                opacity: 0.5,
                 transform: showActionsReasoning ? 'rotate(180deg)' : 'rotate(0deg)',
                 transition: 'transform 0.2s ease',
               }}
@@ -1930,20 +1930,20 @@ function RunSummaryView({
                                 onClick={() => setExpandedAIReasoning(isAIReasoningExpanded ? null : insight.metric_code)}
                                 style={dashStyles.metricExpandedAIToggle}
                               >
-                                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" style={{ opacity: 0.6 }}>
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="#FCD34D" stroke="#F59E0B" strokeWidth="1.5">
                                   <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                 </svg>
                                 <span>How we reached this conclusion</span>
                                 <svg
-                                  width="12"
-                                  height="12"
+                                  width="10"
+                                  height="10"
                                   viewBox="0 0 24 24"
                                   fill="none"
                                   stroke="currentColor"
                                   strokeWidth="2"
                                   style={{
-                                    marginLeft: 'auto',
-                                    opacity: 0.4,
+                                    marginLeft: '4px',
+                                    opacity: 0.5,
                                     transform: isAIReasoningExpanded ? 'rotate(180deg)' : 'rotate(0deg)',
                                     transition: 'transform 0.2s ease',
                                   }}
@@ -5260,7 +5260,7 @@ function InterviewMetricsTab({
                                 {questionDetail.scoring_reasoning && (
                                   <div style={premiumStyles.reasoningBlock}>
                                     <div style={premiumStyles.reasoningHeader}>
-                                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888888" strokeWidth="2">
+                                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#FCD34D" stroke="#F59E0B" strokeWidth="1.5">
                                         <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                                       </svg>
                                       <span style={premiumStyles.reasoningLabel}>How we reached this conclusion</span>
@@ -5673,7 +5673,7 @@ function QuestionsTab({
                 {q.scoring_reasoning && (
                   <div style={premiumStyles.reasoningBlock}>
                     <div style={premiumStyles.reasoningHeader}>
-                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#888888" strokeWidth="2">
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="#FCD34D" stroke="#F59E0B" strokeWidth="1.5">
                         <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
                       </svg>
                       <span style={premiumStyles.reasoningLabel}>How we reached this conclusion</span>
