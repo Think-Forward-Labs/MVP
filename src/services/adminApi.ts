@@ -467,6 +467,50 @@ export const adminApi = {
   getLatestEvaluation: async (assessmentId: string): Promise<EvaluationRunDetail> => {
     return adminRequest<EvaluationRunDetail>(`/evaluation/assessments/${assessmentId}/latest`);
   },
+
+  /**
+   * Get refined report for an evaluation run
+   * Returns McKinsey-style narrative insights per metric
+   */
+  getRefinedReport: async (runId: string): Promise<{
+    run_id: string;
+    assessment_id: string;
+    run_number: number;
+    report: {
+      metrics: Array<{
+        metric_code: string;
+        metric_name: string;
+        category: string;
+        score: number;
+        health_status: 'strong' | 'developing' | 'attention' | 'critical';
+        summary: string;
+        observations: string[];
+        recommendations: string[];
+        evidence: Array<{
+          quote: string;
+          role: string;
+          supports: 'strength' | 'gap' | 'context';
+        }>;
+        ai_reasoning?: {
+          methodology: string;
+          data_points_analyzed: number;
+          confidence_factors: string[];
+          key_signals: string[];
+          limitations: string[];
+        };
+        benchmark_narrative?: string;
+      }>;
+      executive_summary: string;
+      key_actions: string[];
+      critical_issues: string[];
+      strengths: string[];
+      generated_at: string;
+      evaluation_id: string;
+      business_id: string;
+    };
+  }> => {
+    return adminRequest(`/evaluation/runs/${runId}/refined-report`);
+  },
 };
 
 export default adminApi;
