@@ -501,9 +501,33 @@ export const adminApi = {
         benchmark_narrative?: string;
       }>;
       executive_summary: string;
-      key_actions: string[];
-      critical_issues: string[];
-      strengths: string[];
+      key_actions: Array<string | {
+        title: string;
+        description: string;
+        owner: string;
+        timeline: string;
+        priority: 'critical' | 'high' | 'medium';
+        impact: 'high' | 'medium' | 'low';
+        effort: 'high' | 'medium' | 'low';
+      }>;
+      critical_issues: Array<string | {
+        title: string;
+        severity: 'critical' | 'warning';
+        metrics: string[];
+        avg_score?: number;
+        description: string;
+        evidence: Array<{ quote: string; role: string }>;
+        root_causes: string[];
+        business_impact: string;
+      }>;
+      strengths: Array<string | {
+        title: string;
+        metrics: string[];
+        avg_score?: number;
+        description: string;
+        evidence: Array<{ quote: string; role: string }>;
+        opportunity: string;
+      }>;
       generated_at: string;
       evaluation_id: string;
       business_id: string;

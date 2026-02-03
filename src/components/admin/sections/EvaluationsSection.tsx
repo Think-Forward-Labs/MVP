@@ -1724,33 +1724,33 @@ const DUMMY_EXECUTIVE_SUMMARY = `Your organization excels at executing today's w
 
 The data reveals strong operational execution (Technical Fitness: 62) but concerning gaps in adaptability (Evolutionary Fitness: 28). Multiple perception-reality contradictions suggest leadership may not have accurate visibility into actual organizational dynamics.`;
 
-const DUMMY_KEY_ACTIONS = [
+const DUMMY_KEY_ACTIONS: KeyActionType[] = [
   {
-    id: 'action_1',
-    action: 'Protect 10% exploration time for frontline teams',
+    title: 'Protect 10% exploration time for frontline teams to enable grassroots innovation',
+    description: 'Carve out dedicated time each week where frontline workers can experiment with process improvements without performance pressure. Start with pilot teams and measure outcomes.',
     owner: 'Operations Director',
     timeline: '30 days',
     priority: 'critical' as const,
-    impact: 'High',
-    effort: 'Medium',
+    impact: 'high' as const,
+    effort: 'medium' as const,
   },
   {
-    id: 'action_2',
-    action: 'Establish skip-level sensing sessions',
+    title: 'Establish skip-level sensing sessions to surface frontline insights directly to leadership',
+    description: 'Create bi-weekly sessions where executives hear directly from frontline workers without middle management filtering. Focus on real problems and improvement ideas.',
     owner: 'CEO',
     timeline: '14 days',
     priority: 'high' as const,
-    impact: 'High',
-    effort: 'Low',
+    impact: 'high' as const,
+    effort: 'low' as const,
   },
   {
-    id: 'action_3',
-    action: 'Conduct tool friction audit across teams',
+    title: 'Conduct tool friction audit across teams to identify and eliminate workflow blockers',
+    description: 'Systematically document where current tools create friction, manual workarounds, or data re-entry. Prioritize fixes based on time saved and frustration reduced.',
     owner: 'IT Lead',
     timeline: '45 days',
     priority: 'medium' as const,
-    impact: 'Medium',
-    effort: 'Medium',
+    impact: 'medium' as const,
+    effort: 'medium' as const,
   },
 ];
 
@@ -2267,6 +2267,39 @@ const getHealthStatus = (status: string) => {
 
 type SummaryTabType = 'issues' | 'strengths' | 'sources';
 
+// Type for critical issues from API
+type CriticalIssueType = {
+  title: string;
+  severity: 'critical' | 'warning';
+  metrics: string[];
+  avg_score?: number;
+  description: string;
+  evidence: Array<{ quote: string; role: string }>;
+  root_causes: string[];
+  business_impact: string;
+};
+
+// Type for strengths from API
+type StrengthType = {
+  title: string;
+  metrics: string[];
+  avg_score?: number;
+  description: string;
+  evidence: Array<{ quote: string; role: string }>;
+  opportunity: string;
+};
+
+// Type for key actions from API
+type KeyActionType = {
+  title: string;
+  description: string;
+  owner: string;
+  timeline: string;
+  priority: 'critical' | 'high' | 'medium';
+  impact: 'high' | 'medium' | 'low';
+  effort: 'high' | 'medium' | 'low';
+};
+
 // Type for refined metric insights (from API or dummy data)
 type MetricInsight = {
   metric_code: string;
@@ -2314,14 +2347,16 @@ function RunSummaryView({
   const [showStrategicReasoning, setShowStrategicReasoning] = useState(false);
   const [showSummaryReasoning, setShowSummaryReasoning] = useState(false);
   const [showActionsReasoning, setShowActionsReasoning] = useState(false);
+  const [expandedActionIndex, setExpandedActionIndex] = useState<number | null>(null);
+  const [showFullExecutiveSummary, setShowFullExecutiveSummary] = useState(false);
 
   // State for refined report
   const [refinedReport, setRefinedReport] = useState<{
     metrics: MetricInsight[];
     executive_summary: string;
-    key_actions: string[];
-    critical_issues: string[];
-    strengths: string[];
+    key_actions: KeyActionType[];
+    critical_issues: CriticalIssueType[];
+    strengths: StrengthType[];
   } | null>(null);
   const [refinedReportLoading, setRefinedReportLoading] = useState(true);
 
@@ -2334,12 +2369,61 @@ function RunSummaryView({
       try {
         const response = await adminApi.getRefinedReport(run.id);
         if (response?.report) {
+          // Normalize critical_issues: handle both old (string[]) and new (object[]) formats
+          const normalizedIssues: CriticalIssueType[] = (response.report.critical_issues || []).map((issue: CriticalIssueType | string) => {
+            if (typeof issue === 'string') {
+              // Convert old string format to rich object
+              return {
+                title: issue.length > 50 ? issue.substring(0, 50) + '...' : issue,
+                severity: 'critical' as const,
+                metrics: [],
+                description: issue,
+                evidence: [],
+                root_causes: [],
+                business_impact: '',
+              };
+            }
+            return issue;
+          });
+
+          // Normalize strengths: handle both old (string[]) and new (object[]) formats
+          const normalizedStrengths: StrengthType[] = (response.report.strengths || []).map((strength: StrengthType | string) => {
+            if (typeof strength === 'string') {
+              // Convert old string format to rich object
+              return {
+                title: strength.length > 50 ? strength.substring(0, 50) + '...' : strength,
+                metrics: [],
+                description: strength,
+                evidence: [],
+                opportunity: '',
+              };
+            }
+            return strength;
+          });
+
+          // Normalize key_actions: handle both old (string[]) and new (object[]) formats
+          const normalizedActions: KeyActionType[] = (response.report.key_actions || []).map((action: KeyActionType | string) => {
+            if (typeof action === 'string') {
+              // Convert old string format to rich object - use full string as title
+              return {
+                title: action,
+                description: '',
+                owner: '',
+                timeline: '',
+                priority: 'medium' as const,
+                impact: 'medium' as const,
+                effort: 'medium' as const,
+              };
+            }
+            return action;
+          });
+
           setRefinedReport({
             metrics: response.report.metrics || [],
             executive_summary: response.report.executive_summary || '',
-            key_actions: response.report.key_actions || [],
-            critical_issues: response.report.critical_issues || [],
-            strengths: response.report.strengths || [],
+            key_actions: normalizedActions,
+            critical_issues: normalizedIssues,
+            strengths: normalizedStrengths,
           });
         }
       } catch (err) {
@@ -2585,9 +2669,63 @@ function RunSummaryView({
             </button>
           </div>
 
-          <p style={dashStyles.summaryText}>
-            {refinedReport?.executive_summary || DUMMY_EXECUTIVE_SUMMARY}
-          </p>
+          {(() => {
+            const summary = refinedReport?.executive_summary || DUMMY_EXECUTIVE_SUMMARY;
+            const words = summary.split(/\s+/).filter(w => w.length > 0);
+            const WORD_LIMIT = 100;
+            const needsTruncation = words.length > WORD_LIMIT;
+            const truncatedText = needsTruncation
+              ? words.slice(0, WORD_LIMIT).join(' ') + '...'
+              : summary;
+            const displayText = showFullExecutiveSummary ? summary : truncatedText;
+
+            return (
+              <div style={{ margin: '0 0 20px 0' }}>
+                <p
+                  style={{
+                    ...dashStyles.summaryText,
+                    margin: 0,
+                    transition: 'opacity 0.3s ease',
+                  }}
+                >
+                  {displayText}
+                </p>
+                {needsTruncation && (
+                  <button
+                    onClick={() => setShowFullExecutiveSummary(!showFullExecutiveSummary)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      color: '#1D1D1F',
+                      fontSize: '13px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      padding: '8px 0 0 0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '4px',
+                    }}
+                  >
+                    {showFullExecutiveSummary ? 'See less' : 'See more'}
+                    <svg
+                      width="12"
+                      height="12"
+                      viewBox="0 0 24 24"
+                      fill="none"
+                      stroke="currentColor"
+                      strokeWidth="2"
+                      style={{
+                        transform: showFullExecutiveSummary ? 'rotate(180deg)' : 'rotate(0deg)',
+                        transition: 'transform 0.2s ease',
+                      }}
+                    >
+                      <path d="M6 9l6 6 6-6" />
+                    </svg>
+                  </button>
+                )}
+              </div>
+            );
+          })()}
 
           {/* Quick Stats */}
           <div style={dashStyles.quickStatsRow}>
@@ -2670,65 +2808,353 @@ function RunSummaryView({
           </button>
         </div>
 
+        <style>{`
+          @keyframes slideInFromRight {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+        `}</style>
+
         <div style={dashStyles.actionsList}>
           {/* Use refined report key_actions if available, otherwise fallback to dummy data */}
-          {refinedReport?.key_actions?.length ? (
-            // Simple display for refined report actions (string array)
-            refinedReport.key_actions.map((actionText, index) => (
-              <div key={index} style={dashStyles.actionCard}>
-                <div style={dashStyles.actionPriority}>
-                  <span>{index === 0 ? '🔴' : index === 1 ? '🟡' : '🔵'}</span>
+          {(refinedReport?.key_actions?.length ? refinedReport.key_actions : DUMMY_KEY_ACTIONS).map((action, index) => {
+            const priorityColors = {
+              critical: { bg: '#FEE2E2', text: '#DC2626', dot: '#DC2626' },
+              high: { bg: '#FEF3C7', text: '#D97706', dot: '#F59E0B' },
+              medium: { bg: '#DBEAFE', text: '#2563EB', dot: '#3B82F6' },
+              low: { bg: '#D1FAE5', text: '#059669', dot: '#10B981' },
+            };
+            const pStyle = priorityColors[action.priority] || priorityColors.medium;
+
+            return (
+              <div
+                key={index}
+                onClick={() => setExpandedActionIndex(index)}
+                style={{
+                  display: 'flex',
+                  alignItems: 'flex-start',
+                  gap: '14px',
+                  padding: '16px 20px',
+                  backgroundColor: '#FAFAFA',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(0, 0, 0, 0.06)',
+                  cursor: 'pointer',
+                  transition: 'all 0.15s ease',
+                }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = '#F5F5F5';
+                  e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.1)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = '#FAFAFA';
+                  e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.06)';
+                }}
+              >
+                {/* Priority Dot */}
+                <div style={{
+                  width: '8px',
+                  height: '8px',
+                  borderRadius: '50%',
+                  backgroundColor: pStyle.dot,
+                  marginTop: '6px',
+                  flexShrink: 0,
+                }} />
+
+                {/* Title */}
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <span style={{
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    color: '#1A1A1A',
+                    lineHeight: 1.5,
+                    display: 'block',
+                  }}>
+                    {action.title}
+                  </span>
                 </div>
-                <div style={dashStyles.actionContent}>
-                  <div style={dashStyles.actionMain}>
-                    <span style={dashStyles.actionNumber}>{index + 1}.</span>
-                    <span style={dashStyles.actionText}>{actionText}</span>
-                  </div>
-                </div>
-                <div style={dashStyles.actionActions}>
-                  <button style={dashStyles.actionEditBtn}>Edit</button>
-                  <button style={dashStyles.actionDismissBtn}>Dismiss</button>
+
+                {/* Expand Icon */}
+                <div style={{
+                  color: '#999',
+                  flexShrink: 0,
+                  marginTop: '2px',
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                    <path d="M9 18l6-6-6-6" />
+                  </svg>
                 </div>
               </div>
-            ))
-          ) : (
-            // Rich display for dummy data
-            DUMMY_KEY_ACTIONS.map((action, index) => {
-              const priorityColors = {
-                critical: { bg: '#FFEBE9', text: '#CF222E', icon: '🔴' },
-                high: { bg: '#FFF8C5', text: '#9A6700', icon: '🟡' },
-                medium: { bg: '#DDF4FF', text: '#0969DA', icon: '🔵' },
-                low: { bg: '#DAFBE1', text: '#1A7F37', icon: '🟢' },
-              };
-              const pStyle = priorityColors[action.priority];
+            );
+          })}
+        </div>
 
-              return (
-                <div key={action.id} style={dashStyles.actionCard}>
-                  <div style={dashStyles.actionPriority}>
-                    <span>{pStyle.icon}</span>
-                  </div>
-                  <div style={dashStyles.actionContent}>
-                    <div style={dashStyles.actionMain}>
-                      <span style={dashStyles.actionNumber}>{index + 1}.</span>
-                      <span style={dashStyles.actionText}>{action.action}</span>
+        {/* Action Details Side Drawer */}
+        {expandedActionIndex !== null && (() => {
+          const actions = refinedReport?.key_actions?.length ? refinedReport.key_actions : DUMMY_KEY_ACTIONS;
+          const action = actions[expandedActionIndex];
+          const priorityConfig = {
+            critical: { bg: '#FEE2E2', text: '#DC2626', label: 'Critical' },
+            high: { bg: '#FEF3C7', text: '#D97706', label: 'High' },
+            medium: { bg: '#DBEAFE', text: '#2563EB', label: 'Medium' },
+            low: { bg: '#D1FAE5', text: '#059669', label: 'Low' },
+          };
+          const pStyle = priorityConfig[action.priority] || priorityConfig.medium;
+
+          return (
+            <>
+              {/* Backdrop */}
+              <div
+                onClick={() => setExpandedActionIndex(null)}
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  left: 0,
+                  right: 0,
+                  bottom: 0,
+                  background: 'rgba(0, 0, 0, 0.4)',
+                  zIndex: 1000,
+                  animation: 'fadeIn 0.2s ease',
+                }}
+              />
+
+              {/* Drawer */}
+              <div
+                style={{
+                  position: 'fixed',
+                  top: 0,
+                  right: 0,
+                  width: '440px',
+                  maxWidth: '90vw',
+                  height: '100%',
+                  background: '#FFFFFF',
+                  boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.12)',
+                  zIndex: 1001,
+                  overflow: 'auto',
+                  animation: 'slideInFromRight 0.25s ease',
+                }}
+              >
+                {/* Header */}
+                <div style={{
+                  display: 'flex',
+                  justifyContent: 'space-between',
+                  alignItems: 'center',
+                  padding: '20px 24px',
+                  borderBottom: '1px solid #F0F0F0',
+                }}>
+                  <span style={{
+                    background: pStyle.bg,
+                    color: pStyle.text,
+                    padding: '5px 12px',
+                    borderRadius: '6px',
+                    fontSize: '12px',
+                    fontWeight: 600,
+                    letterSpacing: '0.02em',
+                  }}>
+                    {pStyle.label} Priority
+                  </span>
+                  <button
+                    onClick={() => setExpandedActionIndex(null)}
+                    style={{
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      padding: '8px',
+                      color: '#999',
+                      borderRadius: '6px',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.backgroundColor = '#F5F5F5';
+                      e.currentTarget.style.color = '#666';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.backgroundColor = 'transparent';
+                      e.currentTarget.style.color = '#999';
+                    }}
+                  >
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <path d="M18 6L6 18M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+
+                {/* Content */}
+                <div style={{ padding: '24px' }}>
+                  {/* Title */}
+                  <h3 style={{
+                    fontSize: '18px',
+                    fontWeight: 600,
+                    color: '#1A1A1A',
+                    margin: '0 0 24px 0',
+                    lineHeight: 1.5,
+                    letterSpacing: '-0.01em',
+                  }}>
+                    {action.title}
+                  </h3>
+
+                  {/* Description */}
+                  {action.description && (
+                    <div style={{ marginBottom: '28px' }}>
+                      <h4 style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#888',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        margin: '0 0 10px 0',
+                      }}>
+                        Description
+                      </h4>
+                      <p style={{
+                        fontSize: '14px',
+                        color: '#444',
+                        lineHeight: 1.7,
+                        margin: 0,
+                      }}>
+                        {action.description}
+                      </p>
                     </div>
-                    <div style={dashStyles.actionMeta}>
-                      <span style={dashStyles.actionOwner}>Owner: {action.owner}</span>
-                      <span style={dashStyles.actionDivider}>•</span>
-                      <span style={dashStyles.actionTimeline}>Timeline: {action.timeline}</span>
-                      <span style={dashStyles.actionDivider}>•</span>
-                      <span style={dashStyles.actionImpact}>Impact: {action.impact}</span>
+                  )}
+
+                  {/* Details Grid */}
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: '1fr 1fr',
+                    gap: '20px',
+                    padding: '20px',
+                    background: '#FAFAFA',
+                    borderRadius: '10px',
+                    marginBottom: '24px',
+                  }}>
+                    {action.owner && (
+                      <div>
+                        <h4 style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: '#888',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          margin: '0 0 6px 0',
+                        }}>
+                          Owner
+                        </h4>
+                        <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500 }}>
+                          {action.owner}
+                        </p>
+                      </div>
+                    )}
+                    {action.timeline && (
+                      <div>
+                        <h4 style={{
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          color: '#888',
+                          textTransform: 'uppercase',
+                          letterSpacing: '0.05em',
+                          margin: '0 0 6px 0',
+                        }}>
+                          Timeline
+                        </h4>
+                        <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500 }}>
+                          {action.timeline}
+                        </p>
+                      </div>
+                    )}
+                    <div>
+                      <h4 style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#888',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        margin: '0 0 6px 0',
+                      }}>
+                        Impact
+                      </h4>
+                      <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500, textTransform: 'capitalize' }}>
+                        {action.impact}
+                      </p>
                     </div>
-                  </div>
-                  <div style={dashStyles.actionActions}>
-                    <button style={dashStyles.actionEditBtn}>Edit</button>
-                    <button style={dashStyles.actionDismissBtn}>Dismiss</button>
+                    <div>
+                      <h4 style={{
+                        fontSize: '11px',
+                        fontWeight: 600,
+                        color: '#888',
+                        textTransform: 'uppercase',
+                        letterSpacing: '0.05em',
+                        margin: '0 0 6px 0',
+                      }}>
+                        Effort
+                      </h4>
+                      <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500, textTransform: 'capitalize' }}>
+                        {action.effort}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              );
-            })
-          )}
-        </div>
+
+                {/* Footer Actions */}
+                <div style={{
+                  position: 'absolute',
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  padding: '20px 24px',
+                  borderTop: '1px solid #F0F0F0',
+                  background: '#FFFFFF',
+                  display: 'flex',
+                  gap: '12px',
+                }}>
+                  <button
+                    style={{
+                      flex: 1,
+                      padding: '12px 20px',
+                      background: '#1A1A1A',
+                      color: '#FFFFFF',
+                      border: 'none',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.background = '#333'}
+                    onMouseLeave={(e) => e.currentTarget.style.background = '#1A1A1A'}
+                  >
+                    Mark as Started
+                  </button>
+                  <button
+                    style={{
+                      padding: '12px 20px',
+                      background: '#FFFFFF',
+                      color: '#666',
+                      border: '1px solid #E0E0E0',
+                      borderRadius: '8px',
+                      fontSize: '14px',
+                      fontWeight: 500,
+                      cursor: 'pointer',
+                      transition: 'all 0.15s',
+                    }}
+                    onMouseEnter={(e) => {
+                      e.currentTarget.style.background = '#F5F5F5';
+                      e.currentTarget.style.borderColor = '#CCC';
+                    }}
+                    onMouseLeave={(e) => {
+                      e.currentTarget.style.background = '#FFFFFF';
+                      e.currentTarget.style.borderColor = '#E0E0E0';
+                    }}
+                  >
+                    Dismiss
+                  </button>
+                </div>
+              </div>
+            </>
+          );
+        })()}
 
         {/* How we reached this conclusion */}
         <div style={{ ...dashStyles.reasoningToggleSection, marginTop: '16px' }}>
@@ -3032,8 +3458,8 @@ function RunSummaryView({
       <div style={dashStyles.tabbedSection}>
         <div style={dashStyles.tabsHeader}>
           {[
-            { id: 'issues', label: 'Critical Issues', count: DUMMY_CRITICAL_ISSUES.length },
-            { id: 'strengths', label: 'Strengths', count: DUMMY_STRENGTHS.length },
+            { id: 'issues', label: 'Critical Issues', count: refinedReport?.critical_issues?.length || DUMMY_CRITICAL_ISSUES.length },
+            { id: 'strengths', label: 'Strengths', count: refinedReport?.strengths?.length || DUMMY_STRENGTHS.length },
             { id: 'sources', label: 'Data Sources', count: run.sources?.length || 0 },
           ].map((tab) => (
             <button
@@ -3056,134 +3482,267 @@ function RunSummaryView({
         </div>
 
         <div style={dashStyles.tabContent}>
-          {/* Critical Issues Tab - Premium Redesign */}
+          {/* Critical Issues Tab */}
           {activeTab === 'issues' && (
             <div style={dashStyles.premiumList}>
-              {DUMMY_CRITICAL_ISSUES.map((issue, idx) => {
-                const isLast = idx === DUMMY_CRITICAL_ISSUES.length - 1;
-                const severityColor = issue.severity === 'critical' ? '#CF222E' : '#9A6700';
+              {refinedReport?.critical_issues?.length ? (
+                // Real data from refined report (rich objects)
+                refinedReport.critical_issues.map((issue, idx) => {
+                  const isLast = idx === refinedReport.critical_issues.length - 1;
+                  const severityColor = issue.severity === 'critical' ? '#CF222E' : '#9A6700';
 
-                return (
-                  <div
-                    key={issue.id}
-                    style={{
-                      ...dashStyles.premiumCard,
-                      borderBottom: isLast ? 'none' : '1px solid #EEEEEE',
-                    }}
-                  >
-                    {/* Header Row */}
-                    <div style={dashStyles.premiumCardHeader}>
-                      {/* Severity indicator */}
-                      <div style={{
-                        ...dashStyles.premiumSeverityDot,
-                        backgroundColor: severityColor,
-                      }} />
+                  return (
+                    <div
+                      key={`issue-${idx}`}
+                      style={{
+                        ...dashStyles.premiumCard,
+                        borderBottom: isLast ? 'none' : '1px solid #EEEEEE',
+                      }}
+                    >
+                      {/* Header Row */}
+                      <div style={dashStyles.premiumCardHeader}>
+                        {/* Severity indicator */}
+                        <div style={{
+                          ...dashStyles.premiumSeverityDot,
+                          backgroundColor: severityColor,
+                        }} />
 
-                      {/* Title & Description */}
-                      <div style={dashStyles.premiumCardMain}>
-                        <h4 style={dashStyles.premiumCardTitle}>{issue.title}</h4>
-                        <p style={dashStyles.premiumCardDesc}>{issue.description}</p>
+                        {/* Title & Description */}
+                        <div style={dashStyles.premiumCardMain}>
+                          <h4 style={dashStyles.premiumCardTitle}>{issue.title}</h4>
+                          <p style={dashStyles.premiumCardDesc}>{issue.description}</p>
+                        </div>
+
+                        {/* Metrics badge */}
+                        <div style={dashStyles.premiumCardMeta}>
+                          <span style={dashStyles.premiumMetricsBadge}>
+                            {issue.metrics.join(' · ')}
+                          </span>
+                          {issue.avg_score !== undefined && (
+                            <span style={{ ...dashStyles.premiumScoreBadge, color: severityColor }}>
+                              {issue.avg_score}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Metrics badge */}
-                      <div style={dashStyles.premiumCardMeta}>
-                        <span style={dashStyles.premiumMetricsBadge}>
-                          {issue.metrics.join(' · ')}
-                        </span>
-                        <span style={{ ...dashStyles.premiumScoreBadge, color: severityColor }}>
-                          {issue.avgScore}
-                        </span>
-                      </div>
-                    </div>
-
-                    {/* Evidence & Context - Two Column */}
-                    <div style={dashStyles.premiumCardBody}>
-                      <div style={dashStyles.premiumCardColumn}>
-                        <span style={dashStyles.premiumLabel}>Supporting Evidence</span>
-                        {issue.evidence.slice(0, 1).map((ev, evIdx) => (
-                          <div key={evIdx} style={dashStyles.premiumQuote}>
-                            <p style={dashStyles.premiumQuoteText}>"{ev.quote}"</p>
-                            <span style={dashStyles.premiumQuoteSource}>{ev.role}</span>
-                          </div>
-                        ))}
-                      </div>
-
-                      <div style={dashStyles.premiumCardColumn}>
-                        <span style={dashStyles.premiumLabel}>Root Cause</span>
-                        <div style={dashStyles.premiumTagsRow}>
-                          {issue.rootCauses.map((cause, cIdx) => (
-                            <span key={cIdx} style={dashStyles.premiumTag}>{cause}</span>
+                      {/* Evidence & Context - Two Column */}
+                      <div style={dashStyles.premiumCardBody}>
+                        <div style={dashStyles.premiumCardColumn}>
+                          <span style={dashStyles.premiumLabel}>Supporting Evidence</span>
+                          {issue.evidence.slice(0, 1).map((ev, evIdx) => (
+                            <div key={evIdx} style={dashStyles.premiumQuote}>
+                              <p style={dashStyles.premiumQuoteText}>"{ev.quote}"</p>
+                              <span style={dashStyles.premiumQuoteSource}>{ev.role}</span>
+                            </div>
                           ))}
                         </div>
-                        <span style={{ ...dashStyles.premiumLabel, marginTop: '16px' }}>Business Impact</span>
-                        <p style={dashStyles.premiumImpactText}>{issue.businessImpact}</p>
+
+                        <div style={dashStyles.premiumCardColumn}>
+                          <span style={dashStyles.premiumLabel}>Root Cause</span>
+                          <div style={dashStyles.premiumTagsRow}>
+                            {issue.root_causes.map((cause, cIdx) => (
+                              <span key={cIdx} style={dashStyles.premiumTag}>{cause}</span>
+                            ))}
+                          </div>
+                          <span style={{ ...dashStyles.premiumLabel, marginTop: '16px' }}>Business Impact</span>
+                          <p style={dashStyles.premiumImpactText}>{issue.business_impact}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              ) : (
+                // Fallback to dummy data (rich objects)
+                DUMMY_CRITICAL_ISSUES.map((issue, idx) => {
+                  const isLast = idx === DUMMY_CRITICAL_ISSUES.length - 1;
+                  const severityColor = issue.severity === 'critical' ? '#CF222E' : '#9A6700';
+
+                  return (
+                    <div
+                      key={issue.id}
+                      style={{
+                        ...dashStyles.premiumCard,
+                        borderBottom: isLast ? 'none' : '1px solid #EEEEEE',
+                      }}
+                    >
+                      {/* Header Row */}
+                      <div style={dashStyles.premiumCardHeader}>
+                        {/* Severity indicator */}
+                        <div style={{
+                          ...dashStyles.premiumSeverityDot,
+                          backgroundColor: severityColor,
+                        }} />
+
+                        {/* Title & Description */}
+                        <div style={dashStyles.premiumCardMain}>
+                          <h4 style={dashStyles.premiumCardTitle}>{issue.title}</h4>
+                          <p style={dashStyles.premiumCardDesc}>{issue.description}</p>
+                        </div>
+
+                        {/* Metrics badge */}
+                        <div style={dashStyles.premiumCardMeta}>
+                          <span style={dashStyles.premiumMetricsBadge}>
+                            {issue.metrics.join(' · ')}
+                          </span>
+                          <span style={{ ...dashStyles.premiumScoreBadge, color: severityColor }}>
+                            {issue.avgScore}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Evidence & Context - Two Column */}
+                      <div style={dashStyles.premiumCardBody}>
+                        <div style={dashStyles.premiumCardColumn}>
+                          <span style={dashStyles.premiumLabel}>Supporting Evidence</span>
+                          {issue.evidence.slice(0, 1).map((ev, evIdx) => (
+                            <div key={evIdx} style={dashStyles.premiumQuote}>
+                              <p style={dashStyles.premiumQuoteText}>"{ev.quote}"</p>
+                              <span style={dashStyles.premiumQuoteSource}>{ev.role}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={dashStyles.premiumCardColumn}>
+                          <span style={dashStyles.premiumLabel}>Root Cause</span>
+                          <div style={dashStyles.premiumTagsRow}>
+                            {issue.rootCauses.map((cause, cIdx) => (
+                              <span key={cIdx} style={dashStyles.premiumTag}>{cause}</span>
+                            ))}
+                          </div>
+                          <span style={{ ...dashStyles.premiumLabel, marginTop: '16px' }}>Business Impact</span>
+                          <p style={dashStyles.premiumImpactText}>{issue.businessImpact}</p>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })
+              )}
             </div>
           )}
 
-          {/* Strengths Tab - Premium Redesign */}
+          {/* Strengths Tab */}
           {activeTab === 'strengths' && (
             <div style={dashStyles.premiumList}>
-              {DUMMY_STRENGTHS.map((strength, idx) => {
-                const isLast = idx === DUMMY_STRENGTHS.length - 1;
+              {refinedReport?.strengths?.length ? (
+                // Real data from refined report (rich objects)
+                refinedReport.strengths.map((strength, idx) => {
+                  const isLast = idx === refinedReport.strengths.length - 1;
 
-                return (
-                  <div
-                    key={strength.id}
-                    style={{
-                      ...dashStyles.premiumCard,
-                      borderBottom: isLast ? 'none' : '1px solid #EEEEEE',
-                    }}
-                  >
-                    {/* Header Row */}
-                    <div style={dashStyles.premiumCardHeader}>
-                      {/* Strength indicator */}
-                      <div style={{
-                        ...dashStyles.premiumSeverityDot,
-                        backgroundColor: '#1A7F37',
-                      }} />
+                  return (
+                    <div
+                      key={`strength-${idx}`}
+                      style={{
+                        ...dashStyles.premiumCard,
+                        borderBottom: isLast ? 'none' : '1px solid #EEEEEE',
+                      }}
+                    >
+                      {/* Header Row */}
+                      <div style={dashStyles.premiumCardHeader}>
+                        {/* Strength indicator */}
+                        <div style={{
+                          ...dashStyles.premiumSeverityDot,
+                          backgroundColor: '#1A7F37',
+                        }} />
 
-                      {/* Title & Description */}
-                      <div style={dashStyles.premiumCardMain}>
-                        <h4 style={dashStyles.premiumCardTitle}>{strength.title}</h4>
-                        <p style={dashStyles.premiumCardDesc}>{strength.description}</p>
+                        {/* Title & Description */}
+                        <div style={dashStyles.premiumCardMain}>
+                          <h4 style={dashStyles.premiumCardTitle}>{strength.title}</h4>
+                          <p style={dashStyles.premiumCardDesc}>{strength.description}</p>
+                        </div>
+
+                        {/* Metrics badge */}
+                        <div style={dashStyles.premiumCardMeta}>
+                          <span style={dashStyles.premiumMetricsBadge}>
+                            {strength.metrics.join(' · ')}
+                          </span>
+                          {strength.avg_score !== undefined && (
+                            <span style={{ ...dashStyles.premiumScoreBadge, color: '#1A7F37' }}>
+                              {strength.avg_score}
+                            </span>
+                          )}
+                        </div>
                       </div>
 
-                      {/* Metrics badge */}
-                      <div style={dashStyles.premiumCardMeta}>
-                        <span style={dashStyles.premiumMetricsBadge}>
-                          {strength.metrics.join(' · ')}
-                        </span>
-                        <span style={{ ...dashStyles.premiumScoreBadge, color: '#1A7F37' }}>
-                          {strength.avgScore}
-                        </span>
+                      {/* Evidence & Opportunity - Two Column */}
+                      <div style={dashStyles.premiumCardBody}>
+                        <div style={dashStyles.premiumCardColumn}>
+                          <span style={dashStyles.premiumLabel}>Supporting Evidence</span>
+                          {strength.evidence.slice(0, 1).map((ev, evIdx) => (
+                            <div key={evIdx} style={dashStyles.premiumQuote}>
+                              <p style={dashStyles.premiumQuoteText}>"{ev.quote}"</p>
+                              <span style={dashStyles.premiumQuoteSource}>{ev.role}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={dashStyles.premiumCardColumn}>
+                          <span style={dashStyles.premiumLabel}>Opportunity</span>
+                          <p style={dashStyles.premiumOpportunityText}>{strength.opportunity}</p>
+                        </div>
                       </div>
                     </div>
+                  );
+                })
+              ) : (
+                // Fallback to dummy data (rich objects)
+                DUMMY_STRENGTHS.map((strength, idx) => {
+                  const isLast = idx === DUMMY_STRENGTHS.length - 1;
 
-                    {/* Evidence & Opportunity - Two Column */}
-                    <div style={dashStyles.premiumCardBody}>
-                      <div style={dashStyles.premiumCardColumn}>
-                        <span style={dashStyles.premiumLabel}>Supporting Evidence</span>
-                        {strength.evidence.slice(0, 1).map((ev, evIdx) => (
-                          <div key={evIdx} style={dashStyles.premiumQuote}>
-                            <p style={dashStyles.premiumQuoteText}>"{ev.quote}"</p>
-                            <span style={dashStyles.premiumQuoteSource}>{ev.role}</span>
-                          </div>
-                        ))}
+                  return (
+                    <div
+                      key={strength.id}
+                      style={{
+                        ...dashStyles.premiumCard,
+                        borderBottom: isLast ? 'none' : '1px solid #EEEEEE',
+                      }}
+                    >
+                      {/* Header Row */}
+                      <div style={dashStyles.premiumCardHeader}>
+                        {/* Strength indicator */}
+                        <div style={{
+                          ...dashStyles.premiumSeverityDot,
+                          backgroundColor: '#1A7F37',
+                        }} />
+
+                        {/* Title & Description */}
+                        <div style={dashStyles.premiumCardMain}>
+                          <h4 style={dashStyles.premiumCardTitle}>{strength.title}</h4>
+                          <p style={dashStyles.premiumCardDesc}>{strength.description}</p>
+                        </div>
+
+                        {/* Metrics badge */}
+                        <div style={dashStyles.premiumCardMeta}>
+                          <span style={dashStyles.premiumMetricsBadge}>
+                            {strength.metrics.join(' · ')}
+                          </span>
+                          <span style={{ ...dashStyles.premiumScoreBadge, color: '#1A7F37' }}>
+                            {strength.avgScore}
+                          </span>
+                        </div>
                       </div>
 
-                      <div style={dashStyles.premiumCardColumn}>
-                        <span style={dashStyles.premiumLabel}>Opportunity</span>
-                        <p style={dashStyles.premiumOpportunityText}>{strength.opportunity}</p>
+                      {/* Evidence & Opportunity - Two Column */}
+                      <div style={dashStyles.premiumCardBody}>
+                        <div style={dashStyles.premiumCardColumn}>
+                          <span style={dashStyles.premiumLabel}>Supporting Evidence</span>
+                          {strength.evidence.slice(0, 1).map((ev, evIdx) => (
+                            <div key={evIdx} style={dashStyles.premiumQuote}>
+                              <p style={dashStyles.premiumQuoteText}>"{ev.quote}"</p>
+                              <span style={dashStyles.premiumQuoteSource}>{ev.role}</span>
+                            </div>
+                          ))}
+                        </div>
+
+                        <div style={dashStyles.premiumCardColumn}>
+                          <span style={dashStyles.premiumLabel}>Opportunity</span>
+                          <p style={dashStyles.premiumOpportunityText}>{strength.opportunity}</p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                );
-              })}
+                  );
+                })
+              )}
             </div>
           )}
 
