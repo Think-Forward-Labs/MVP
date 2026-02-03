@@ -22,6 +22,7 @@ export function ReviewDetailPanel({
   const [showInviteForm, setShowInviteForm] = useState(false);
   const [email, setEmail] = useState('');
   const [name, setName] = useState('');
+  const [level, setLevel] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [isEditingTitle, setIsEditingTitle] = useState(false);
@@ -39,9 +40,10 @@ export function ReviewDetailPanel({
     setError(null);
 
     try {
-      await reviewsApi.addParticipant(review.id, email, name);
+      await reviewsApi.addParticipant(review.id, email, name, level || undefined);
       setEmail('');
       setName('');
+      setLevel('');
       setShowInviteForm(false);
       onParticipantAdded();
     } catch (err) {
@@ -377,6 +379,20 @@ export function ReviewDetailPanel({
                       style={styles.input}
                       required
                     />
+                    <select
+                      value={level}
+                      onChange={e => setLevel(e.target.value)}
+                      style={{
+                        ...styles.input,
+                        cursor: 'pointer',
+                        color: level ? '#18181B' : '#71717A',
+                      }}
+                    >
+                      <option value="">Select role level (optional)</option>
+                      <option value="senior_leader">Senior Leader</option>
+                      <option value="middle_manager">Middle Manager</option>
+                      <option value="frontline">Operational/Frontline</option>
+                    </select>
                     <div style={styles.inviteFormActions}>
                       <button
                         type="button"
@@ -386,6 +402,7 @@ export function ReviewDetailPanel({
                           setError(null);
                           setEmail('');
                           setName('');
+                          setLevel('');
                         }}
                       >
                         Cancel

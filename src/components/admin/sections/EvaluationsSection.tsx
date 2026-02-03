@@ -351,9 +351,9 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
     }
   };
 
-  const loadRunDetail = async (runId: string, businessId?: string) => {
+  const loadRunDetail = async (runId: string, businessId?: string, isPolling = false) => {
     try {
-      setIsLoading(true);
+      if (!isPolling) setIsLoading(true);
       const [detail, scoresData] = await Promise.all([
         adminApi.getEvaluationRun(runId),
         adminApi.getEvaluationScores(runId),
@@ -377,11 +377,15 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
         selectedSourceId: undefined,
       }));
       setScores(scoresData);
-      // Tab will default to 'metrics' from useState initialization
+
+      // If evaluation is still processing, poll for updates
+      if (detail.status === 'processing' || detail.status === 'pending') {
+        setTimeout(() => loadRunDetail(runId, businessId, true), 3000);
+      }
     } catch (err) {
       onError('Failed to load evaluation details');
     } finally {
-      setIsLoading(false);
+      if (!isPolling) setIsLoading(false);
     }
   };
 
@@ -2263,6 +2267,34 @@ const getHealthStatus = (status: string) => {
 
 type SummaryTabType = 'issues' | 'strengths' | 'sources';
 
+// Type for refined metric insights (from API or dummy data)
+type MetricInsight = {
+  metric_code: string;
+  metric_name: string;
+  category: string;
+  health_status: 'strong' | 'developing' | 'attention' | 'critical';
+  score: number;
+  summary: string;
+  observations: string[];
+  evidence: Array<{
+    quote: string;
+    role: string;
+    supports: 'strength' | 'gap' | 'context';
+  }>;
+  ai_reasoning?: {
+    methodology: string;
+    data_points_analyzed: number;
+    confidence_factors: string[];
+    key_signals: string[];
+    limitations: string[];
+  };
+  benchmark_narrative?: string;
+  recommendations: string[];
+  // Optional fields for issue/action linking (may not be present in API data)
+  related_issue_ids?: string[];
+  related_action_ids?: string[];
+};
+
 function RunSummaryView({
   run,
   scores,
@@ -2282,6 +2314,49 @@ function RunSummaryView({
   const [showStrategicReasoning, setShowStrategicReasoning] = useState(false);
   const [showSummaryReasoning, setShowSummaryReasoning] = useState(false);
   const [showActionsReasoning, setShowActionsReasoning] = useState(false);
+
+  // State for refined report
+  const [refinedReport, setRefinedReport] = useState<{
+    metrics: MetricInsight[];
+    executive_summary: string;
+    key_actions: string[];
+    critical_issues: string[];
+    strengths: string[];
+  } | null>(null);
+  const [refinedReportLoading, setRefinedReportLoading] = useState(true);
+
+  // Fetch refined report when run changes
+  useEffect(() => {
+    const fetchRefinedReport = async () => {
+      if (!run?.id) return;
+
+      setRefinedReportLoading(true);
+      try {
+        const response = await adminApi.getRefinedReport(run.id);
+        if (response?.report) {
+          setRefinedReport({
+            metrics: response.report.metrics || [],
+            executive_summary: response.report.executive_summary || '',
+            key_actions: response.report.key_actions || [],
+            critical_issues: response.report.critical_issues || [],
+            strengths: response.report.strengths || [],
+          });
+        }
+      } catch (err) {
+        // If no refined report exists, we'll use dummy data
+        setRefinedReport(null);
+      } finally {
+        setRefinedReportLoading(false);
+      }
+    };
+
+    fetchRefinedReport();
+  }, [run?.id]);
+
+  // Use refined report metrics if available, otherwise fallback to dummy data
+  const metricInsights: MetricInsight[] = refinedReport?.metrics?.length
+    ? refinedReport.metrics
+    : DUMMY_METRIC_INSIGHTS;
 
   const statusColor = getStatusColor(run.status);
   const totalFlags = run.flags?.filter(f => !f.is_resolved) || [];
@@ -2351,6 +2426,38 @@ function RunSummaryView({
           </div>
         </div>
       </div>
+
+      {/* Processing Banner - shows when evaluation is still running */}
+      {(run.status === 'processing' || run.status === 'pending') && (
+        <div style={{
+          background: 'linear-gradient(90deg, #EFF6FF 0%, #DBEAFE 100%)',
+          border: '1px solid #93C5FD',
+          borderRadius: '8px',
+          padding: '16px 20px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+        }}>
+          <div style={{
+            width: '20px',
+            height: '20px',
+            border: '2px solid #3B82F6',
+            borderTopColor: 'transparent',
+            borderRadius: '50%',
+            animation: 'spin 1s linear infinite',
+          }} />
+          <div>
+            <p style={{ margin: 0, fontWeight: 600, color: '#1E40AF', fontSize: '14px' }}>
+              Evaluation in Progress
+            </p>
+            <p style={{ margin: '4px 0 0 0', color: '#3B82F6', fontSize: '13px' }}>
+              Processing responses and generating insights... This page will update automatically when complete.
+            </p>
+          </div>
+          <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
+        </div>
+      )}
 
       {/* Two Column Layout: Strategic Position + Executive Summary */}
       <div style={dashStyles.twoColumnGrid}>
@@ -2478,22 +2585,28 @@ function RunSummaryView({
             </button>
           </div>
 
-          <p style={dashStyles.summaryText}>{DUMMY_EXECUTIVE_SUMMARY}</p>
+          <p style={dashStyles.summaryText}>
+            {refinedReport?.executive_summary || DUMMY_EXECUTIVE_SUMMARY}
+          </p>
 
           {/* Quick Stats */}
           <div style={dashStyles.quickStatsRow}>
             <div style={dashStyles.quickStat}>
-              <span style={{ ...dashStyles.quickStatValue, color: DUMMY_CRITICAL_ISSUES.length > 0 ? '#CF222E' : '#1A7F37' }}>
-                {DUMMY_CRITICAL_ISSUES.length}
+              <span style={{ ...dashStyles.quickStatValue, color: (refinedReport?.critical_issues?.length || DUMMY_CRITICAL_ISSUES.length) > 0 ? '#CF222E' : '#1A7F37' }}>
+                {refinedReport?.critical_issues?.length || DUMMY_CRITICAL_ISSUES.length}
               </span>
               <span style={dashStyles.quickStatLabel}>Critical Issues</span>
             </div>
             <div style={dashStyles.quickStat}>
-              <span style={{ ...dashStyles.quickStatValue, color: '#1A7F37' }}>{DUMMY_STRENGTHS.length}</span>
+              <span style={{ ...dashStyles.quickStatValue, color: '#1A7F37' }}>
+                {refinedReport?.strengths?.length || DUMMY_STRENGTHS.length}
+              </span>
               <span style={dashStyles.quickStatLabel}>Strengths</span>
             </div>
             <div style={dashStyles.quickStat}>
-              <span style={dashStyles.quickStatValue}>{DUMMY_KEY_ACTIONS.length}</span>
+              <span style={dashStyles.quickStatValue}>
+                {refinedReport?.key_actions?.length || DUMMY_KEY_ACTIONS.length}
+              </span>
               <span style={dashStyles.quickStatLabel}>Actions</span>
             </div>
             <div style={dashStyles.quickStat}>
@@ -2558,31 +2671,18 @@ function RunSummaryView({
         </div>
 
         <div style={dashStyles.actionsList}>
-          {DUMMY_KEY_ACTIONS.map((action, index) => {
-            const priorityColors = {
-              critical: { bg: '#FFEBE9', text: '#CF222E', icon: '🔴' },
-              high: { bg: '#FFF8C5', text: '#9A6700', icon: '🟡' },
-              medium: { bg: '#DDF4FF', text: '#0969DA', icon: '🔵' },
-              low: { bg: '#DAFBE1', text: '#1A7F37', icon: '🟢' },
-            };
-            const pStyle = priorityColors[action.priority];
-
-            return (
-              <div key={action.id} style={dashStyles.actionCard}>
+          {/* Use refined report key_actions if available, otherwise fallback to dummy data */}
+          {refinedReport?.key_actions?.length ? (
+            // Simple display for refined report actions (string array)
+            refinedReport.key_actions.map((actionText, index) => (
+              <div key={index} style={dashStyles.actionCard}>
                 <div style={dashStyles.actionPriority}>
-                  <span>{pStyle.icon}</span>
+                  <span>{index === 0 ? '🔴' : index === 1 ? '🟡' : '🔵'}</span>
                 </div>
                 <div style={dashStyles.actionContent}>
                   <div style={dashStyles.actionMain}>
                     <span style={dashStyles.actionNumber}>{index + 1}.</span>
-                    <span style={dashStyles.actionText}>{action.action}</span>
-                  </div>
-                  <div style={dashStyles.actionMeta}>
-                    <span style={dashStyles.actionOwner}>Owner: {action.owner}</span>
-                    <span style={dashStyles.actionDivider}>•</span>
-                    <span style={dashStyles.actionTimeline}>Timeline: {action.timeline}</span>
-                    <span style={dashStyles.actionDivider}>•</span>
-                    <span style={dashStyles.actionImpact}>Impact: {action.impact}</span>
+                    <span style={dashStyles.actionText}>{actionText}</span>
                   </div>
                 </div>
                 <div style={dashStyles.actionActions}>
@@ -2590,8 +2690,44 @@ function RunSummaryView({
                   <button style={dashStyles.actionDismissBtn}>Dismiss</button>
                 </div>
               </div>
-            );
-          })}
+            ))
+          ) : (
+            // Rich display for dummy data
+            DUMMY_KEY_ACTIONS.map((action, index) => {
+              const priorityColors = {
+                critical: { bg: '#FFEBE9', text: '#CF222E', icon: '🔴' },
+                high: { bg: '#FFF8C5', text: '#9A6700', icon: '🟡' },
+                medium: { bg: '#DDF4FF', text: '#0969DA', icon: '🔵' },
+                low: { bg: '#DAFBE1', text: '#1A7F37', icon: '🟢' },
+              };
+              const pStyle = priorityColors[action.priority];
+
+              return (
+                <div key={action.id} style={dashStyles.actionCard}>
+                  <div style={dashStyles.actionPriority}>
+                    <span>{pStyle.icon}</span>
+                  </div>
+                  <div style={dashStyles.actionContent}>
+                    <div style={dashStyles.actionMain}>
+                      <span style={dashStyles.actionNumber}>{index + 1}.</span>
+                      <span style={dashStyles.actionText}>{action.action}</span>
+                    </div>
+                    <div style={dashStyles.actionMeta}>
+                      <span style={dashStyles.actionOwner}>Owner: {action.owner}</span>
+                      <span style={dashStyles.actionDivider}>•</span>
+                      <span style={dashStyles.actionTimeline}>Timeline: {action.timeline}</span>
+                      <span style={dashStyles.actionDivider}>•</span>
+                      <span style={dashStyles.actionImpact}>Impact: {action.impact}</span>
+                    </div>
+                  </div>
+                  <div style={dashStyles.actionActions}>
+                    <button style={dashStyles.actionEditBtn}>Edit</button>
+                    <button style={dashStyles.actionDismissBtn}>Dismiss</button>
+                  </div>
+                </div>
+              );
+            })
+          )}
         </div>
 
         {/* How we reached this conclusion */}
@@ -2644,13 +2780,17 @@ function RunSummaryView({
         </div>
 
         {/* Group metrics by category */}
-        {[
+        {refinedReportLoading ? (
+          <div style={{ padding: '40px', textAlign: 'center', color: '#86868B' }}>
+            Loading refined insights...
+          </div>
+        ) : [
           { name: 'Technical Fitness', subtitle: 'How well you execute today', codes: ['M1', 'M4', 'M7', 'M10'] },
           { name: 'Evolutionary Fitness', subtitle: 'How ready you are for tomorrow', codes: ['M2', 'M5', 'M8', 'M11'] },
           { name: 'Cultural Health', subtitle: 'How your people enable change', codes: ['M3', 'M6', 'M9', 'M12'] },
           { name: 'Resource Capability', subtitle: 'Whether you have what you need', codes: ['M13', 'M14'] },
         ].map((category) => {
-          const categoryMetrics = DUMMY_METRIC_INSIGHTS.filter(m => category.codes.includes(m.metric_code));
+          const categoryMetrics = metricInsights.filter(m => category.codes.includes(m.metric_code));
           if (categoryMetrics.length === 0) return null;
 
           // Calculate category average
@@ -2855,9 +2995,9 @@ function RunSummaryView({
                           )}
 
                           {/* Footer with related links */}
-                          {(insight.related_issue_ids.length > 0 || insight.related_action_ids.length > 0) && (
+                          {((insight.related_issue_ids?.length ?? 0) > 0 || (insight.related_action_ids?.length ?? 0) > 0) && (
                             <div style={dashStyles.metricInsightFooter}>
-                              {insight.related_issue_ids.length > 0 && (
+                              {(insight.related_issue_ids?.length ?? 0) > 0 && (
                                 <span style={{
                                   ...dashStyles.metricInsightRelatedTag,
                                   backgroundColor: '#FEE2E2',
@@ -2866,7 +3006,7 @@ function RunSummaryView({
                                   Related Issue
                                 </span>
                               )}
-                              {insight.related_action_ids.length > 0 && (
+                              {(insight.related_action_ids?.length ?? 0) > 0 && (
                                 <span style={{
                                   ...dashStyles.metricInsightRelatedTag,
                                   backgroundColor: '#DBEAFE',
