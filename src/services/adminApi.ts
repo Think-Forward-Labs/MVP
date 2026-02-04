@@ -324,9 +324,18 @@ export const adminApi = {
 
   /**
    * Get businesses with reviews (for admin review board)
+   * Shows only SUBMITTED assessments awaiting approval
    */
   getBusinessesWithReviews: async (): Promise<BusinessWithReviews[]> => {
     return adminRequest<BusinessWithReviews[]>('/admin/businesses-with-reviews');
+  },
+
+  /**
+   * Get businesses with evaluations (for admin evaluations board)
+   * Shows only EVALUATED (approved) assessments ready for evaluation
+   */
+  getBusinessesWithEvaluations: async (): Promise<BusinessWithReviews[]> => {
+    return adminRequest<BusinessWithReviews[]>('/admin/businesses-with-evaluations');
   },
 
   /**

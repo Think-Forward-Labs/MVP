@@ -490,6 +490,7 @@ export function InterviewApp({
             isLoading: false,
             showReviewMode: true, // Go directly to review mode
             canEdit: false, // View only, no editing
+            isSubmitted: responsesData.interview_status === 'submitted',
           }));
         } catch (error) {
           console.error('Failed to load responses:', error);
@@ -1647,7 +1648,10 @@ export function InterviewApp({
   if (state.showReviewMode && state.interviewId) {
     return (
       <div style={styles.container}>
-        <header style={styles.header}>
+        <header style={{
+          ...styles.header,
+          justifyContent: 'space-between',
+        }}>
           <div style={styles.headerLeft}>
             <button
               style={styles.backButton}
@@ -1665,6 +1669,62 @@ export function InterviewApp({
             </button>
             <span style={styles.headerTitle}>{viewOnly ? 'Your Responses' : editMode ? 'Edit Responses' : 'Review Your Responses'}</span>
           </div>
+
+          {/* Header Right - Submit Button or Submitted Status */}
+          {viewOnly && (
+            <div style={{ display: 'flex', alignItems: 'center' }}>
+              {!state.isSubmitted ? (
+                <button
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '8px 16px',
+                    background: 'linear-gradient(135deg, #34C759 0%, #30B350 100%)',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    cursor: isSubmitting ? 'not-allowed' : 'pointer',
+                    opacity: isSubmitting ? 0.7 : 1,
+                    transition: 'all 0.2s ease',
+                  }}
+                  onClick={handleSubmitInterview}
+                  disabled={isSubmitting}
+                >
+                  {isSubmitting ? (
+                    'Submitting...'
+                  ) : (
+                    <>
+                      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M22 2L11 13" strokeLinecap="round" strokeLinejoin="round"/>
+                        <path d="M22 2L15 22L11 13L2 9L22 2Z" strokeLinecap="round" strokeLinejoin="round"/>
+                      </svg>
+                      Submit Interview
+                    </>
+                  )}
+                </button>
+              ) : (
+                <div style={{
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 12px',
+                  background: 'rgba(52, 199, 89, 0.1)',
+                  borderRadius: '8px',
+                  color: '#34C759',
+                  fontSize: '14px',
+                  fontWeight: 500,
+                }}>
+                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
+                    <path d="M20 6L9 17l-5-5" strokeLinecap="round" strokeLinejoin="round"/>
+                  </svg>
+                  <span>Submitted</span>
+                </div>
+              )}
+            </div>
+          )}
         </header>
 
         <main style={styles.reviewMain}>

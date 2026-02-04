@@ -398,6 +398,7 @@ export interface EvaluationRunSummary {
   flags_requiring_review?: number;
   unresolved_flags?: number;
   average_metric_score?: number;
+  overall_score?: number;  // Alias for average_metric_score for frontend compatibility
   started_at?: string;
   completed_at?: string;
   created_at: string;

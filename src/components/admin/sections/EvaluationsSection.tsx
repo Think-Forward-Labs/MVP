@@ -201,9 +201,9 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
   const loadBusinesses = async () => {
     try {
       setIsLoading(true);
-      const data = await adminApi.getBusinessesWithReviews();
+      const data = await adminApi.getBusinessesWithEvaluations();
 
-      // Sort by most recent evaluation first (latest_evaluation_at or most_recent_pending)
+      // Sort by most recent evaluation first
       const sorted = data.sort((a, b) => {
         // Use latest_evaluation_at if available, otherwise most_recent_pending
         const aDate = a.latest_evaluation_at || a.most_recent_pending || '1970-01-01';
@@ -223,7 +223,7 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
   const loadEnrichedBusinesses = async () => {
     try {
       setIsLoading(true);
-      const businessesData = await adminApi.getBusinessesWithReviews();
+      const businessesData = await adminApi.getBusinessesWithEvaluations();
 
       // Sort by most recent evaluation first
       const sortedBusinesses = businessesData.sort((a, b) => {
@@ -944,10 +944,11 @@ function SplitPaneEvaluations({
                       <div style={splitStyles.assessmentHeader}>
                         <div style={splitStyles.assessmentInfo}>
                           <h3 style={splitStyles.assessmentName}>{assessment.name}</h3>
-                          <span style={splitStyles.assessmentMeta}>
-                            {assessment.stats.total_submitted} interview{assessment.stats.total_submitted !== 1 ? 's' : ''}
-                            {latestRun && ` · Last run ${timeAgo(latestRun.created_at)}`}
-                          </span>
+                          {latestRun && (
+                            <span style={splitStyles.assessmentMeta}>
+                              Last run {timeAgo(latestRun.created_at)}
+                            </span>
+                          )}
                         </div>
                         <button
                           onClick={() => onTriggerEvaluation(assessment.id)}
@@ -2435,7 +2436,7 @@ function RunSummaryView({
     };
 
     fetchRefinedReport();
-  }, [run?.id]);
+  }, [run?.id, run?.status]); // Re-fetch when status changes (e.g., processing -> completed)
 
   // Use refined report metrics if available, otherwise fallback to dummy data
   const metricInsights: MetricInsight[] = refinedReport?.metrics?.length
