@@ -52,6 +52,10 @@ interface UseVoiceAgentOptions {
   onChecklistUpdate?: (state: ChecklistState) => void;
   // Called when agent triggers proceed_to_next in hands-free mode
   onProceedToNext?: (reason: 'completed' | 'skipped', mergedTranscript: string) => void;
+  // Called when agent triggers complete_assessment (last question in hands-free mode)
+  onCompleteAssessment?: (reason: 'completed' | 'skipped', mergedTranscript: string) => void;
+  // Called when agent sets a structured response (scale, select, percentage)
+  onStructuredResponse?: (value: string) => void;
   // Initial checklist items from the question
   checklistItems?: Array<{ id: string; key: string; description: string }>;
 }
@@ -133,7 +137,7 @@ const READY_PATTERNS = [
 // ─── Hook ────────────────────────────────────────────────────────────
 
 export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgentReturn {
-  const { onConversationUpdate, onAgentReady, onError, onStatusChange, onChecklistUpdate, onProceedToNext, checklistItems } = options;
+  const { onConversationUpdate, onAgentReady, onError, onStatusChange, onChecklistUpdate, onProceedToNext, onCompleteAssessment, onStructuredResponse, checklistItems } = options;
 
   // State
   const [status, setStatus] = useState<AgentStatus>('disconnected');
@@ -404,9 +408,80 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
       return;
     }
 
+    // Handle complete_assessment function (last question in hands-free mode)
+    if (functionCall.name === 'complete_assessment') {
+      try {
+        const args = JSON.parse(functionCall.arguments);
+        const reason: 'completed' | 'skipped' = args.reason || 'completed';
+
+        console.log('[VoiceAgent] Complete assessment:', { reason });
+
+        // Send success response back to agent
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: true, message: 'Assessment completed' }),
+        };
+        socket.send(JSON.stringify(response));
+
+        // Get merged transcript and trigger callback
+        const merged = getMergedUserTranscript();
+        onCompleteAssessment?.(reason, merged);
+      } catch (err) {
+        console.error('[VoiceAgent] Failed to handle complete_assessment:', err);
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: false, error: 'Failed to process' }),
+        };
+        socket.send(JSON.stringify(response));
+      }
+      return;
+    }
+
+    // Handle set_structured_response function (for scale, select, percentage questions)
+    if (functionCall.name === 'set_structured_response') {
+      try {
+        const args = JSON.parse(functionCall.arguments);
+        const value: string = args.value || '';
+
+        console.log('[VoiceAgent] Set structured response:', { value });
+
+        // Update the input value in the parent component
+        if (value && onStructuredResponse) {
+          onStructuredResponse(value);
+        }
+
+        // Send success response back to agent
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({
+            success: true,
+            value_set: value,
+            message: 'Response recorded successfully',
+          }),
+        };
+        socket.send(JSON.stringify(response));
+      } catch (err) {
+        console.error('[VoiceAgent] Failed to handle set_structured_response:', err);
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: false, error: 'Failed to process' }),
+        };
+        socket.send(JSON.stringify(response));
+      }
+      return;
+    }
+
     // Unknown function
     console.warn('[VoiceAgent] Unknown function:', functionCall.name);
-  }, [onChecklistUpdate, onProceedToNext, getMergedUserTranscript]);
+  }, [onChecklistUpdate, onProceedToNext, onCompleteAssessment, onStructuredResponse, getMergedUserTranscript]);
 
   // ─── Connect ─────────────────────────────────────────────────────
 

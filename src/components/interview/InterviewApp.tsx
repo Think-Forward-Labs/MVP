@@ -463,6 +463,28 @@ export function InterviewApp({
         handleVoiceAgentNextRef.current();
       }
     },
+    onCompleteAssessment: (reason, mergedTranscript) => {
+      // Hands-free mode: agent called complete_assessment (last question)
+      console.log('[VoiceAgent] Complete assessment:', { reason, mergedTranscript });
+      // Update the merged text before saving
+      if (mergedTranscript) {
+        if (previousResponseForMergeRef.current) {
+          const combined = previousResponseForMergeRef.current.trim() + '\n\n' + mergedTranscript.trim();
+          setVoiceAgentMergedText(combined);
+        } else {
+          setVoiceAgentMergedText(mergedTranscript);
+        }
+      }
+      // Trigger save — backend will return next_action: 'complete' for last question
+      if (handleVoiceAgentNextRef.current) {
+        handleVoiceAgentNextRef.current();
+      }
+    },
+    onStructuredResponse: (value) => {
+      // Hands-free mode: agent set a structured response (scale, select, percentage)
+      console.log('[VoiceAgent] Structured response set:', { value });
+      setInputValue(value);
+    },
     onError: (err) => {
       setVoiceError(err);
     },
@@ -1785,6 +1807,9 @@ export function InterviewApp({
     // Confetti colors
     const confettiColors = ['#34C759', '#007AFF', '#5856D6', '#FF9500', '#FF2D55'];
 
+    // Premium confetti colors matching brand
+    const premiumConfettiColors = ['#6366F1', '#8B5CF6', '#A78BFA', '#34C759', '#818CF8'];
+
     return (
       <div style={{
         minHeight: '100vh',
@@ -1806,75 +1831,96 @@ export function InterviewApp({
           zIndex: 0,
         }} />
 
-        {/* Background Orbs */}
+        {/* Animated Background Orbs */}
         <div style={{
           position: 'fixed',
           top: '-20%',
           right: '-10%',
           width: '60%',
           height: '60%',
-          background: 'radial-gradient(circle, rgba(52, 199, 89, 0.1) 0%, transparent 70%)',
+          background: 'radial-gradient(circle, rgba(99, 102, 241, 0.12) 0%, transparent 70%)',
           borderRadius: '50%',
           zIndex: 0,
+          animation: 'orbFloat 8s ease-in-out infinite',
         }} />
         <div style={{
           position: 'fixed',
-          bottom: '-30%',
-          left: '-10%',
-          width: '50%',
-          height: '50%',
-          background: 'radial-gradient(circle, rgba(0, 122, 255, 0.08) 0%, transparent 70%)',
+          bottom: '-25%',
+          left: '-15%',
+          width: '55%',
+          height: '55%',
+          background: 'radial-gradient(circle, rgba(139, 92, 246, 0.1) 0%, transparent 70%)',
           borderRadius: '50%',
           zIndex: 0,
+          animation: 'orbFloat 10s ease-in-out infinite reverse',
+        }} />
+        <div style={{
+          position: 'fixed',
+          top: '40%',
+          left: '60%',
+          width: '30%',
+          height: '30%',
+          background: 'radial-gradient(circle, rgba(99, 102, 241, 0.06) 0%, transparent 70%)',
+          borderRadius: '50%',
+          zIndex: 0,
+          animation: 'orbFloat 6s ease-in-out infinite 1s',
         }} />
 
         {/* Confetti Particles */}
-        {state.isSubmitted && [...Array(30)].map((_, i) => (
+        {state.isSubmitted && [...Array(40)].map((_, i) => (
           <div
             key={i}
             style={{
               position: 'fixed',
               top: '-20px',
               left: `${Math.random() * 100}%`,
-              width: `${6 + Math.random() * 8}px`,
-              height: `${6 + Math.random() * 8}px`,
-              backgroundColor: confettiColors[i % confettiColors.length],
+              width: `${5 + Math.random() * 6}px`,
+              height: `${5 + Math.random() * 6}px`,
+              backgroundColor: premiumConfettiColors[i % premiumConfettiColors.length],
               borderRadius: Math.random() > 0.5 ? '50%' : '2px',
-              opacity: 0.8,
-              zIndex: 2,
-              animation: `confettiFall ${2.5 + Math.random() * 1.5}s linear ${Math.random() * 0.5}s forwards`,
+              opacity: 0.9,
+              zIndex: 10,
+              animation: `confettiFall ${2 + Math.random() * 2}s linear ${Math.random() * 0.8}s forwards`,
               transform: `rotate(${Math.random() * 360}deg)`,
             }}
           />
         ))}
 
-        {/* Main Content */}
+        {/* Main Glass Card */}
         <div style={{
           position: 'relative',
           zIndex: 1,
           display: 'flex',
           flexDirection: 'column',
           alignItems: 'center',
-          padding: '48px 24px',
-          maxWidth: '480px',
+          padding: '48px 40px',
+          maxWidth: '440px',
+          width: '90%',
           textAlign: 'center',
+          background: 'rgba(255, 255, 255, 0.72)',
+          backdropFilter: 'blur(20px) saturate(180%)',
+          WebkitBackdropFilter: 'blur(20px) saturate(180%)',
+          borderRadius: '24px',
+          border: '1px solid rgba(255, 255, 255, 0.5)',
+          boxShadow: '0 8px 40px rgba(0, 0, 0, 0.08), 0 2px 12px rgba(0, 0, 0, 0.04)',
+          animation: 'cardAppear 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
         }}>
           {state.isSubmitted ? (
             <>
               {/* Animated Success Checkmark */}
               <div style={{
-                width: '96px',
-                height: '96px',
+                width: '88px',
+                height: '88px',
                 borderRadius: '50%',
                 background: 'linear-gradient(135deg, #34C759 0%, #30D158 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 8px 32px rgba(52, 199, 89, 0.3)',
-                marginBottom: '32px',
-                animation: 'successPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                boxShadow: '0 8px 32px rgba(52, 199, 89, 0.35), 0 0 0 8px rgba(52, 199, 89, 0.1)',
+                marginBottom: '28px',
+                animation: 'successPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s backwards',
               }}>
-                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
                   <path
                     d="M14 24L20 30L34 16"
                     stroke="white"
@@ -1884,7 +1930,7 @@ export function InterviewApp({
                     style={{
                       strokeDasharray: 50,
                       strokeDashoffset: 0,
-                      animation: 'checkDraw 0.4s ease 0.2s backwards',
+                      animation: 'checkDraw 0.4s ease 0.5s backwards',
                     }}
                   />
                 </svg>
@@ -1892,69 +1938,76 @@ export function InterviewApp({
 
               {/* Thank You Message */}
               <h1 style={{
-                fontSize: '28px',
+                fontSize: '26px',
                 fontWeight: '600',
                 color: '#1D1D1F',
-                letterSpacing: '-0.02em',
-                marginBottom: '12px',
-                animation: 'fadeInUp 0.4s ease 0.15s backwards',
+                letterSpacing: '-0.025em',
+                marginBottom: '10px',
+                animation: 'fadeInUp 0.4s ease 0.3s backwards',
               }}>
-                Thank you!
+                Assessment Submitted
               </h1>
               <p style={{
-                fontSize: '16px',
+                fontSize: '15px',
                 color: 'rgba(60, 60, 67, 0.6)',
                 lineHeight: 1.6,
-                marginBottom: '32px',
-                animation: 'fadeInUp 0.4s ease 0.25s backwards',
+                marginBottom: '28px',
+                maxWidth: '320px',
+                animation: 'fadeInUp 0.4s ease 0.4s backwards',
               }}>
                 Your responses have been submitted and will help shape meaningful insights for your organization.
               </p>
             </>
           ) : (
             <>
-              {/* Blue Checkmark for All Answered */}
+              {/* Indigo/Purple Checkmark for All Answered */}
               <div style={{
-                width: '96px',
-                height: '96px',
+                width: '88px',
+                height: '88px',
                 borderRadius: '50%',
-                background: 'linear-gradient(135deg, #007AFF 0%, #5856D6 100%)',
+                background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                boxShadow: '0 8px 32px rgba(0, 122, 255, 0.3)',
-                marginBottom: '32px',
-                animation: 'successPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) forwards',
+                boxShadow: '0 8px 32px rgba(99, 102, 241, 0.35), 0 0 0 8px rgba(99, 102, 241, 0.1)',
+                marginBottom: '28px',
+                animation: 'successPop 0.5s cubic-bezier(0.34, 1.56, 0.64, 1) 0.2s backwards',
               }}>
-                <svg width="48" height="48" viewBox="0 0 48 48" fill="none">
+                <svg width="44" height="44" viewBox="0 0 48 48" fill="none">
                   <path
                     d="M14 24L20 30L34 16"
                     stroke="white"
                     strokeWidth="4"
                     strokeLinecap="round"
                     strokeLinejoin="round"
+                    style={{
+                      strokeDasharray: 50,
+                      strokeDashoffset: 0,
+                      animation: 'checkDraw 0.4s ease 0.5s backwards',
+                    }}
                   />
                 </svg>
               </div>
 
               <h1 style={{
-                fontSize: '28px',
+                fontSize: '26px',
                 fontWeight: '600',
                 color: '#1D1D1F',
-                letterSpacing: '-0.02em',
-                marginBottom: '12px',
-                animation: 'fadeInUp 0.4s ease 0.15s backwards',
+                letterSpacing: '-0.025em',
+                marginBottom: '10px',
+                animation: 'fadeInUp 0.4s ease 0.3s backwards',
               }}>
-                All Questions Answered
+                Assessment Complete
               </h1>
               <p style={{
-                fontSize: '16px',
+                fontSize: '15px',
                 color: 'rgba(60, 60, 67, 0.6)',
                 lineHeight: 1.6,
-                marginBottom: '32px',
-                animation: 'fadeInUp 0.4s ease 0.25s backwards',
+                marginBottom: '28px',
+                maxWidth: '320px',
+                animation: 'fadeInUp 0.4s ease 0.4s backwards',
               }}>
-                You've completed the assessment. Review your responses or submit now to finalize.
+                You've answered all questions. Review your responses or submit to finalize.
               </p>
             </>
           )}
@@ -1963,51 +2016,55 @@ export function InterviewApp({
           <div style={{
             display: 'flex',
             gap: '1px',
-            backgroundColor: 'rgba(0, 0, 0, 0.06)',
-            borderRadius: '16px',
+            backgroundColor: 'rgba(0, 0, 0, 0.04)',
+            borderRadius: '14px',
             overflow: 'hidden',
-            marginBottom: '32px',
+            marginBottom: '24px',
             width: '100%',
-            animation: 'fadeInUp 0.4s ease 0.35s backwards',
+            animation: 'fadeInUp 0.4s ease 0.5s backwards',
           }}>
             <div style={{
               flex: 1,
-              padding: '20px 16px',
-              backgroundColor: 'rgba(255, 255, 255, 0.85)',
-              backdropFilter: 'blur(20px)',
+              padding: '16px 12px',
+              backgroundColor: 'rgba(255, 255, 255, 0.8)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: '4px',
             }}>
-              <span style={{ fontSize: '28px', fontWeight: '600', color: '#1D1D1F' }}>{questionsAnswered}</span>
-              <span style={{ fontSize: '12px', color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Questions</span>
+              <span style={{ fontSize: '24px', fontWeight: '600', color: '#1D1D1F' }}>{questionsAnswered}</span>
+              <span style={{ fontSize: '11px', color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '500' }}>Questions</span>
             </div>
             <div style={{
               flex: 1,
-              padding: '20px 16px',
-              backgroundColor: 'rgba(255, 255, 255, 0.85)',
-              backdropFilter: 'blur(20px)',
+              padding: '16px 12px',
+              backgroundColor: 'rgba(255, 255, 255, 0.8)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: '4px',
             }}>
-              <span style={{ fontSize: '28px', fontWeight: '600', color: '#1D1D1F' }}>{durationDisplay}</span>
-              <span style={{ fontSize: '12px', color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Duration</span>
+              <span style={{ fontSize: '24px', fontWeight: '600', color: '#1D1D1F' }}>{durationDisplay}</span>
+              <span style={{ fontSize: '11px', color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '500' }}>Duration</span>
             </div>
             <div style={{
               flex: 1,
-              padding: '20px 16px',
-              backgroundColor: 'rgba(255, 255, 255, 0.85)',
-              backdropFilter: 'blur(20px)',
+              padding: '16px 12px',
+              backgroundColor: 'rgba(255, 255, 255, 0.8)',
               display: 'flex',
               flexDirection: 'column',
               alignItems: 'center',
               gap: '4px',
             }}>
-              <span style={{ fontSize: '28px', fontWeight: '600', color: state.isSubmitted ? '#34C759' : '#007AFF' }}>{completionPercent}%</span>
-              <span style={{ fontSize: '12px', color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.02em' }}>Complete</span>
+              <span style={{
+                fontSize: '24px',
+                fontWeight: '600',
+                background: state.isSubmitted ? 'linear-gradient(135deg, #34C759, #30D158)' : 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+                WebkitBackgroundClip: 'text',
+                WebkitTextFillColor: 'transparent',
+                backgroundClip: 'text',
+              }}>{completionPercent}%</span>
+              <span style={{ fontSize: '11px', color: '#71717A', textTransform: 'uppercase', letterSpacing: '0.05em', fontWeight: '500' }}>Complete</span>
             </div>
           </div>
 
@@ -2016,10 +2073,10 @@ export function InterviewApp({
             <div style={{
               display: 'flex',
               flexDirection: 'column',
-              gap: '12px',
+              gap: '10px',
               width: '100%',
-              marginBottom: '16px',
-              animation: 'fadeInUp 0.4s ease 0.45s backwards',
+              marginBottom: '12px',
+              animation: 'fadeInUp 0.4s ease 0.6s backwards',
             }}>
               <button
                 style={{
@@ -2027,46 +2084,63 @@ export function InterviewApp({
                   alignItems: 'center',
                   justifyContent: 'center',
                   gap: '8px',
-                  padding: '16px 24px',
-                  fontSize: '15px',
+                  padding: '14px 20px',
+                  fontSize: '14px',
                   fontWeight: '500',
-                  backgroundColor: 'rgba(255, 255, 255, 0.85)',
-                  backdropFilter: 'blur(20px)',
+                  backgroundColor: 'rgba(255, 255, 255, 0.9)',
                   color: '#1D1D1F',
-                  border: '1px solid rgba(0, 0, 0, 0.06)',
+                  border: '1px solid rgba(0, 0, 0, 0.08)',
                   borderRadius: '12px',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease',
+                  transition: 'all 0.2s ease',
                 }}
                 onClick={() => {
                   loadResponses();
                   setState(prev => ({ ...prev, showReviewMode: true }));
                 }}
+                onMouseEnter={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 1)';
+                  e.currentTarget.style.boxShadow = '0 4px 12px rgba(0, 0, 0, 0.08)';
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.9)';
+                  e.currentTarget.style.boxShadow = 'none';
+                }}
               >
-                <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                   <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7"/>
                   <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z"/>
                 </svg>
-                Review & Edit Responses
+                Review Responses
               </button>
               <button
                 style={{
-                  padding: '16px 24px',
-                  fontSize: '15px',
+                  padding: '14px 20px',
+                  fontSize: '14px',
                   fontWeight: '600',
-                  background: 'linear-gradient(135deg, #059669 0%, #34C759 100%)',
+                  background: 'linear-gradient(135deg, #6366F1 0%, #8B5CF6 100%)',
                   color: '#FFFFFF',
                   border: 'none',
                   borderRadius: '12px',
                   cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                  boxShadow: '0 4px 16px rgba(5, 150, 105, 0.25)',
+                  transition: 'all 0.2s ease',
+                  boxShadow: '0 4px 16px rgba(99, 102, 241, 0.3)',
                   opacity: isSubmitting ? 0.7 : 1,
                 }}
                 onClick={handleSubmitInterview}
                 disabled={isSubmitting}
+                onMouseEnter={(e) => {
+                  if (!isSubmitting) {
+                    e.currentTarget.style.transform = 'translateY(-1px)';
+                    e.currentTarget.style.boxShadow = '0 6px 20px rgba(99, 102, 241, 0.4)';
+                  }
+                }}
+                onMouseLeave={(e) => {
+                  e.currentTarget.style.transform = 'translateY(0)';
+                  e.currentTarget.style.boxShadow = '0 4px 16px rgba(99, 102, 241, 0.3)';
+                }}
               >
-                {isSubmitting ? 'Submitting...' : 'Submit Interview'}
+                {isSubmitting ? 'Submitting...' : 'Submit Assessment'}
               </button>
             </div>
           )}
@@ -2074,21 +2148,37 @@ export function InterviewApp({
           {/* Return to Dashboard */}
           <button
             style={{
-              padding: '16px 32px',
-              fontSize: '15px',
-              fontWeight: '600',
+              padding: '12px 24px',
+              fontSize: '14px',
+              fontWeight: '500',
               background: state.isSubmitted ? 'linear-gradient(135deg, #1D1D1F 0%, #3A3A3C 100%)' : 'transparent',
               color: state.isSubmitted ? '#FFFFFF' : '#71717A',
-              border: state.isSubmitted ? 'none' : '1px solid rgba(0, 0, 0, 0.1)',
-              borderRadius: '12px',
+              border: state.isSubmitted ? 'none' : 'none',
+              borderRadius: '10px',
               cursor: 'pointer',
-              transition: 'all 0.15s ease',
-              boxShadow: state.isSubmitted ? '0 4px 16px rgba(0, 0, 0, 0.15)' : 'none',
-              animation: 'fadeInUp 0.4s ease 0.55s backwards',
+              transition: 'all 0.2s ease',
+              boxShadow: state.isSubmitted ? '0 4px 16px rgba(0, 0, 0, 0.12)' : 'none',
+              animation: 'fadeInUp 0.4s ease 0.7s backwards',
             }}
             onClick={onExit}
+            onMouseEnter={(e) => {
+              if (state.isSubmitted) {
+                e.currentTarget.style.transform = 'translateY(-1px)';
+                e.currentTarget.style.boxShadow = '0 6px 20px rgba(0, 0, 0, 0.15)';
+              } else {
+                e.currentTarget.style.color = '#1D1D1F';
+              }
+            }}
+            onMouseLeave={(e) => {
+              if (state.isSubmitted) {
+                e.currentTarget.style.transform = 'translateY(0)';
+                e.currentTarget.style.boxShadow = '0 4px 16px rgba(0, 0, 0, 0.12)';
+              } else {
+                e.currentTarget.style.color = '#71717A';
+              }
+            }}
           >
-            Return to Dashboard
+            {state.isSubmitted ? 'Return to Dashboard' : 'Exit'}
           </button>
         </div>
 
@@ -2096,7 +2186,7 @@ export function InterviewApp({
         <style>{`
           @keyframes successPop {
             0% { transform: scale(0); opacity: 0; }
-            50% { transform: scale(1.1); }
+            50% { transform: scale(1.08); }
             100% { transform: scale(1); opacity: 1; }
           }
           @keyframes checkDraw {
@@ -2104,12 +2194,20 @@ export function InterviewApp({
             100% { stroke-dashoffset: 0; }
           }
           @keyframes fadeInUp {
-            0% { opacity: 0; transform: translateY(10px); }
+            0% { opacity: 0; transform: translateY(12px); }
             100% { opacity: 1; transform: translateY(0); }
+          }
+          @keyframes cardAppear {
+            0% { opacity: 0; transform: scale(0.95) translateY(20px); }
+            100% { opacity: 1; transform: scale(1) translateY(0); }
           }
           @keyframes confettiFall {
             0% { transform: translateY(-100vh) rotate(0deg); opacity: 1; }
             100% { transform: translateY(100vh) rotate(720deg); opacity: 0; }
+          }
+          @keyframes orbFloat {
+            0%, 100% { transform: translate(0, 0); }
+            50% { transform: translate(20px, -20px); }
           }
         `}</style>
       </div>

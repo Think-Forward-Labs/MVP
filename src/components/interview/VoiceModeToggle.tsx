@@ -1,15 +1,17 @@
 /**
- * VoiceModeToggle - In-interview mode switcher
+ * VoiceModeToggle - Premium glassmorphism segmented control
  *
- * Features:
- * - Two icons representing Review Mode and Hands-free Mode
- * - Hover tooltip showing description
- * - Click to switch modes
- * - Compact, premium UI
+ * Design principles:
+ * - Glass morphism with backdrop blur
+ * - Indigo/purple accent colors (brandColors)
+ * - Smooth sliding selection indicator
+ * - Subtle depth and shadows
+ * - Clean iconography
  */
 
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
+import { brandColors, animationTiming } from '../../styles/brandColors';
 
 export type VoiceInterviewMode = 'review' | 'handsfree';
 
@@ -23,60 +25,84 @@ export function VoiceModeToggle({ mode, onModeChange, disabled = false }: VoiceM
   const [hoveredMode, setHoveredMode] = useState<VoiceInterviewMode | null>(null);
 
   const tooltipText = {
-    review: 'Review Mode: Review transcript before proceeding',
-    handsfree: 'Hands-free Mode: Say "next" to auto-proceed',
+    review: 'Review before proceeding',
+    handsfree: 'Voice-driven flow',
   };
 
   return (
-    <div style={styles.container}>
+    <div style={styles.wrapper}>
       {/* Tooltip */}
-      {hoveredMode && (
+      {hoveredMode && !disabled && (
         <div style={styles.tooltip}>
-          {tooltipText[hoveredMode]}
+          <span style={styles.tooltipText}>{tooltipText[hoveredMode]}</span>
+          <div style={styles.tooltipArrow} />
         </div>
       )}
 
-      {/* Toggle buttons */}
-      <div style={styles.toggleContainer}>
-        {/* Review Mode */}
+      {/* Segmented Control */}
+      <div style={{
+        ...styles.container,
+        ...(disabled ? styles.containerDisabled : {}),
+      }}>
+        {/* Sliding background indicator */}
+        <div style={{
+          ...styles.slider,
+          transform: mode === 'handsfree' ? 'translateX(100%)' : 'translateX(0)',
+        }} />
+
+        {/* Review Mode Button */}
         <button
           style={{
-            ...styles.toggleButton,
-            ...(mode === 'review' ? styles.toggleButtonActive : {}),
-            ...(disabled ? styles.toggleButtonDisabled : {}),
+            ...styles.button,
+            ...(mode === 'review' ? styles.buttonActive : {}),
+            ...(hoveredMode === 'review' && mode !== 'review' ? styles.buttonHovered : {}),
           }}
           onClick={() => !disabled && onModeChange('review')}
           onMouseEnter={() => setHoveredMode('review')}
           onMouseLeave={() => setHoveredMode(null)}
           disabled={disabled}
-          title="Review Mode"
+          aria-label="Review Mode"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
             <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
           </svg>
         </button>
 
-        {/* Divider */}
-        <div style={styles.divider} />
-
-        {/* Hands-free Mode */}
+        {/* Hands-free Mode Button */}
         <button
           style={{
-            ...styles.toggleButton,
-            ...(mode === 'handsfree' ? styles.toggleButtonActive : {}),
-            ...(disabled ? styles.toggleButtonDisabled : {}),
+            ...styles.button,
+            ...(mode === 'handsfree' ? styles.buttonActive : {}),
+            ...(hoveredMode === 'handsfree' && mode !== 'handsfree' ? styles.buttonHovered : {}),
           }}
           onClick={() => !disabled && onModeChange('handsfree')}
           onMouseEnter={() => setHoveredMode('handsfree')}
           onMouseLeave={() => setHoveredMode(null)}
           disabled={disabled}
-          title="Hands-free Mode"
+          aria-label="Hands-free Mode"
         >
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+          <svg
+            width="15"
+            height="15"
+            viewBox="0 0 24 24"
+            fill="none"
+            stroke="currentColor"
+            strokeWidth="2"
+            strokeLinecap="round"
+            strokeLinejoin="round"
+          >
             <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
             <path d="M19 10v2a7 7 0 01-14 0v-2" />
-            <path d="M12 19v4M8 23h8" />
           </svg>
         </button>
       </div>
@@ -85,63 +111,101 @@ export function VoiceModeToggle({ mode, onModeChange, disabled = false }: VoiceM
 }
 
 const styles: Record<string, CSSProperties> = {
-  container: {
+  wrapper: {
     position: 'relative',
     display: 'inline-flex',
     flexDirection: 'column',
     alignItems: 'center',
   },
+
   tooltip: {
     position: 'absolute',
-    bottom: 'calc(100% + 8px)',
+    bottom: 'calc(100% + 10px)',
     left: '50%',
     transform: 'translateX(-50%)',
     padding: '8px 12px',
+    backgroundColor: 'rgba(29, 29, 31, 0.9)',
+    backdropFilter: 'blur(12px)',
+    WebkitBackdropFilter: 'blur(12px)',
+    borderRadius: '10px',
+    whiteSpace: 'nowrap',
+    zIndex: 100,
+    boxShadow: '0 4px 16px rgba(0, 0, 0, 0.12)',
+  },
+
+  tooltipText: {
     fontSize: '12px',
     fontWeight: '500',
     color: '#FFFFFF',
-    backgroundColor: '#18181B',
-    borderRadius: '8px',
-    whiteSpace: 'nowrap',
-    boxShadow: '0 4px 12px rgba(0, 0, 0, 0.15)',
-    zIndex: 100,
+    letterSpacing: '0.01em',
   },
-  toggleContainer: {
+
+  tooltipArrow: {
+    position: 'absolute',
+    bottom: '-5px',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: '10px',
+    height: '10px',
+    backgroundColor: 'rgba(29, 29, 31, 0.9)',
+    borderRadius: '2px',
+    clipPath: 'polygon(0 0, 100% 0, 50% 100%)',
+  },
+
+  container: {
+    position: 'relative',
     display: 'flex',
     alignItems: 'center',
-    padding: '4px',
-    backgroundColor: '#FFFFFF',
+    padding: '3px',
+    backgroundColor: brandColors.glass.background,
+    backdropFilter: brandColors.glass.blur,
+    WebkitBackdropFilter: brandColors.glass.blur,
+    border: `1px solid ${brandColors.glass.border}`,
     borderRadius: '12px',
-    boxShadow: '0 2px 8px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)',
-    border: '1px solid #E4E4E7',
+    boxShadow: brandColors.glass.shadow,
+    transition: `all ${animationTiming.standard}ms ${animationTiming.easeOut}`,
   },
-  toggleButton: {
+
+  containerDisabled: {
+    opacity: 0.5,
+    pointerEvents: 'none',
+  },
+
+  slider: {
+    position: 'absolute',
+    top: '3px',
+    left: '3px',
+    width: 'calc(50% - 3px)',
+    height: 'calc(100% - 6px)',
+    background: brandColors.accent.gradient,
+    borderRadius: '9px',
+    boxShadow: '0 2px 8px rgba(99, 102, 241, 0.25)',
+    transition: `transform ${animationTiming.standard}ms ${animationTiming.spring}`,
+  },
+
+  button: {
+    position: 'relative',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
-    width: '36px',
-    height: '36px',
+    width: '38px',
+    height: '30px',
     padding: 0,
-    color: '#A1A1AA',
+    color: brandColors.text.muted,
     backgroundColor: 'transparent',
     border: 'none',
-    borderRadius: '8px',
+    borderRadius: '9px',
     cursor: 'pointer',
-    transition: 'all 0.2s ease',
+    transition: `all ${animationTiming.micro}ms ${animationTiming.easeOut}`,
+    zIndex: 1,
   },
-  toggleButtonActive: {
-    color: '#6366F1',
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
+
+  buttonHovered: {
+    color: brandColors.text.secondary,
   },
-  toggleButtonDisabled: {
-    opacity: 0.5,
-    cursor: 'not-allowed',
-  },
-  divider: {
-    width: '1px',
-    height: '20px',
-    backgroundColor: '#E4E4E7',
-    margin: '0 2px',
+
+  buttonActive: {
+    color: '#FFFFFF',
   },
 };
 

@@ -1,15 +1,17 @@
 /**
- * PreInterviewSetup - Mode selection page before starting voice interview
+ * PreInterviewSetup - Premium glassmorphism mode selection
  *
- * Features:
- * - Elegant mode selection (Review Mode vs Hands-free Mode)
- * - Watch Tutorial link (subtle for returning users)
- * - Start Interview button
- * - Premium UI consistent with DeviceCheck
+ * Design principles:
+ * - Dark glassmorphism with layered depth
+ * - Indigo/purple accent palette (brandColors)
+ * - Animated background orbs for premium feel
+ * - Smooth micro-interactions
+ * - Industry-standard glass effects
  */
 
 import { useState } from 'react';
 import type { CSSProperties } from 'react';
+import { brandColors, animationTiming } from '../../styles/brandColors';
 
 export type VoiceInterviewMode = 'review' | 'handsfree';
 
@@ -27,156 +29,198 @@ export function PreInterviewSetup({
   isFirstTime = false,
 }: PreInterviewSetupProps) {
   const [selectedMode, setSelectedMode] = useState<VoiceInterviewMode>('review');
+  const [hoveredMode, setHoveredMode] = useState<VoiceInterviewMode | null>(null);
 
   return (
     <div style={styles.container}>
-      {/* Background */}
+      {/* Animated gradient background */}
       <div style={styles.background} />
+
+      {/* Ambient orbs for depth */}
       <div style={styles.orb1} />
       <div style={styles.orb2} />
+      <div style={styles.orb3} />
+
+      {/* Keyframe animations */}
+      <style>{`
+        @keyframes pulse-subtle {
+          0%, 100% { transform: scale(1); opacity: 1; }
+          50% { transform: scale(1.05); opacity: 0.8; }
+        }
+        @keyframes gradient-shift {
+          0%, 100% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+        }
+        @keyframes fade-in-up {
+          from { opacity: 0; transform: translateY(12px); }
+          to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes float {
+          0%, 100% { transform: translateY(0); }
+          50% { transform: translateY(-8px); }
+        }
+      `}</style>
 
       <div style={styles.content}>
-        {/* Back button */}
-        <button style={styles.backButton} onClick={onBack}>
-          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" stroke="currentColor" strokeWidth="1.5">
-            <path d="M10 12L6 8l4-4" strokeLinecap="round" strokeLinejoin="round"/>
+        {/* Back button - glass style */}
+        <button
+          style={styles.backButton}
+          onClick={onBack}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(255, 255, 255, 0.15)';
+            e.currentTarget.style.transform = 'scale(1.05)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = brandColors.glass.background;
+            e.currentTarget.style.transform = 'scale(1)';
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
+            <path d="M15 18l-6-6 6-6" />
           </svg>
-          <span>Back</span>
         </button>
 
         {/* Header */}
         <div style={styles.header}>
-          <div style={styles.iconContainer}>
-            <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-              <path d="M12 15a3 3 0 100-6 3 3 0 000 6z" />
-              <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+          {/* Decorative accent */}
+          <div style={styles.accentBadge}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+              <path d="M19 10v2a7 7 0 01-14 0v-2" />
             </svg>
+            <span>Voice Mode</span>
           </div>
-          <h1 style={styles.title}>Choose Your Experience</h1>
+          <h1 style={styles.title}>Choose Your Style</h1>
           <p style={styles.subtitle}>
-            Select how you'd like to interact with Eunice during the interview.
+            How would you like to interact with Eunice?
           </p>
         </div>
 
-        {/* Mode Selection */}
-        <div style={styles.modeContainer}>
-          {/* Review Mode */}
+        {/* Mode Selection Cards */}
+        <div style={styles.cardsContainer}>
+          {/* Review Mode Card */}
           <button
             style={{
-              ...styles.modeCard,
-              ...(selectedMode === 'review' ? styles.modeCardSelected : {}),
+              ...styles.card,
+              ...(selectedMode === 'review' ? styles.cardSelected : {}),
+              ...(hoveredMode === 'review' && selectedMode !== 'review' ? styles.cardHovered : {}),
             }}
             onClick={() => setSelectedMode('review')}
+            onMouseEnter={() => setHoveredMode('review')}
+            onMouseLeave={() => setHoveredMode(null)}
           >
-            <div style={styles.modeIconContainer}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
-                <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
-              </svg>
-            </div>
-            <div style={styles.modeContent}>
-              <div style={styles.modeHeader}>
-                <h3 style={styles.modeTitle}>Review Mode</h3>
+            <div style={styles.cardContent}>
+              <div style={{
+                ...styles.iconCircle,
+                ...(selectedMode === 'review' ? styles.iconCircleSelected : {}),
+              }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M11 4H4a2 2 0 00-2 2v14a2 2 0 002 2h14a2 2 0 002-2v-7" />
+                  <path d="M18.5 2.5a2.121 2.121 0 013 3L12 15l-4 1 1-4 9.5-9.5z" />
+                </svg>
+              </div>
+              <div style={styles.cardText}>
+                <h3 style={styles.cardTitle}>Review Mode</h3>
+                <p style={styles.cardDescription}>
+                  Review your response before proceeding to the next question
+                </p>
+              </div>
+              <div style={{
+                ...styles.checkCircle,
+                ...(selectedMode === 'review' ? styles.checkCircleSelected : {}),
+              }}>
                 {selectedMode === 'review' && (
-                  <div style={styles.selectedBadge}>Selected</div>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
                 )}
               </div>
-              <p style={styles.modeDescription}>
-                Review your transcript after each question before moving on. Click to proceed when ready.
-              </p>
-              <div style={styles.modeFeatures}>
-                <span style={styles.modeFeature}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Edit responses
-                </span>
-                <span style={styles.modeFeature}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Control pace
-                </span>
-              </div>
-            </div>
-            <div style={{
-              ...styles.radioOuter,
-              ...(selectedMode === 'review' ? styles.radioOuterSelected : {}),
-            }}>
-              {selectedMode === 'review' && <div style={styles.radioInner} />}
             </div>
           </button>
 
-          {/* Hands-free Mode */}
+          {/* Hands-free Mode Card */}
           <button
             style={{
-              ...styles.modeCard,
-              ...(selectedMode === 'handsfree' ? styles.modeCardSelected : {}),
+              ...styles.card,
+              ...(selectedMode === 'handsfree' ? styles.cardSelected : {}),
+              ...(hoveredMode === 'handsfree' && selectedMode !== 'handsfree' ? styles.cardHovered : {}),
             }}
             onClick={() => setSelectedMode('handsfree')}
+            onMouseEnter={() => setHoveredMode('handsfree')}
+            onMouseLeave={() => setHoveredMode(null)}
           >
-            <div style={styles.modeIconContainer}>
-              <svg width="28" height="28" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
-                <path d="M19 10v2a7 7 0 01-14 0v-2" />
-                <path d="M12 19v4M8 23h8" />
-              </svg>
-            </div>
-            <div style={styles.modeContent}>
-              <div style={styles.modeHeader}>
-                <h3 style={styles.modeTitle}>Hands-free Mode</h3>
+            <div style={styles.cardContent}>
+              <div style={{
+                ...styles.iconCircle,
+                ...(selectedMode === 'handsfree' ? styles.iconCircleSelected : {}),
+              }}>
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                  <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                  <path d="M19 10v2a7 7 0 01-14 0v-2" />
+                  <path d="M12 19v4M8 23h8" />
+                </svg>
+              </div>
+              <div style={styles.cardText}>
+                <h3 style={styles.cardTitle}>Hands-free</h3>
+                <p style={styles.cardDescription}>
+                  Say "next" to move between questions automatically
+                </p>
+              </div>
+              <div style={{
+                ...styles.checkCircle,
+                ...(selectedMode === 'handsfree' ? styles.checkCircleSelected : {}),
+              }}>
                 {selectedMode === 'handsfree' && (
-                  <div style={styles.selectedBadge}>Selected</div>
+                  <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round">
+                    <polyline points="20 6 9 17 4 12" />
+                  </svg>
                 )}
               </div>
-              <p style={styles.modeDescription}>
-                Fully voice-driven. Say "next" or "I'm ready" to move between questions automatically.
-              </p>
-              <div style={styles.modeFeatures}>
-                <span style={styles.modeFeature}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  No clicking
-                </span>
-                <span style={styles.modeFeature}>
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <path d="M20 6L9 17l-5-5" />
-                  </svg>
-                  Faster flow
-                </span>
-              </div>
-            </div>
-            <div style={{
-              ...styles.radioOuter,
-              ...(selectedMode === 'handsfree' ? styles.radioOuterSelected : {}),
-            }}>
-              {selectedMode === 'handsfree' && <div style={styles.radioInner} />}
             </div>
           </button>
         </div>
 
         {/* Tutorial Link */}
-        <button style={styles.tutorialLink} onClick={onWatchTutorial}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+        <button
+          style={styles.tutorialButton}
+          onClick={onWatchTutorial}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.backgroundColor = 'rgba(99, 102, 241, 0.12)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.backgroundColor = 'transparent';
+          }}
+        >
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
             <circle cx="12" cy="12" r="10" />
             <polygon points="10,8 16,12 10,16" fill="currentColor" stroke="none" />
           </svg>
           <span>Watch Tutorial</span>
-          {isFirstTime && <span style={styles.recommendedBadge}>Recommended</span>}
+          {isFirstTime && <span style={styles.badge}>New</span>}
         </button>
 
-        {/* Start Button */}
-        <button style={styles.startButton} onClick={() => onStart(selectedMode)}>
-          Start Interview
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        {/* Start Button - Premium gradient */}
+        <button
+          style={styles.startButton}
+          onClick={() => onStart(selectedMode)}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.transform = 'scale(1.02)';
+            e.currentTarget.style.boxShadow = '0 8px 32px rgba(99, 102, 241, 0.45)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.transform = 'scale(1)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(99, 102, 241, 0.35)';
+          }}
+        >
+          Continue
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round">
             <path d="M9 18l6-6-6-6" />
           </svg>
         </button>
 
-        {/* Mode tip */}
-        <p style={styles.tip}>
-          You can switch modes during the interview if you change your mind.
+        {/* Hint */}
+        <p style={styles.hint}>
+          You can switch modes anytime during the interview
         </p>
       </div>
     </div>
@@ -192,208 +236,246 @@ const styles: Record<string, CSSProperties> = {
     padding: '24px',
     position: 'relative',
     overflow: 'hidden',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: brandColors.background.primary,
   },
+
   background: {
-    position: 'absolute',
-    inset: 0,
-    background: 'linear-gradient(135deg, #FAFAFA 0%, #F0F0F5 50%, #E8E8F0 100%)',
+    position: 'fixed',
+    top: 0,
+    left: 0,
+    right: 0,
+    bottom: 0,
+    background: brandColors.background.gradient,
+    backgroundSize: '200% 200%',
+    animation: 'gradient-shift 15s ease infinite',
+    zIndex: 0,
   },
+
+  // Ambient orbs for layered depth effect
   orb1: {
-    position: 'absolute',
-    width: '600px',
-    height: '600px',
+    position: 'fixed',
+    top: '-15%',
+    right: '-5%',
+    width: '50%',
+    height: '50%',
+    background: `radial-gradient(circle, ${brandColors.orb.blue} 0%, transparent 70%)`,
     borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(99, 102, 241, 0.08) 0%, transparent 70%)',
-    top: '-200px',
-    right: '-100px',
+    zIndex: 0,
     pointerEvents: 'none',
+    animation: 'pulse-subtle 8s ease-in-out infinite',
   },
+
   orb2: {
-    position: 'absolute',
-    width: '500px',
-    height: '500px',
+    position: 'fixed',
+    bottom: '-20%',
+    left: '-10%',
+    width: '45%',
+    height: '45%',
+    background: `radial-gradient(circle, ${brandColors.orb.purple} 0%, transparent 70%)`,
     borderRadius: '50%',
-    background: 'radial-gradient(circle, rgba(139, 92, 246, 0.06) 0%, transparent 70%)',
-    bottom: '-150px',
-    left: '-100px',
+    zIndex: 0,
+    pointerEvents: 'none',
+    animation: 'pulse-subtle 10s ease-in-out infinite',
+  },
+
+  orb3: {
+    position: 'fixed',
+    top: '40%',
+    left: '50%',
+    transform: 'translateX(-50%)',
+    width: '60%',
+    height: '40%',
+    background: `radial-gradient(ellipse, rgba(99, 102, 241, 0.04) 0%, transparent 60%)`,
+    zIndex: 0,
     pointerEvents: 'none',
   },
+
   content: {
     width: '100%',
-    maxWidth: '520px',
+    maxWidth: '420px',
     position: 'relative',
-    zIndex: 1,
+    zIndex: 10,
+    animation: `fade-in-up ${animationTiming.smooth}ms ${animationTiming.easeOut}`,
   },
+
   backButton: {
+    position: 'absolute',
+    top: '-56px',
+    left: '0',
+    width: '40px',
+    height: '40px',
     display: 'flex',
     alignItems: 'center',
-    gap: '6px',
-    padding: '8px 12px',
-    marginBottom: '32px',
-    fontSize: '14px',
-    fontWeight: '500',
-    color: '#71717A',
-    backgroundColor: 'transparent',
-    border: 'none',
-    borderRadius: '8px',
+    justifyContent: 'center',
+    color: brandColors.text.secondary,
+    backgroundColor: brandColors.glass.background,
+    backdropFilter: brandColors.glass.blur,
+    WebkitBackdropFilter: brandColors.glass.blur,
+    border: `1px solid ${brandColors.glass.border}`,
+    borderRadius: '12px',
     cursor: 'pointer',
-    transition: 'color 0.2s',
+    transition: `all ${animationTiming.standard}ms ${animationTiming.easeOut}`,
   },
+
   header: {
     textAlign: 'center',
     marginBottom: '32px',
   },
-  iconContainer: {
-    width: '64px',
-    height: '64px',
-    borderRadius: '16px',
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    color: '#6366F1',
-    display: 'flex',
+
+  accentBadge: {
+    display: 'inline-flex',
     alignItems: 'center',
-    justifyContent: 'center',
-    margin: '0 auto 16px',
+    gap: '6px',
+    padding: '6px 12px',
+    marginBottom: '16px',
+    fontSize: '12px',
+    fontWeight: '600',
+    color: brandColors.accent.primary,
+    backgroundColor: brandColors.accent.light,
+    borderRadius: '20px',
+    letterSpacing: '0.02em',
   },
+
   title: {
     fontSize: '28px',
     fontWeight: '700',
-    color: '#18181B',
-    margin: '0 0 8px 0',
-    letterSpacing: '-0.02em',
+    color: brandColors.text.primary,
+    margin: '0 0 10px 0',
+    letterSpacing: '-0.025em',
+    lineHeight: 1.2,
   },
+
   subtitle: {
-    fontSize: '15px',
-    color: '#71717A',
+    fontSize: '16px',
+    color: brandColors.text.secondary,
     margin: 0,
     lineHeight: 1.5,
   },
-  modeContainer: {
+
+  cardsContainer: {
     display: 'flex',
     flexDirection: 'column',
     gap: '12px',
     marginBottom: '24px',
   },
-  modeCard: {
-    display: 'flex',
-    alignItems: 'flex-start',
-    gap: '16px',
-    padding: '20px',
-    backgroundColor: '#FFFFFF',
-    border: '2px solid #E4E4E7',
+
+  card: {
+    width: '100%',
+    padding: '18px 20px',
+    backgroundColor: brandColors.glass.backgroundSolid,
+    backdropFilter: brandColors.glass.blur,
+    WebkitBackdropFilter: brandColors.glass.blur,
+    border: `1px solid ${brandColors.glass.border}`,
     borderRadius: '16px',
     cursor: 'pointer',
     textAlign: 'left',
-    transition: 'all 0.2s ease',
-    width: '100%',
+    transition: `all ${animationTiming.standard}ms ${animationTiming.easeOut}`,
+    boxShadow: brandColors.glass.shadow,
   },
-  modeCardSelected: {
-    borderColor: '#6366F1',
-    backgroundColor: 'rgba(99, 102, 241, 0.02)',
-    boxShadow: '0 0 0 4px rgba(99, 102, 241, 0.1)',
+
+  cardHovered: {
+    transform: 'translateY(-2px)',
+    boxShadow: '0 4px 20px rgba(0, 0, 0, 0.08)',
+    borderColor: 'rgba(99, 102, 241, 0.2)',
   },
-  modeIconContainer: {
-    width: '48px',
-    height: '48px',
+
+  cardSelected: {
+    borderColor: brandColors.accent.primary,
+    boxShadow: `0 0 0 1px ${brandColors.accent.primary}, 0 4px 20px rgba(99, 102, 241, 0.15)`,
+    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+  },
+
+  cardContent: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '14px',
+  },
+
+  iconCircle: {
+    width: '44px',
+    height: '44px',
     borderRadius: '12px',
-    backgroundColor: '#F4F4F5',
-    color: '#71717A',
+    backgroundColor: 'rgba(0, 0, 0, 0.04)',
+    color: brandColors.text.muted,
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
+    transition: `all ${animationTiming.standard}ms ${animationTiming.easeOut}`,
   },
-  modeContent: {
+
+  iconCircleSelected: {
+    backgroundColor: brandColors.accent.light,
+    color: brandColors.accent.primary,
+  },
+
+  cardText: {
     flex: 1,
+    minWidth: 0,
   },
-  modeHeader: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '8px',
-    marginBottom: '6px',
-  },
-  modeTitle: {
+
+  cardTitle: {
     fontSize: '16px',
     fontWeight: '600',
-    color: '#18181B',
+    color: brandColors.text.primary,
+    margin: '0 0 3px 0',
+    letterSpacing: '-0.01em',
+  },
+
+  cardDescription: {
+    fontSize: '13px',
+    color: brandColors.text.secondary,
     margin: 0,
+    lineHeight: 1.45,
   },
-  selectedBadge: {
-    padding: '2px 8px',
-    fontSize: '11px',
-    fontWeight: '600',
-    color: '#6366F1',
-    backgroundColor: 'rgba(99, 102, 241, 0.1)',
-    borderRadius: '4px',
-    textTransform: 'uppercase',
-    letterSpacing: '0.5px',
-  },
-  modeDescription: {
-    fontSize: '14px',
-    color: '#71717A',
-    margin: '0 0 10px 0',
-    lineHeight: 1.4,
-  },
-  modeFeatures: {
-    display: 'flex',
-    gap: '12px',
-  },
-  modeFeature: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '4px',
-    fontSize: '12px',
-    fontWeight: '500',
-    color: '#52525B',
-  },
-  radioOuter: {
+
+  checkCircle: {
     width: '22px',
     height: '22px',
     borderRadius: '50%',
-    border: '2px solid #D4D4D8',
+    border: '2px solid rgba(0, 0, 0, 0.12)',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     flexShrink: 0,
-    marginTop: '2px',
-    transition: 'all 0.2s ease',
+    transition: `all ${animationTiming.standard}ms ${animationTiming.easeOut}`,
+    color: '#FFFFFF',
   },
-  radioOuterSelected: {
-    borderColor: '#6366F1',
+
+  checkCircleSelected: {
+    backgroundColor: brandColors.accent.primary,
+    borderColor: brandColors.accent.primary,
   },
-  radioInner: {
-    width: '12px',
-    height: '12px',
-    borderRadius: '50%',
-    backgroundColor: '#6366F1',
-  },
-  tutorialLink: {
+
+  tutorialButton: {
+    width: '100%',
     display: 'flex',
     alignItems: 'center',
     justifyContent: 'center',
     gap: '8px',
-    width: '100%',
-    padding: '14px 20px',
-    marginBottom: '16px',
+    padding: '12px 20px',
+    marginBottom: '12px',
     fontSize: '14px',
     fontWeight: '500',
-    color: '#52525B',
-    backgroundColor: '#F4F4F5',
+    color: brandColors.accent.primary,
+    backgroundColor: 'transparent',
     border: 'none',
     borderRadius: '12px',
     cursor: 'pointer',
-    transition: 'all 0.2s ease',
+    transition: `all ${animationTiming.standard}ms ${animationTiming.easeOut}`,
   },
-  recommendedBadge: {
+
+  badge: {
     padding: '2px 8px',
     fontSize: '10px',
-    fontWeight: '600',
+    fontWeight: '700',
     color: '#FFFFFF',
-    backgroundColor: '#10B981',
-    borderRadius: '4px',
+    backgroundColor: brandColors.status.error,
+    borderRadius: '10px',
     textTransform: 'uppercase',
     letterSpacing: '0.5px',
   },
+
   startButton: {
     width: '100%',
     display: 'flex',
@@ -405,17 +487,18 @@ const styles: Record<string, CSSProperties> = {
     fontSize: '16px',
     fontWeight: '600',
     color: '#FFFFFF',
-    background: 'linear-gradient(135deg, #6366F1, #8B5CF6)',
+    background: brandColors.accent.gradient,
     border: 'none',
-    borderRadius: '12px',
+    borderRadius: '14px',
     cursor: 'pointer',
-    boxShadow: '0 4px 12px rgba(99, 102, 241, 0.3)',
-    transition: 'all 0.2s ease',
+    boxShadow: '0 4px 20px rgba(99, 102, 241, 0.35)',
+    transition: `all ${animationTiming.standard}ms ${animationTiming.easeOut}`,
   },
-  tip: {
+
+  hint: {
     textAlign: 'center',
     fontSize: '13px',
-    color: '#A1A1AA',
+    color: brandColors.text.secondary,
     margin: 0,
   },
 };
