@@ -422,6 +422,9 @@ export function InterviewApp({
   const previousResponseForMergeRef = useRef<string>('');
 
   const voiceAgent = useVoiceAgent({
+    // Pass checklist items so the hook can track which items are satisfied
+    // via Deepgram function calling
+    checklistItems: state.checklist,
     onConversationUpdate: () => {
       // conversation updates are tracked via voiceAgent.conversationHistory
     },

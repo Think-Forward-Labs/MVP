@@ -354,12 +354,10 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
         allComplete,
       });
 
-      // If all complete, trigger ready state
-      if (allComplete) {
-        updateStatus('ready');
-        const merged = getMergedUserTranscript();
-        onAgentReady?.(merged);
-      }
+      // NOTE: Do NOT trigger onAgentReady here!
+      // Let the agent speak "That covers everything..." first,
+      // then the READY_PATTERNS detection in checkAgentReady will trigger ready state.
+      // This keeps the conversation natural.
     } catch (err) {
       console.error('[VoiceAgent] Failed to handle function call:', err);
       // Send error response
@@ -370,7 +368,7 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
       };
       socket.send(JSON.stringify(response));
     }
-  }, [onChecklistUpdate, onAgentReady, updateStatus, getMergedUserTranscript]);
+  }, [onChecklistUpdate]);
 
   // ─── Connect ─────────────────────────────────────────────────────
 
