@@ -335,11 +335,12 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
       setChecklistState(newState);
       onChecklistUpdate?.(newState);
 
-      // Send response back to agent
+      // Send response back to agent (Deepgram format: id, name, content)
       const response = {
         type: 'FunctionCallResponse',
-        function_call_id: functionCall.id,
-        output: JSON.stringify({
+        id: functionCall.id,
+        name: functionCall.name,
+        content: JSON.stringify({
           success: true,
           marked: itemsToMark.map(i => i.item_id),
           remaining: remaining,
@@ -360,11 +361,12 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
       // This keeps the conversation natural.
     } catch (err) {
       console.error('[VoiceAgent] Failed to handle function call:', err);
-      // Send error response
+      // Send error response (Deepgram format: id, name, content)
       const response = {
         type: 'FunctionCallResponse',
-        function_call_id: functionCall.id,
-        output: JSON.stringify({ success: false, error: 'Failed to process' }),
+        id: functionCall.id,
+        name: functionCall.name,
+        content: JSON.stringify({ success: false, error: 'Failed to process' }),
       };
       socket.send(JSON.stringify(response));
     }
