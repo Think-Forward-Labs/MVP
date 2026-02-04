@@ -15,10 +15,12 @@ import { PercentageInput } from './inputs/PercentageInput';
 // Voice Agent Onboarding Components
 import { DeviceCheck } from './DeviceCheck';
 import { VoiceAgentTutorial } from './VoiceAgentTutorial';
+import { PreInterviewSetup, type VoiceInterviewMode } from './PreInterviewSetup';
+import { VoiceModeToggle } from './VoiceModeToggle';
 import { QuestionSidebar } from './QuestionSidebar';
 
 // Voice Agent Onboarding Flow Steps
-type VoiceAgentOnboardingStep = 'device_check' | 'tutorial' | 'ready';
+type VoiceAgentOnboardingStep = 'device_check' | 'pre_interview_setup' | 'tutorial' | 'ready';
 
 // Review Response Card Component
 function ReviewResponseCard({
@@ -383,6 +385,7 @@ export function InterviewApp({
   const [voiceAgentOnboardingStep, setVoiceAgentOnboardingStep] = useState<VoiceAgentOnboardingStep | null>(null);
   const [hasCompletedTutorial, setHasCompletedTutorial] = useState<boolean | null>(null);
   const [showTutorialOption, setShowTutorialOption] = useState(false);
+  const [voiceInterviewMode, setVoiceInterviewMode] = useState<VoiceInterviewMode>('review');
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
 
@@ -421,6 +424,9 @@ export function InterviewApp({
   const [voiceAgentSaving, setVoiceAgentSaving] = useState(false);
   const previousResponseForMergeRef = useRef<string>('');
 
+  // Ref to hold the latest handleVoiceAgentNext for hands-free mode
+  const handleVoiceAgentNextRef = useRef<(() => Promise<void>) | null>(null);
+
   const voiceAgent = useVoiceAgent({
     // Pass checklist items so the hook can track which items are satisfied
     // via Deepgram function calling
@@ -438,6 +444,23 @@ export function InterviewApp({
         setVoiceAgentMergedText(combined);
       } else {
         setVoiceAgentMergedText(mergedTranscript);
+      }
+    },
+    onProceedToNext: (reason, mergedTranscript) => {
+      // Hands-free mode: agent called proceed_to_next
+      console.log('[VoiceAgent] Proceed to next:', { reason, mergedTranscript });
+      // Update the merged text before saving
+      if (mergedTranscript) {
+        if (previousResponseForMergeRef.current) {
+          const combined = previousResponseForMergeRef.current.trim() + '\n\n' + mergedTranscript.trim();
+          setVoiceAgentMergedText(combined);
+        } else {
+          setVoiceAgentMergedText(mergedTranscript);
+        }
+      }
+      // Trigger save and advance
+      if (handleVoiceAgentNextRef.current) {
+        handleVoiceAgentNextRef.current();
       }
     },
     onError: (err) => {
@@ -969,48 +992,44 @@ export function InterviewApp({
     }
   };
 
-  // Handle device check completion
+  // Handle device check completion (or skip)
   const handleDeviceCheckComplete = () => {
     console.log('Device check complete, isDemoMode:', isDemoMode);
+    // Go to pre-interview setup for mode selection
+    setVoiceAgentOnboardingStep('pre_interview_setup');
 
-    // In demo mode, just show tutorial (no user preferences to check)
-    if (isDemoMode) {
-      console.log('Demo mode - going to tutorial');
-      setVoiceAgentOnboardingStep('tutorial');
-      return;
-    }
-
-    // Check if user has completed tutorial before
-    if (hasCompletedTutorial === null) {
-      // Fetch user preferences
+    // Fetch tutorial completion status if not already fetched
+    if (hasCompletedTutorial === null && !isDemoMode) {
       authApi.getMe()
         .then((meResponse) => {
           const tutorialCompleted = meResponse.user.preferences?.voice_agent_tutorial_completed === true;
-          console.log('Tutorial completed before:', tutorialCompleted);
           setHasCompletedTutorial(tutorialCompleted);
-
-          if (tutorialCompleted) {
-            // Show option to view tutorial again or skip
-            // Clear onboarding step so device_check condition doesn't match
-            setVoiceAgentOnboardingStep(null);
-            setShowTutorialOption(true);
-          } else {
-            // First time - show tutorial
-            setVoiceAgentOnboardingStep('tutorial');
-          }
         })
         .catch((err) => {
           console.error('Failed to fetch preferences:', err);
-          // If we can't fetch preferences, show tutorial
-          setVoiceAgentOnboardingStep('tutorial');
+          setHasCompletedTutorial(false);
         });
-    } else if (hasCompletedTutorial) {
-      // Clear onboarding step so device_check condition doesn't match
-      setVoiceAgentOnboardingStep(null);
-      setShowTutorialOption(true);
-    } else {
-      setVoiceAgentOnboardingStep('tutorial');
     }
+  };
+
+  // Handle pre-interview setup: start interview with selected mode
+  const handlePreInterviewStart = (selectedMode: VoiceInterviewMode) => {
+    setVoiceInterviewMode(selectedMode);
+    setVoiceAgentOnboardingStep('ready');
+    setShowTutorialOption(false);
+    if (!isDemoMode) {
+      startInterview('voice_agent');
+    }
+  };
+
+  // Handle pre-interview setup: watch tutorial
+  const handlePreInterviewTutorial = () => {
+    setVoiceAgentOnboardingStep('tutorial');
+  };
+
+  // Handle pre-interview setup: go back to device check
+  const handlePreInterviewBack = () => {
+    setVoiceAgentOnboardingStep('device_check');
   };
 
   // Handle switching to text mode from device check failure
@@ -1028,7 +1047,7 @@ export function InterviewApp({
     setMode('select');
   };
 
-  // Handle tutorial completion
+  // Handle tutorial completion - go back to pre-interview setup
   const handleTutorialComplete = async () => {
     // Mark tutorial as completed in user preferences
     try {
@@ -1038,15 +1057,11 @@ export function InterviewApp({
       console.warn('Could not save tutorial completion:', err);
     }
 
-    // Proceed to interview
-    setVoiceAgentOnboardingStep('ready');
-    setShowTutorialOption(false);
-    if (!isDemoMode) {
-      startInterview('voice_agent');
-    }
+    // Go back to pre-interview setup (user still needs to click Start)
+    setVoiceAgentOnboardingStep('pre_interview_setup');
   };
 
-  // Handle tutorial skip
+  // Handle tutorial skip - go back to pre-interview setup
   const handleTutorialSkip = async () => {
     // Mark as completed even if skipped
     try {
@@ -1056,26 +1071,8 @@ export function InterviewApp({
       console.warn('Could not save tutorial completion:', err);
     }
 
-    setVoiceAgentOnboardingStep('ready');
-    setShowTutorialOption(false);
-    if (!isDemoMode) {
-      startInterview('voice_agent');
-    }
-  };
-
-  // Handle view tutorial again (for returning users)
-  const handleViewTutorialAgain = () => {
-    setShowTutorialOption(false);
-    setVoiceAgentOnboardingStep('tutorial');
-  };
-
-  // Handle skip tutorial for returning users
-  const handleSkipTutorialForReturning = () => {
-    setShowTutorialOption(false);
-    setVoiceAgentOnboardingStep('ready');
-    if (!isDemoMode) {
-      startInterview('voice_agent');
-    }
+    // Go back to pre-interview setup
+    setVoiceAgentOnboardingStep('pre_interview_setup');
   };
 
   // Connect voice agent for the current question
@@ -1091,6 +1088,7 @@ export function InterviewApp({
         state.interviewId,
         currentQuestion.id,
         previousResponse,
+        voiceInterviewMode,
       );
       await voiceAgent.connect({
         websocket_url: config.websocket_url,
@@ -1101,7 +1099,7 @@ export function InterviewApp({
       console.error('Failed to connect voice agent:', err);
       setVoiceError(err instanceof Error ? err.message : 'Failed to connect voice agent');
     }
-  }, [state.interviewId, currentQuestion, voiceAgent]);
+  }, [state.interviewId, currentQuestion, voiceAgent, voiceInterviewMode]);
 
   // Get the response text for the current question (open vs structured)
   const getVoiceAgentResponseText = useCallback((): string => {
@@ -1206,6 +1204,11 @@ export function InterviewApp({
       setVoiceAgentSaving(false);
     }
   }, [state.interviewId, state.currentIndex, currentQuestion, getVoiceAgentResponseText, voiceAgent]);
+
+  // Keep ref updated for hands-free mode callback
+  useEffect(() => {
+    handleVoiceAgentNextRef.current = handleVoiceAgentNext;
+  }, [handleVoiceAgentNext]);
 
   // Auto-connect voice agent when question changes in voice_agent mode
   // Skip auto-connect for already-answered questions (user revisiting via sidebar)
@@ -2159,12 +2162,33 @@ export function InterviewApp({
         onComplete={handleDeviceCheckComplete}
         onUseTextMode={handleUseTextMode}
         onBack={handleDeviceCheckBack}
+        onSkip={handleDeviceCheckComplete}
       />
     );
   }
 
-  // Voice Agent Onboarding: Tutorial Option for Returning Users
+  // Voice Agent Onboarding: Pre-Interview Setup (Mode Selection)
+  if (mode === 'voice_agent' && voiceAgentOnboardingStep === 'pre_interview_setup') {
+    return (
+      <PreInterviewSetup
+        onStart={handlePreInterviewStart}
+        onWatchTutorial={handlePreInterviewTutorial}
+        onBack={handlePreInterviewBack}
+        isFirstTime={hasCompletedTutorial === false}
+      />
+    );
+  }
+
+  // Voice Agent Onboarding: Tutorial Option for Returning Users (LEGACY - now handled by PreInterviewSetup)
   if (mode === 'voice_agent' && showTutorialOption) {
+    // Redirect to pre_interview_setup
+    setShowTutorialOption(false);
+    setVoiceAgentOnboardingStep('pre_interview_setup');
+    return null;
+  }
+
+  // Keep the old tutorial option UI as fallback (should not normally render)
+  if (false && mode === 'voice_agent' && showTutorialOption) {
     return (
       <div style={styles.selectScreenContainer}>
         <div style={styles.selectBackground} />
@@ -3584,44 +3608,64 @@ export function InterviewApp({
               )}
             </div>
 
-            {/* Mute/Unmute button */}
-            {voiceAgent.isConnected && (
-              <button
-                style={{
-                  display: 'flex',
-                  alignItems: 'center',
-                  gap: '6px',
-                  padding: '6px 12px',
-                  fontSize: '12px',
-                  fontWeight: '500',
-                  color: voiceAgent.isMuted ? '#DC2626' : '#71717A',
-                  backgroundColor: voiceAgent.isMuted ? '#FEE2E2' : '#F4F4F5',
-                  border: 'none',
-                  borderRadius: '6px',
-                  cursor: 'pointer',
+            {/* Right side controls */}
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {/* Mode Toggle */}
+              <VoiceModeToggle
+                mode={voiceInterviewMode}
+                onModeChange={(newMode) => {
+                  setVoiceInterviewMode(newMode);
+                  // Reconnect with new mode if currently connected
+                  if (voiceAgent.isConnected) {
+                    voiceAgent.disconnect();
+                    setTimeout(() => {
+                      const previousResponse = savedResponses[currentQuestion.id] || state.answers[currentQuestion.id] || '';
+                      connectVoiceAgentForQuestion(previousResponse || undefined);
+                    }, 100);
+                  }
                 }}
-                onClick={voiceAgent.isMuted ? voiceAgent.unmute : voiceAgent.mute}
-              >
-                {voiceAgent.isMuted ? (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <line x1="1" y1="1" x2="23" y2="23"/>
-                      <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
-                      <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.13 1.49-.36 2.18"/>
-                    </svg>
-                    Muted
-                  </>
-                ) : (
-                  <>
-                    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/>
-                      <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
-                    </svg>
-                    Mic On
-                  </>
-                )}
-              </button>
-            )}
+                disabled={voiceAgentSaving}
+              />
+
+              {/* Mute/Unmute button */}
+              {voiceAgent.isConnected && (
+                <button
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    fontSize: '12px',
+                    fontWeight: '500',
+                    color: voiceAgent.isMuted ? '#DC2626' : '#71717A',
+                    backgroundColor: voiceAgent.isMuted ? '#FEE2E2' : '#F4F4F5',
+                    border: 'none',
+                    borderRadius: '6px',
+                    cursor: 'pointer',
+                  }}
+                  onClick={voiceAgent.isMuted ? voiceAgent.unmute : voiceAgent.mute}
+                >
+                  {voiceAgent.isMuted ? (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <line x1="1" y1="1" x2="23" y2="23"/>
+                        <path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"/>
+                        <path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2c0 .76-.13 1.49-.36 2.18"/>
+                      </svg>
+                      Muted
+                    </>
+                  ) : (
+                    <>
+                      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                        <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3Z"/>
+                        <path d="M19 10v2a7 7 0 0 1-14 0v-2"/>
+                      </svg>
+                      Mic On
+                    </>
+                  )}
+                </button>
+              )}
+            </div>
           </div>
 
           {/* Action Buttons — Next for forward flow, Save+Ask Eunice for revisits */}
