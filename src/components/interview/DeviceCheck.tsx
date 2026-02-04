@@ -5,11 +5,12 @@ interface DeviceCheckProps {
   onComplete: () => void;
   onUseTextMode: () => void;
   onBack: () => void;
+  onSkip?: () => void;
 }
 
 type TestStatus = 'idle' | 'testing' | 'passed' | 'failed';
 
-export function DeviceCheck({ onComplete, onUseTextMode, onBack }: DeviceCheckProps) {
+export function DeviceCheck({ onComplete, onUseTextMode, onBack, onSkip }: DeviceCheckProps) {
   const [micStatus, setMicStatus] = useState<TestStatus>('idle');
   const [speakerStatus, setSpeakerStatus] = useState<TestStatus>('idle');
   const [audioLevel, setAudioLevel] = useState(0);
@@ -229,6 +230,14 @@ export function DeviceCheck({ onComplete, onUseTextMode, onBack }: DeviceCheckPr
           <p style={styles.subtitle}>
             Let's make sure your microphone and speakers are working properly before we begin.
           </p>
+          {onSkip && (
+            <button style={styles.skipLink} onClick={onSkip}>
+              Skip this step
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M9 18l6-6-6-6" />
+              </svg>
+            </button>
+          )}
         </div>
 
         {/* Error message */}
@@ -533,6 +542,21 @@ const styles: Record<string, CSSProperties> = {
     color: '#71717A',
     margin: 0,
     lineHeight: 1.5,
+  },
+  skipLink: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '4px',
+    marginTop: '16px',
+    padding: '8px 16px',
+    fontSize: '14px',
+    fontWeight: '500',
+    color: '#6366F1',
+    backgroundColor: 'transparent',
+    border: 'none',
+    borderRadius: '8px',
+    cursor: 'pointer',
+    transition: 'all 0.2s ease',
   },
   errorBanner: {
     display: 'flex',
