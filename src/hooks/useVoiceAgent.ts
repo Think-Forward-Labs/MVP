@@ -50,6 +50,8 @@ interface UseVoiceAgentOptions {
   onError?: (error: string) => void;
   onStatusChange?: (status: AgentStatus) => void;
   onChecklistUpdate?: (state: ChecklistState) => void;
+  // Called when agent triggers proceed_to_next in hands-free mode
+  onProceedToNext?: (reason: 'completed' | 'skipped', mergedTranscript: string) => void;
   // Initial checklist items from the question
   checklistItems?: Array<{ id: string; key: string; description: string }>;
 }
@@ -131,7 +133,7 @@ const READY_PATTERNS = [
 // ─── Hook ────────────────────────────────────────────────────────────
 
 export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgentReturn {
-  const { onConversationUpdate, onAgentReady, onError, onStatusChange, onChecklistUpdate, checklistItems } = options;
+  const { onConversationUpdate, onAgentReady, onError, onStatusChange, onChecklistUpdate, onProceedToNext, checklistItems } = options;
 
   // State
   const [status, setStatus] = useState<AgentStatus>('disconnected');
@@ -298,79 +300,113 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
     socket: WebSocket,
     functionCall: { id: string; name: string; arguments: string }
   ) => {
-    if (functionCall.name !== 'update_checklist') {
-      console.warn('[VoiceAgent] Unknown function:', functionCall.name);
+    // Handle update_checklist function
+    if (functionCall.name === 'update_checklist') {
+      try {
+        const args = JSON.parse(functionCall.arguments);
+        const itemsToMark: Array<{ item_id: string; value: string; quote?: string }> = args.items || [];
+
+        // Update checklist state
+        const newItems = { ...checklistStateRef.current.items };
+        for (const item of itemsToMark) {
+          if (newItems[item.item_id]) {
+            newItems[item.item_id] = {
+              item_id: item.item_id,
+              satisfied: true,
+              value: item.value,
+              quote: item.quote,
+            };
+          }
+        }
+
+        // Calculate remaining items
+        const remaining = checklistStateRef.current.allItemIds.filter(
+          id => !newItems[id]?.satisfied
+        );
+        const allComplete = remaining.length === 0;
+
+        // Update state
+        const newState: ChecklistState = {
+          items: newItems,
+          allItemIds: checklistStateRef.current.allItemIds,
+        };
+        checklistStateRef.current = newState;
+        setChecklistState(newState);
+        onChecklistUpdate?.(newState);
+
+        // Send response back to agent (Deepgram format: id, name, content)
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({
+            success: true,
+            marked: itemsToMark.map(i => i.item_id),
+            remaining: remaining,
+            all_complete: allComplete,
+          }),
+        };
+        socket.send(JSON.stringify(response));
+
+        console.log('[VoiceAgent] Checklist updated:', {
+          marked: itemsToMark.map(i => i.item_id),
+          remaining,
+          allComplete,
+        });
+
+        // NOTE: Do NOT trigger onAgentReady here!
+        // Let the agent speak "That covers everything..." first,
+        // then the READY_PATTERNS detection in checkAgentReady will trigger ready state.
+        // This keeps the conversation natural.
+      } catch (err) {
+        console.error('[VoiceAgent] Failed to handle update_checklist:', err);
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: false, error: 'Failed to process' }),
+        };
+        socket.send(JSON.stringify(response));
+      }
       return;
     }
 
-    try {
-      const args = JSON.parse(functionCall.arguments);
-      const itemsToMark: Array<{ item_id: string; value: string; quote?: string }> = args.items || [];
+    // Handle proceed_to_next function (hands-free mode)
+    if (functionCall.name === 'proceed_to_next') {
+      try {
+        const args = JSON.parse(functionCall.arguments);
+        const reason: 'completed' | 'skipped' = args.reason || 'completed';
 
-      // Update checklist state
-      const newItems = { ...checklistStateRef.current.items };
-      for (const item of itemsToMark) {
-        if (newItems[item.item_id]) {
-          newItems[item.item_id] = {
-            item_id: item.item_id,
-            satisfied: true,
-            value: item.value,
-            quote: item.quote,
-          };
-        }
+        console.log('[VoiceAgent] Proceed to next:', { reason });
+
+        // Send success response back to agent
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: true }),
+        };
+        socket.send(JSON.stringify(response));
+
+        // Get merged transcript and trigger callback
+        const merged = getMergedUserTranscript();
+        onProceedToNext?.(reason, merged);
+      } catch (err) {
+        console.error('[VoiceAgent] Failed to handle proceed_to_next:', err);
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: false, error: 'Failed to process' }),
+        };
+        socket.send(JSON.stringify(response));
       }
-
-      // Calculate remaining items
-      const remaining = checklistStateRef.current.allItemIds.filter(
-        id => !newItems[id]?.satisfied
-      );
-      const allComplete = remaining.length === 0;
-
-      // Update state
-      const newState: ChecklistState = {
-        items: newItems,
-        allItemIds: checklistStateRef.current.allItemIds,
-      };
-      checklistStateRef.current = newState;
-      setChecklistState(newState);
-      onChecklistUpdate?.(newState);
-
-      // Send response back to agent (Deepgram format: id, name, content)
-      const response = {
-        type: 'FunctionCallResponse',
-        id: functionCall.id,
-        name: functionCall.name,
-        content: JSON.stringify({
-          success: true,
-          marked: itemsToMark.map(i => i.item_id),
-          remaining: remaining,
-          all_complete: allComplete,
-        }),
-      };
-      socket.send(JSON.stringify(response));
-
-      console.log('[VoiceAgent] Checklist updated:', {
-        marked: itemsToMark.map(i => i.item_id),
-        remaining,
-        allComplete,
-      });
-
-      // NOTE: Do NOT trigger onAgentReady here!
-      // Let the agent speak "That covers everything..." first,
-      // then the READY_PATTERNS detection in checkAgentReady will trigger ready state.
-      // This keeps the conversation natural.
-    } catch (err) {
-      console.error('[VoiceAgent] Failed to handle function call:', err);
-      // Send error response (Deepgram format: id, name, content)
-      const response = {
-        type: 'FunctionCallResponse',
-        id: functionCall.id,
-        name: functionCall.name,
-        content: JSON.stringify({ success: false, error: 'Failed to process' }),
-      };
-      socket.send(JSON.stringify(response));
+      return;
     }
-  }, [onChecklistUpdate]);
+
+    // Unknown function
+    console.warn('[VoiceAgent] Unknown function:', functionCall.name);
+  }, [onChecklistUpdate, onProceedToNext, getMergedUserTranscript]);
 
   // ─── Connect ─────────────────────────────────────────────────────
 
