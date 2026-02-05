@@ -422,6 +422,7 @@ export function InterviewApp({
   const [voiceAgentReady, setVoiceAgentReady] = useState(false);
   const [voiceAgentMergedText, setVoiceAgentMergedText] = useState('');
   const [voiceAgentSaving, setVoiceAgentSaving] = useState(false);
+  const [pendingNextConfirmation, setPendingNextConfirmation] = useState(false); // Waiting for user to confirm before moving
   const previousResponseForMergeRef = useRef<string>('');
 
   // Ref to hold the latest handleVoiceAgentNext for hands-free mode
@@ -458,10 +459,11 @@ export function InterviewApp({
           setVoiceAgentMergedText(mergedTranscript);
         }
       }
-      // Trigger save and advance
-      if (handleVoiceAgentNextRef.current) {
-        handleVoiceAgentNextRef.current();
-      }
+      // Show confirmation view instead of immediately advancing
+      setVoiceAgentReady(true);
+      setPendingNextConfirmation(true);
+      // Disconnect voice agent while user reviews
+      voiceAgent.disconnect();
     },
     onCompleteAssessment: (reason, mergedTranscript) => {
       // Hands-free mode: agent called complete_assessment (last question)
@@ -475,10 +477,11 @@ export function InterviewApp({
           setVoiceAgentMergedText(mergedTranscript);
         }
       }
-      // Trigger save — backend will return next_action: 'complete' for last question
-      if (handleVoiceAgentNextRef.current) {
-        handleVoiceAgentNextRef.current();
-      }
+      // Show confirmation view instead of immediately completing
+      setVoiceAgentReady(true);
+      setPendingNextConfirmation(true);
+      // Disconnect voice agent while user reviews
+      voiceAgent.disconnect();
     },
     onStructuredResponse: (value) => {
       // Hands-free mode: agent set a structured response (scale, select, percentage)
@@ -1228,12 +1231,14 @@ export function InterviewApp({
         setVoiceAgentReady(false);
         setVoiceAgentMergedText('');
         setInputValue('');
+        setPendingNextConfirmation(false);
       }
     } catch (err) {
       console.error('Failed to save voice session:', err);
       setVoiceError(err instanceof Error ? err.message : 'Failed to save session');
     } finally {
       setVoiceAgentSaving(false);
+      setPendingNextConfirmation(false);
     }
   }, [state.interviewId, state.currentIndex, currentQuestion, getVoiceAgentResponseText, voiceAgent]);
 
@@ -3548,12 +3553,14 @@ export function InterviewApp({
                 /* Editable merged response */
                 <div style={{ flex: 1, display: 'flex', flexDirection: 'column', padding: '16px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#22C55E" strokeWidth="2">
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke={pendingNextConfirmation ? '#6366F1' : '#22C55E'} strokeWidth="2">
                       <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                       <polyline points="22 4 12 14.01 9 11.01"/>
                     </svg>
-                    <span style={{ fontSize: '13px', fontWeight: '600', color: '#22C55E' }}>
-                      Review your response — edit if needed, then save
+                    <span style={{ fontSize: '13px', fontWeight: '600', color: pendingNextConfirmation ? '#6366F1' : '#22C55E' }}>
+                      {pendingNextConfirmation
+                        ? 'Eunice wants to move on — review your response and confirm to continue'
+                        : 'Review your response — edit if needed, then save'}
                     </span>
                   </div>
                   <textarea
@@ -3787,6 +3794,8 @@ export function InterviewApp({
 
             if (!isAnsweredQuestion) {
               // Forward flow — "Next" button (save + advance)
+              // Use prominent style when pendingNextConfirmation is true
+              const isPending = pendingNextConfirmation;
               return (
                 <button
                   style={{
@@ -3795,7 +3804,9 @@ export function InterviewApp({
                     fontSize: '15px',
                     fontWeight: '600',
                     color: '#FFFFFF',
-                    backgroundColor: canProceed && !voiceAgentSaving ? '#18181B' : '#A1A1AA',
+                    background: isPending && canProceed
+                      ? 'linear-gradient(135deg, #6366F1, #8B5CF6)'
+                      : (canProceed && !voiceAgentSaving ? '#18181B' : '#A1A1AA'),
                     border: 'none',
                     borderRadius: '12px',
                     cursor: canProceed && !voiceAgentSaving ? 'pointer' : 'not-allowed',
@@ -3805,6 +3816,7 @@ export function InterviewApp({
                     gap: '8px',
                     opacity: voiceAgentSaving ? 0.7 : 1,
                     transition: 'background-color 0.2s, opacity 0.2s',
+                    boxShadow: isPending && canProceed ? '0 4px 12px rgba(99, 102, 241, 0.4)' : 'none',
                   }}
                   onClick={handleVoiceAgentNext}
                   disabled={!canProceed || voiceAgentSaving}
@@ -3816,7 +3828,7 @@ export function InterviewApp({
                     </>
                   ) : state.currentIndex === totalQuestions - 1 ? (
                     <>
-                      Complete Assessment
+                      {isPending ? 'Confirm & Complete' : 'Complete Assessment'}
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/>
                         <polyline points="22 4 12 14.01 9 11.01"/>
@@ -3824,7 +3836,7 @@ export function InterviewApp({
                     </>
                   ) : (
                     <>
-                      Next Question
+                      {isPending ? 'Confirm & Continue' : 'Next Question'}
                       <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                         <path d="M5 12h14M12 5l7 7-7 7" strokeLinecap="round" strokeLinejoin="round"/>
                       </svg>
