@@ -68,7 +68,7 @@ function timeAgo(dateString?: string): string {
 
 // ============ Business Card (Vercel-style compact) ============
 
-function BusinessCard({
+function _BusinessCard({
   business,
   onClick,
 }: {
@@ -1213,7 +1213,7 @@ const interviewDetailStyles: Record<string, React.CSSProperties> = {
 
 // ============ Assessment Detail ============
 
-function AssessmentDetail({
+function _AssessmentDetail({
   reviewId,
   onBack,
   onError,
@@ -1520,7 +1520,7 @@ const detailStyles: Record<string, React.CSSProperties> = {
 
 // ============ Business Detail ============
 
-function BusinessDetail({
+function _BusinessDetail({
   businessId,
   onBack,
   onError,

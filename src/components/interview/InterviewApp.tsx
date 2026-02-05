@@ -1097,6 +1097,16 @@ export function InterviewApp({
     setVoiceAgentOnboardingStep('pre_interview_setup');
   };
 
+  // Handle skip tutorial for returning users - start interview directly
+  const handleSkipTutorialForReturning = () => {
+    setVoiceAgentOnboardingStep('ready');
+  };
+
+  // Handle view tutorial again for returning users
+  const handleViewTutorialAgain = () => {
+    setVoiceAgentOnboardingStep('tutorial');
+  };
+
   // Connect voice agent for the current question
   const connectVoiceAgentForQuestion = useCallback(async (previousResponse?: string) => {
     if (!state.interviewId || !currentQuestion) return;
@@ -1804,8 +1814,8 @@ export function InterviewApp({
     const questionsAnswered = Object.keys(state.answers).length || state.allResponses.length || totalQuestions;
     const completionPercent = Math.round((questionsAnswered / totalQuestions) * 100);
 
-    // Confetti colors
-    const confettiColors = ['#34C759', '#007AFF', '#5856D6', '#FF9500', '#FF2D55'];
+    // Confetti colors (unused, kept for reference)
+    const _confettiColors = ['#34C759', '#007AFF', '#5856D6', '#FF9500', '#FF2D55'];
 
     // Premium confetti colors matching brand
     const premiumConfettiColors = ['#6366F1', '#8B5CF6', '#A78BFA', '#34C759', '#818CF8'];
