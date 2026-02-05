@@ -558,8 +558,34 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
           to { transform: rotate(360deg); }
         }
         @keyframes borderRotate {
-          0% { transform: rotate(0deg); }
-          100% { transform: rotate(360deg); }
+          0% { transform: translate(-50%, -50%) rotate(0deg); }
+          100% { transform: translate(-50%, -50%) rotate(360deg); }
+        }
+        .ask-eunice-wrapper {
+          position: relative;
+          display: inline-block;
+          border-radius: 24px;
+          padding: 1px;
+          background: rgba(0, 0, 0, 0.12);
+          overflow: hidden;
+        }
+        .ask-eunice-wrapper::before {
+          content: '';
+          position: absolute;
+          top: 50%;
+          left: 50%;
+          width: 300%;
+          height: 300%;
+          background: conic-gradient(
+            from 0deg,
+            transparent 0deg,
+            transparent 320deg,
+            rgba(139, 92, 246, 0.5) 340deg,
+            rgba(168, 85, 247, 0.9) 350deg,
+            rgba(236, 72, 153, 0.9) 355deg,
+            rgba(168, 85, 247, 0.5) 360deg
+          );
+          animation: borderRotate 3s linear infinite;
         }
         .ask-eunice-btn {
           position: relative;
@@ -569,51 +595,16 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
           padding: 6px 16px 6px 6px;
           background: #fff;
           color: #1D1D1F;
-          border: 1px solid rgba(0, 0, 0, 0.12);
-          border-radius: 24px;
+          border: none;
+          border-radius: 23px;
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
           transition: all 0.28s cubic-bezier(0.32, 0.72, 0, 1);
           letter-spacing: -0.01em;
-          overflow: hidden;
         }
-        .ask-eunice-btn::before {
-          content: '';
-          position: absolute;
-          top: 50%;
-          left: 50%;
-          width: 150%;
-          height: 150%;
-          background: conic-gradient(
-            from 0deg,
-            transparent 0deg,
-            transparent 340deg,
-            rgba(139, 92, 246, 0.6) 350deg,
-            rgba(168, 85, 247, 0.8) 355deg,
-            rgba(139, 92, 246, 0.6) 360deg
-          );
-          transform: translate(-50%, -50%);
-          animation: borderRotate 4s linear infinite;
-          pointer-events: none;
-        }
-        .ask-eunice-btn::after {
-          content: '';
-          position: absolute;
-          inset: 1px;
-          border-radius: 23px;
-          background: #fff;
-          pointer-events: none;
-        }
-        .ask-eunice-btn > * {
-          position: relative;
-          z-index: 1;
-        }
-        .ask-eunice-btn:hover {
-          border-color: rgba(139, 92, 246, 0.3);
-        }
-        .ask-eunice-btn:hover::before {
-          animation: borderRotate 2.5s linear infinite;
+        .ask-eunice-wrapper:hover::before {
+          animation: borderRotate 2s linear infinite;
         }
       `}</style>
       {/* Breadcrumb */}
@@ -2615,22 +2606,24 @@ function RunSummaryView({
               {run.status}
             </span>
             {/* Ask Eunice Button - Animated Gradient Border */}
-            <button
-              className="ask-eunice-btn"
-              onClick={onOpenChat}
-            >
-              <div style={{
-                width: '28px',
-                height: '28px',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                flexShrink: 0,
-              }}>
-                <SiriOrb size={28} isSpeaking={false} isListening={true} />
-              </div>
-              <span style={{ color: '#1D1D1F' }}>Ask Eunice</span>
-            </button>
+            <div className="ask-eunice-wrapper">
+              <button
+                className="ask-eunice-btn"
+                onClick={onOpenChat}
+              >
+                <div style={{
+                  width: '28px',
+                  height: '28px',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <SiriOrb size={28} isSpeaking={false} isListening={true} />
+                </div>
+                <span style={{ color: '#1D1D1F' }}>Ask Eunice</span>
+              </button>
+            </div>
             <button style={dashStyles.downloadButton}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
