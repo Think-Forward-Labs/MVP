@@ -427,6 +427,9 @@ export function InterviewApp({
 
   // Ref to hold the latest handleVoiceAgentNext for hands-free mode
   const handleVoiceAgentNextRef = useRef<(() => Promise<void>) | null>(null);
+  // Ref to track pendingNextConfirmation for callbacks (avoid stale closure)
+  const pendingNextConfirmationRef = useRef(false);
+  pendingNextConfirmationRef.current = pendingNextConfirmation;
 
   const voiceAgent = useVoiceAgent({
     // Pass checklist items so the hook can track which items are satisfied
@@ -449,8 +452,16 @@ export function InterviewApp({
     },
     onProceedToNext: (reason, mergedTranscript) => {
       // Hands-free mode: agent called proceed_to_next
-      console.log('[VoiceAgent] Proceed to next:', { reason, mergedTranscript });
-      // Update the merged text before saving
+      console.log('[VoiceAgent] Proceed to next:', { reason, mergedTranscript, alreadyPending: pendingNextConfirmationRef.current });
+
+      // If already showing transcript (pendingNextConfirmation is true), user is confirming → advance
+      if (pendingNextConfirmationRef.current) {
+        console.log('[VoiceAgent] User confirmed — advancing to next question');
+        handleVoiceAgentNextRef.current?.();
+        return;
+      }
+
+      // First call: show transcript for review
       if (mergedTranscript) {
         if (previousResponseForMergeRef.current) {
           const combined = previousResponseForMergeRef.current.trim() + '\n\n' + mergedTranscript.trim();
@@ -462,12 +473,19 @@ export function InterviewApp({
       // Show confirmation view instead of immediately advancing
       setVoiceAgentReady(true);
       setPendingNextConfirmation(true);
-      // Note: disconnect will be handled by useEffect watching pendingNextConfirmation
     },
     onCompleteAssessment: (reason, mergedTranscript) => {
       // Hands-free mode: agent called complete_assessment (last question)
-      console.log('[VoiceAgent] Complete assessment:', { reason, mergedTranscript });
-      // Update the merged text before saving
+      console.log('[VoiceAgent] Complete assessment:', { reason, mergedTranscript, alreadyPending: pendingNextConfirmationRef.current });
+
+      // If already showing transcript (pendingNextConfirmation is true), user is confirming → complete
+      if (pendingNextConfirmationRef.current) {
+        console.log('[VoiceAgent] User confirmed — completing assessment');
+        handleVoiceAgentNextRef.current?.();
+        return;
+      }
+
+      // First call: show transcript for review
       if (mergedTranscript) {
         if (previousResponseForMergeRef.current) {
           const combined = previousResponseForMergeRef.current.trim() + '\n\n' + mergedTranscript.trim();
@@ -479,7 +497,6 @@ export function InterviewApp({
       // Show confirmation view instead of immediately completing
       setVoiceAgentReady(true);
       setPendingNextConfirmation(true);
-      // Note: disconnect will be handled by useEffect watching pendingNextConfirmation
     },
     onStructuredResponse: (value) => {
       // Hands-free mode: agent set a structured response (scale, select, percentage)
