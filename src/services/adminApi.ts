@@ -594,6 +594,44 @@ export const adminApi = {
   }> => {
     return adminRequest('/evaluation-assistant/status');
   },
+
+  // ============ Report Download API ============
+
+  /**
+   * Download PDF report for an evaluation run
+   * Returns a blob that can be downloaded as a file
+   */
+  downloadReport: async (runId: string, businessName?: string): Promise<void> => {
+    const token = getAdminAuthToken();
+    const response = await fetch(`${API_BASE_URL}/evaluation/runs/${runId}/download-report`, {
+      headers: {
+        ...(token && { 'Authorization': `Bearer ${token}` }),
+      },
+    });
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ detail: 'Failed to download report' }));
+      throw new Error(error.detail || `HTTP ${response.status}`);
+    }
+
+    // Get the blob from the response
+    const blob = await response.blob();
+
+    // Create a filename based on business name or use generic one
+    const filename = businessName
+      ? `CABAS_Report_${businessName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`
+      : 'CABAS_Evaluation_Report.pdf';
+
+    // Create a download link and trigger it
+    const url = window.URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    window.URL.revokeObjectURL(url);
+  },
 };
 
 export default adminApi;

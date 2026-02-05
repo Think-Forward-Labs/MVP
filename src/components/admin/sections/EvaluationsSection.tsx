@@ -663,6 +663,7 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
             <RunSummaryView
               run={nav.selectedRun}
               scores={scores}
+              businessName={nav.selectedBusiness?.name}
               onBack={goBack}
               onViewBreakdown={goToBreakdown}
               onViewInterview={goToInterviewDetail}
@@ -2420,6 +2421,7 @@ type MetricInsight = {
 function RunSummaryView({
   run,
   scores,
+  businessName,
   onBack,
   onViewBreakdown,
   onViewInterview,
@@ -2427,6 +2429,7 @@ function RunSummaryView({
 }: {
   run: EvaluationRunDetail;
   scores: EvaluationScoresResponse | null;
+  businessName?: string;
   onBack: () => void;
   onViewBreakdown: () => void;
   onViewInterview: (sourceId: string) => void;
@@ -2440,6 +2443,20 @@ function RunSummaryView({
   const [showActionsReasoning, setShowActionsReasoning] = useState(false);
   const [expandedActionIndex, setExpandedActionIndex] = useState<number | null>(null);
   const [showFullExecutiveSummary, setShowFullExecutiveSummary] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+
+  // Handle report download
+  const handleDownloadReport = async () => {
+    setIsDownloading(true);
+    try {
+      await adminApi.downloadReport(run.id, businessName);
+    } catch (error) {
+      console.error('Failed to download report:', error);
+      // Could add toast notification here
+    } finally {
+      setIsDownloading(false);
+    }
+  };
 
   // State for refined report
   const [refinedReport, setRefinedReport] = useState<{
@@ -2624,11 +2641,26 @@ function RunSummaryView({
                 <span style={{ color: '#1D1D1F' }}>Ask Eunice</span>
               </button>
             </div>
-            <button style={dashStyles.downloadButton}>
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
-              </svg>
-              Download Report
+            <button
+              style={dashStyles.downloadButton}
+              onClick={handleDownloadReport}
+              disabled={isDownloading || run.status !== 'completed'}
+            >
+              {isDownloading ? (
+                <div style={{
+                  width: '16px',
+                  height: '16px',
+                  border: '2px solid currentColor',
+                  borderTopColor: 'transparent',
+                  borderRadius: '50%',
+                  animation: 'spin 1s linear infinite',
+                }} />
+              ) : (
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />
+                </svg>
+              )}
+              {isDownloading ? 'Downloading...' : 'Download Report'}
             </button>
           </div>
         </div>
