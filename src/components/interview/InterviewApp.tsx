@@ -1245,13 +1245,6 @@ export function InterviewApp({
     handleVoiceAgentNextRef.current = handleVoiceAgentNext;
   }, [handleVoiceAgentNext]);
 
-  // Disconnect voice agent when pending confirmation is triggered
-  useEffect(() => {
-    if (pendingNextConfirmation && voiceAgent.isConnected) {
-      voiceAgent.disconnect();
-    }
-  }, [pendingNextConfirmation, voiceAgent]);
-
   // Auto-connect voice agent when question changes in voice_agent mode
   // Skip auto-connect for already-answered questions (user revisiting via sidebar)
   useEffect(() => {
