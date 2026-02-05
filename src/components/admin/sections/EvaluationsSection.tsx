@@ -6,6 +6,8 @@
 
 import { useState, useEffect } from 'react';
 import { adminApi } from '../../../services/adminApi';
+import { EuniceChatPanel } from '../../chat/EuniceChatPanel';
+import { SiriOrb } from '../../interview/SiriOrb';
 import type {
   EvaluationRunSummary,
   EvaluationRunDetail,
@@ -20,6 +22,8 @@ import type {
 
 interface EvaluationsSectionProps {
   onError: (message: string) => void;
+  onSidebarCollapse?: (collapsed: boolean) => void;
+  sidebarCollapsed?: boolean;
 }
 
 // Navigation state
@@ -151,7 +155,7 @@ function getSeverityColor(severity: string): { bg: string; text: string } {
 
 // ============ Main Component ============
 
-export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
+export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapsed }: EvaluationsSectionProps) {
   // Navigation state
   const [nav, setNav] = useState<NavigationState>({ level: 'businesses' });
 
@@ -186,6 +190,21 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
   // For triggering new evaluations
   const [showTriggerModal, setShowTriggerModal] = useState(false);
   const [triggeringReview, setTriggeringReview] = useState<string | null>(null);
+
+  // Eunice AI Chat
+  const [isChatOpen, setIsChatOpen] = useState(false);
+
+  // Handle chat open/close with sidebar collapse
+  const handleOpenChat = () => {
+    setIsChatOpen(true);
+    onSidebarCollapse?.(true); // Collapse sidebar when chat opens
+  };
+
+  const handleCloseChat = () => {
+    setIsChatOpen(false);
+    onSidebarCollapse?.(false); // Expand sidebar when chat closes
+  };
+
   const [runningProgress, setRunningProgress] = useState<{
     step: number;
     total: number;
@@ -520,7 +539,7 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
     );
   }
 
-  return (
+  const mainContent = (
     <div style={styles.container}>
       {/* CSS for animations */}
       <style>{`
@@ -598,6 +617,7 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
               onBack={goBack}
               onViewBreakdown={goToBreakdown}
               onViewInterview={goToInterviewDetail}
+              onOpenChat={handleOpenChat}
             />
           )}
           {nav.detailSubLevel === 'breakdown' && (
@@ -631,6 +651,25 @@ export function EvaluationsSection({ onError }: EvaluationsSectionProps) {
       )}
     </div>
   );
+
+  // Wrap in flex container when chat is available
+  if (nav.selectedRun) {
+    return (
+      <div style={{ display: 'flex', height: '100%', overflow: 'hidden' }}>
+        <div style={{ flex: 1, overflow: 'auto', transition: 'all 0.28s cubic-bezier(0.32, 0.72, 0, 1)' }}>
+          {mainContent}
+        </div>
+        <EuniceChatPanel
+          isOpen={isChatOpen}
+          onClose={handleCloseChat}
+          runId={nav.selectedRun.id}
+          evaluationName={`Run #${nav.selectedRun.run_number}`}
+        />
+      </div>
+    );
+  }
+
+  return mainContent;
 }
 
 // ============ Breadcrumb ============
@@ -2335,12 +2374,14 @@ function RunSummaryView({
   onBack,
   onViewBreakdown,
   onViewInterview,
+  onOpenChat,
 }: {
   run: EvaluationRunDetail;
   scores: EvaluationScoresResponse | null;
   onBack: () => void;
   onViewBreakdown: () => void;
   onViewInterview: (sourceId: string) => void;
+  onOpenChat: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<SummaryTabType>('issues');
   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
@@ -2484,12 +2525,25 @@ function RunSummaryView({
     <div style={dashStyles.container}>
       {/* Header */}
       <div style={dashStyles.header}>
-        <button onClick={onBack} style={dashStyles.backButton}>
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-            <path d="M19 12H5M12 19l-7-7 7-7" />
-          </svg>
-          Back to Runs
-        </button>
+        {/* Top row: Back button on left, disclaimer on right */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', marginBottom: '16px' }}>
+          <button onClick={onBack} style={dashStyles.backButton}>
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M19 12H5M12 19l-7-7 7-7" />
+            </svg>
+            Back to Runs
+          </button>
+
+          {/* AI Disclaimer */}
+          <span style={{
+            fontSize: '13px',
+            color: 'rgba(60, 60, 67, 0.45)',
+            fontWeight: 500,
+            letterSpacing: '-0.01em',
+          }}>
+            Eunice can make mistakes—please review carefully.
+          </span>
+        </div>
 
         <div style={dashStyles.headerMain}>
           <div style={dashStyles.headerLeft}>
@@ -2502,6 +2556,50 @@ function RunSummaryView({
             <span style={{ ...dashStyles.statusBadge, background: statusColor.bg, color: statusColor.text }}>
               {run.status}
             </span>
+            {/* Ask Eunice Button - HIG Glass Effect */}
+            <button
+              onClick={onOpenChat}
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '10px',
+                padding: '6px 16px 6px 6px',
+                background: 'rgba(255, 255, 255, 0.85)',
+                backdropFilter: 'blur(12px) saturate(180%)',
+                WebkitBackdropFilter: 'blur(12px) saturate(180%)',
+                color: '#1D1D1F',
+                border: '1px solid rgba(99, 102, 241, 0.2)',
+                borderRadius: '24px',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                boxShadow: '0 2px 12px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8)',
+                transition: 'all 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
+                letterSpacing: '-0.01em',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.boxShadow = '0 4px 20px rgba(99, 102, 241, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9)';
+                e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
+                e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.boxShadow = '0 2px 12px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8)';
+                e.currentTarget.style.transform = 'translateY(0) scale(1)';
+                e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.2)';
+              }}
+            >
+              <div style={{
+                width: '28px',
+                height: '28px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}>
+                <SiriOrb size={28} isSpeaking={false} isListening={true} />
+              </div>
+              <span style={{ color: '#1D1D1F' }}>Ask Eunice</span>
+            </button>
             <button style={dashStyles.downloadButton}>
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
                 <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4M7 10l5 5 5-5M12 15V3" />

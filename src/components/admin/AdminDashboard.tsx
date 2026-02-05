@@ -20,6 +20,7 @@ interface AdminDashboardProps {
 
 export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
   const [activeSection, setActiveSection] = useState<AdminSection>('businesses');
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
 
@@ -39,7 +40,13 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
       case 'reviews':
         return <ReviewsSection onError={handleError} />;
       case 'evaluations':
-        return <EvaluationsSection onError={handleError} />;
+        return (
+          <EvaluationsSection
+            onError={handleError}
+            onSidebarCollapse={(collapsed) => setSidebarCollapsed(collapsed)}
+            sidebarCollapsed={sidebarCollapsed}
+          />
+        );
       case 'admins':
         return admin.role === 'super_admin' ? <AdminsSection /> : null;
       default:
@@ -75,6 +82,8 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
           activeSection={activeSection}
           onSectionChange={setActiveSection}
           onLogout={onLogout}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
         />
         <main style={styles.main}>
           {renderSection()}

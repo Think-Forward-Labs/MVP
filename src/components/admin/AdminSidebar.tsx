@@ -11,6 +11,8 @@ interface AdminSidebarProps {
   activeSection: AdminSection;
   onSectionChange: (section: AdminSection) => void;
   onLogout: () => void;
+  collapsed?: boolean;
+  onToggleCollapse?: () => void;
 }
 
 interface NavItem {
@@ -88,26 +90,48 @@ export function AdminSidebar({
   activeSection,
   onSectionChange,
   onLogout,
+  collapsed = false,
+  onToggleCollapse,
 }: AdminSidebarProps) {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
   return (
-    <aside style={styles.sidebar}>
+    <aside style={{
+      ...styles.sidebar,
+      width: collapsed ? '72px' : '260px',
+      transition: 'width 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
+    }}>
       {/* Brand Header */}
-      <div style={styles.header}>
-        <div style={styles.logo}>
+      <div style={{
+        ...styles.header,
+        padding: collapsed ? '20px 16px 16px' : '20px 20px 16px',
+        justifyContent: collapsed ? 'center' : 'flex-start',
+      }}>
+        <div
+          style={{
+            ...styles.logo,
+            cursor: onToggleCollapse ? 'pointer' : 'default',
+          }}
+          onClick={onToggleCollapse}
+          title={collapsed ? 'Expand sidebar' : 'Collapse sidebar'}
+        >
           <span style={styles.logoText}>TF</span>
         </div>
-        <div style={styles.brandInfo}>
-          <h1 style={styles.brandTitle}>ThinkForward</h1>
-          <span style={styles.brandBadge}>Admin</span>
-        </div>
+        {!collapsed && (
+          <div style={styles.brandInfo}>
+            <h1 style={styles.brandTitle}>ThinkForward</h1>
+            <span style={styles.brandBadge}>Admin</span>
+          </div>
+        )}
       </div>
 
       {/* Navigation */}
-      <nav style={styles.nav}>
+      <nav style={{
+        ...styles.nav,
+        padding: collapsed ? '8px 8px' : '8px 12px',
+      }}>
         <div style={styles.navSection}>
-          <span style={styles.navLabel}>Platform</span>
+          {!collapsed && <span style={styles.navLabel}>Platform</span>}
           {navItems.map((item) => {
             const isAvailable = !item.requiresRole || admin.role === item.requiresRole;
             const isActive = activeSection === item.id;
@@ -121,10 +145,13 @@ export function AdminSidebar({
                 onClick={() => onSectionChange(item.id)}
                 onMouseEnter={() => setHoveredItem(item.id)}
                 onMouseLeave={() => setHoveredItem(null)}
+                title={collapsed ? item.label : undefined}
                 style={{
                   ...styles.navItem,
                   ...(isActive && styles.navItemActive),
                   ...(isHovered && !isActive && styles.navItemHover),
+                  justifyContent: collapsed ? 'center' : 'flex-start',
+                  padding: collapsed ? '10px' : '10px 12px',
                 }}
               >
                 <span style={{
@@ -133,8 +160,8 @@ export function AdminSidebar({
                 }}>
                   {item.icon}
                 </span>
-                <span style={styles.navText}>{item.label}</span>
-                {isActive && <div style={styles.activeIndicator} />}
+                {!collapsed && <span style={styles.navText}>{item.label}</span>}
+                {isActive && !collapsed && <div style={styles.activeIndicator} />}
               </button>
             );
           })}
@@ -142,24 +169,50 @@ export function AdminSidebar({
       </nav>
 
       {/* User Footer */}
-      <div style={styles.footer}>
-        <div style={styles.userCard}>
-          <div style={styles.avatar}>
+      <div style={{
+        ...styles.footer,
+        padding: collapsed ? '12px 8px' : '16px',
+      }}>
+        {collapsed ? (
+          /* Collapsed: Avatar only */
+          <div
+            style={{
+              ...styles.avatar,
+              width: '40px',
+              height: '40px',
+              margin: '0 auto 8px',
+            }}
+            title={admin.name}
+          >
             <span style={styles.avatarText}>
               {admin.name.charAt(0).toUpperCase()}
             </span>
           </div>
-          <div style={styles.userInfo}>
-            <p style={styles.userName}>{admin.name}</p>
-            <p style={styles.userRole}>
-              {admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
-            </p>
+        ) : (
+          /* Expanded: Full user card */
+          <div style={styles.userCard}>
+            <div style={styles.avatar}>
+              <span style={styles.avatarText}>
+                {admin.name.charAt(0).toUpperCase()}
+              </span>
+            </div>
+            <div style={styles.userInfo}>
+              <p style={styles.userName}>{admin.name}</p>
+              <p style={styles.userRole}>
+                {admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
+              </p>
+            </div>
           </div>
-        </div>
+        )}
 
         <button
           onClick={onLogout}
-          style={styles.logoutButton}
+          title={collapsed ? 'Sign out' : undefined}
+          style={{
+            ...styles.logoutButton,
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            padding: collapsed ? '10px' : '10px 12px',
+          }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'rgba(220, 38, 38, 0.06)';
             e.currentTarget.style.color = '#DC2626';
@@ -172,7 +225,7 @@ export function AdminSidebar({
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
             <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4M16 17l5-5-5-5M21 12H9" />
           </svg>
-          <span>Sign out</span>
+          {!collapsed && <span>Sign out</span>}
         </button>
       </div>
     </aside>

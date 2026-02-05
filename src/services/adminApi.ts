@@ -544,6 +544,56 @@ export const adminApi = {
   }> => {
     return adminRequest(`/evaluation/runs/${runId}/refined-report`);
   },
+
+  // ============ Evaluation Assistant (Eunice) API ============
+
+  /**
+   * Chat with Eunice - the evaluation assistant
+   * Answers questions about scores, recommendations, and findings
+   */
+  chatWithEunice: async (runId: string, message: string): Promise<{
+    response: string;
+    conversation_turns: number;
+  }> => {
+    return adminRequest('/evaluation-assistant/chat', {
+      method: 'POST',
+      body: JSON.stringify({
+        message,
+        run_id: runId,
+      }),
+    });
+  },
+
+  /**
+   * Get Eunice conversation history for a run
+   */
+  getEuniceHistory: async (runId: string): Promise<{
+    run_id: string;
+    messages: Array<{ role: string; content: string }>;
+  }> => {
+    return adminRequest(`/evaluation-assistant/history/${runId}`);
+  },
+
+  /**
+   * Clear Eunice conversation history for a run
+   */
+  clearEuniceHistory: async (runId: string): Promise<{ message: string; run_id: string }> => {
+    return adminRequest(`/evaluation-assistant/history/${runId}`, {
+      method: 'DELETE',
+    });
+  },
+
+  /**
+   * Get Eunice assistant status
+   */
+  getEuniceStatus: async (): Promise<{
+    status: string;
+    active_sessions?: number;
+    model?: string;
+    error?: string;
+  }> => {
+    return adminRequest('/evaluation-assistant/status');
+  },
 };
 
 export default adminApi;
