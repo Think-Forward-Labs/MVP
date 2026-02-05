@@ -177,6 +177,24 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
   const userTranscriptRef = useRef('');
   const conversationRef = useRef<ConversationTurn[]>([]);
 
+  // Callback refs - use refs to avoid stale closures in socket handlers
+  const onProceedToNextRef = useRef(onProceedToNext);
+  const onCompleteAssessmentRef = useRef(onCompleteAssessment);
+  const onStructuredResponseRef = useRef(onStructuredResponse);
+  const onChecklistUpdateRef = useRef(onChecklistUpdate);
+  const onAgentReadyRef = useRef(onAgentReady);
+  const onConversationUpdateRef = useRef(onConversationUpdate);
+  const onErrorRef = useRef(onError);
+
+  // Keep refs updated with latest callbacks
+  onProceedToNextRef.current = onProceedToNext;
+  onCompleteAssessmentRef.current = onCompleteAssessment;
+  onStructuredResponseRef.current = onStructuredResponse;
+  onChecklistUpdateRef.current = onChecklistUpdate;
+  onAgentReadyRef.current = onAgentReady;
+  onConversationUpdateRef.current = onConversationUpdate;
+  onErrorRef.current = onError;
+
   // Track status changes
   const updateStatus = useCallback((newStatus: AgentStatus) => {
     setStatus(newStatus);
@@ -294,9 +312,9 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
     if (isReady) {
       updateStatus('ready');
       const merged = getMergedUserTranscript();
-      onAgentReady?.(merged);
+      onAgentReadyRef.current?.(merged);
     }
-  }, [updateStatus, getMergedUserTranscript, onAgentReady]);
+  }, [updateStatus, getMergedUserTranscript]); // onAgentReady accessed via ref
 
   // ─── Handle Function Call Request ─────────────────────────────────
 
@@ -336,7 +354,7 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
         };
         checklistStateRef.current = newState;
         setChecklistState(newState);
-        onChecklistUpdate?.(newState);
+        onChecklistUpdateRef.current?.(newState);
 
         // Send response back to agent (Deepgram format: id, name, content)
         const response = {
@@ -392,9 +410,10 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
         };
         socket.send(JSON.stringify(response));
 
-        // Get merged transcript and trigger callback
+        // Get merged transcript and trigger callback via ref (avoid stale closure)
         const merged = getMergedUserTranscript();
-        onProceedToNext?.(reason, merged);
+        console.log('[VoiceAgent] Calling onProceedToNextRef.current with:', { reason, merged, hasCallback: !!onProceedToNextRef.current });
+        onProceedToNextRef.current?.(reason, merged);
       } catch (err) {
         console.error('[VoiceAgent] Failed to handle proceed_to_next:', err);
         const response = {
@@ -425,9 +444,9 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
         };
         socket.send(JSON.stringify(response));
 
-        // Get merged transcript and trigger callback
+        // Get merged transcript and trigger callback via ref (avoid stale closure)
         const merged = getMergedUserTranscript();
-        onCompleteAssessment?.(reason, merged);
+        onCompleteAssessmentRef.current?.(reason, merged);
       } catch (err) {
         console.error('[VoiceAgent] Failed to handle complete_assessment:', err);
         const response = {
@@ -449,9 +468,9 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
 
         console.log('[VoiceAgent] Set structured response:', { value });
 
-        // Update the input value in the parent component
-        if (value && onStructuredResponse) {
-          onStructuredResponse(value);
+        // Update the input value in the parent component via ref (avoid stale closure)
+        if (value && onStructuredResponseRef.current) {
+          onStructuredResponseRef.current(value);
         }
 
         // Send success response back to agent
@@ -481,7 +500,7 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
 
     // Unknown function
     console.warn('[VoiceAgent] Unknown function:', functionCall.name);
-  }, [onChecklistUpdate, onProceedToNext, onCompleteAssessment, onStructuredResponse, getMergedUserTranscript]);
+  }, [getMergedUserTranscript]); // Callbacks accessed via refs, no need in deps
 
   // ─── Connect ─────────────────────────────────────────────────────
 
@@ -603,7 +622,7 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
 
               conversationRef.current = [...conversationRef.current, turn];
               setConversationHistory([...conversationRef.current]);
-              onConversationUpdate?.([...conversationRef.current]);
+              onConversationUpdateRef.current?.([...conversationRef.current]);
 
               if (turn.role === 'user') {
                 userTranscriptRef.current = getMergedUserTranscript();
@@ -659,7 +678,7 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
       socket.onerror = () => {
         const errorMsg = 'Voice agent connection error. Please try again.';
         setError(errorMsg);
-        onError?.(errorMsg);
+        onErrorRef.current?.(errorMsg);
         updateStatus('error');
         cleanup();
       };
@@ -679,13 +698,12 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
           : err.message)
         : 'Failed to connect to voice agent';
       setError(errorMsg);
-      onError?.(errorMsg);
+      onErrorRef.current?.(errorMsg);
       updateStatus('error');
       cleanup();
     }
-  }, [cleanup, updateStatus, playAudioChunk, stopAllPlayback,
-      onConversationUpdate, onAgentReady, onError, checkAgentReady,
-      getMergedUserTranscript, handleFunctionCallRequest, checklistItems, status]);
+  }, [cleanup, updateStatus, playAudioChunk, stopAllPlayback, checkAgentReady,
+      getMergedUserTranscript, handleFunctionCallRequest, checklistItems, status]); // Callbacks accessed via refs
 
   // ─── Disconnect ──────────────────────────────────────────────────
 
