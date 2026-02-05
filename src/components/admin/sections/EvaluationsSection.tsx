@@ -1099,8 +1099,8 @@ function SplitPaneEvaluations({
                             </div>
                           </div>
                           <div style={splitStyles.runDetails}>
-                            {(latestRun.flags_count || 0) > 0 && (
-                              <span style={splitStyles.flagBadge}>{latestRun.flags_count} flags</span>
+                            {(latestRun.total_flags || 0) > 0 && (
+                              <span style={splitStyles.flagBadge}>{latestRun.total_flags} flags</span>
                             )}
                             <span style={splitStyles.viewLink}>View details →</span>
                           </div>
@@ -2940,7 +2940,7 @@ function RunSummaryView({
             {showSummaryReasoning && (
               <div style={dashStyles.reasoningContent}>
                 <p style={dashStyles.reasoningText}>
-                  This executive summary synthesizes insights from {sortedMetrics.length} metrics across {run.total_sources || 'multiple'} data sources.
+                  This executive summary synthesizes insights from {sortedMetrics.length} metrics across {run.sources?.length || 'multiple'} data sources.
                   Critical issues are flagged based on scores below 50% or significant gaps between related metrics.
                   Strengths represent areas scoring above 70% with consistent performance across dimensions.
                   The analysis weighs recency, source reliability, and cross-validation between interview responses.
@@ -7448,7 +7448,7 @@ function QuestionsTab({
                     </span>
                     <div style={premiumStyles.checksList}>
                       {q.check_results.map((cr, idx) => {
-                        const linkedCode = cr.question_ids?.filter(id => id !== q.question_id)[0] || cr.linked_question_code;
+                        const linkedCode = cr.linked_question_code;
                         return (
                           <div key={cr.id || idx} style={premiumStyles.checkCard}>
                             {/* Header: Codes + Status */}
@@ -7474,14 +7474,14 @@ function QuestionsTab({
                             {/* Description */}
                             <p style={premiumStyles.checkDescription}>{cr.interdependency_description}</p>
                             {/* Score chips */}
-                            {(cr.q1_score !== undefined || cr.q2_score !== undefined) && (
+                            {(cr.primary_score !== undefined || cr.linked_score !== undefined) && (
                               <div style={premiumStyles.checkScores}>
                                 <span style={premiumStyles.checkScoreChip}>
-                                  Q1 Score: {Math.round(cr.q1_score || 0)}
+                                  Primary Score: {Math.round(cr.primary_score || 0)}
                                 </span>
-                                {cr.q2_score !== undefined && (
+                                {cr.linked_score !== undefined && (
                                   <span style={premiumStyles.checkScoreChip}>
-                                    Q2 Score: {Math.round(cr.q2_score || 0)}
+                                    Linked Score: {Math.round(cr.linked_score || 0)}
                                   </span>
                                 )}
                               </div>
