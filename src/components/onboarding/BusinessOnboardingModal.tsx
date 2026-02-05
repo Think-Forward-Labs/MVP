@@ -37,6 +37,12 @@ const SIZES = [
   { value: '500+', label: '500+ employees' },
 ];
 
+const ROLE_LEVELS = [
+  { value: 'senior_leader', label: 'Senior Leader', description: 'Executive, Director, VP, or C-level' },
+  { value: 'middle_manager', label: 'Middle Manager', description: 'Team lead, Manager, or Department head' },
+  { value: 'frontline', label: 'Operational/Frontline', description: 'Individual contributor or specialist' },
+];
+
 // Inject keyframe animations
 const injectStyles = () => {
   if (document.getElementById('onboarding-modal-animations')) return;
@@ -160,12 +166,13 @@ export function BusinessOnboardingModal({
   const [industry, setIndustry] = useState('');
   const [size, setSize] = useState('');
   const [description, setDescription] = useState('');
+  const [level, setLevel] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [isAnimating, setIsAnimating] = useState(false);
   const [, setAnimationDirection] = useState<'forward' | 'backward'>('forward');
 
-  const totalSteps = 3;
+  const totalSteps = 4;
 
   useEffect(() => {
     injectStyles();
@@ -179,6 +186,8 @@ export function BusinessOnboardingModal({
         return size !== '';
       case 3:
         return description.trim().length >= 10;
+      case 4:
+        return level !== '';
       default:
         return false;
     }
@@ -213,7 +222,7 @@ export function BusinessOnboardingModal({
     setError('');
 
     try {
-      const response = await authApi.completeOnboarding(industry, size, description);
+      const response = await authApi.completeOnboarding(industry, size, description, level);
       onComplete({
         id: response.business.id,
         name: response.business.name,
@@ -257,7 +266,7 @@ export function BusinessOnboardingModal({
         {/* Progress */}
         <div style={styles.progressContainer}>
           <div style={styles.progressBar}>
-            {[1, 2, 3].map((s) => (
+            {[1, 2, 3, 4].map((s) => (
               <div
                 key={s}
                 style={{
@@ -368,6 +377,52 @@ export function BusinessOnboardingModal({
                 <p style={styles.hint}>
                   {description.length < 10 ? `${10 - description.length} more characters needed` : 'Looks good!'}
                 </p>
+              </div>
+            )}
+
+            {step === 4 && (
+              <div>
+                <div style={styles.stepHeader}>
+                  <div style={{...styles.stepIcon, backgroundColor: 'rgba(59, 130, 246, 0.1)'}}>
+                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#3B82F6" strokeWidth="2">
+                      <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+                      <circle cx="12" cy="7" r="4" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 style={styles.stepTitle}>What is your role level?</h3>
+                    <p style={styles.stepDesc}>This helps us personalize insights for you</p>
+                  </div>
+                </div>
+
+                <div style={styles.optionsList}>
+                  {ROLE_LEVELS.map((r) => (
+                    <button
+                      key={r.value}
+                      onClick={() => setLevel(r.value)}
+                      className="onboarding-option-btn"
+                      style={{
+                        ...styles.optionButtonFull,
+                        backgroundColor: level === r.value ? '#18181B' : '#FAFAFA',
+                        borderColor: level === r.value ? '#18181B' : '#E4E4E7',
+                        color: level === r.value ? '#FFFFFF' : '#18181B',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'flex-start',
+                        gap: '4px',
+                      }}
+                    >
+                      <span style={{ fontWeight: 600 }}>{r.label}</span>
+                      <span style={{
+                        fontSize: '12px',
+                        opacity: 0.7,
+                        color: level === r.value ? 'rgba(255,255,255,0.8)' : '#71717A'
+                      }}>
+                        {r.description}
+                      </span>
+                    </button>
+                  ))}
+                </div>
               </div>
             )}
           </div>

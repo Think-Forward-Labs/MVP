@@ -200,7 +200,7 @@ export function CreateReviewModal({ user, onClose, onSuccess }: CreateReviewModa
 
       // If checkbox is checked, add current user as participant
       if (includeSelf) {
-        await reviewsApi.addParticipant(review.id, user.email, user.name);
+        await reviewsApi.addParticipant(review.id, user.email, user.name, user.level || undefined);
       }
 
       onSuccess();

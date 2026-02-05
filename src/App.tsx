@@ -6,9 +6,13 @@ import { InterviewApp } from './components/interview/InterviewApp';
 import { CreateReviewModal } from './components/dashboard/CreateReviewModal';
 import { ReviewDetailPanel } from './components/dashboard/ReviewDetailPanel';
 import { BusinessOnboardingModal } from './components/onboarding/BusinessOnboardingModal';
+import { AdminLogin } from './components/admin/AdminLogin';
+import { AdminDashboard } from './components/admin/AdminDashboard';
 import { authApi, getAuthToken, clearAuthToken, reviewsApi } from './services/api';
+import { adminApi, getAdminAuthToken, clearAdminAuthToken } from './services/adminApi';
 import type { User, Business, AppView, DashboardSection, AuthMode, ReviewDetail } from './types/app';
 import type { InterviewMode } from './types/interview';
+import type { Admin } from './types/admin';
 
 interface InterviewContext {
   mode: InterviewMode;
@@ -31,9 +35,32 @@ function App() {
   const [showCreateReview, setShowCreateReview] = useState(false);
   const [showOnboarding, setShowOnboarding] = useState(false);
 
+  // Admin portal state
+  const [adminUser, setAdminUser] = useState<Admin | null>(null);
+
   // Session restoration on mount
   useEffect(() => {
     const restoreSession = async () => {
+      // Check if we're on admin path
+      if (window.location.pathname.startsWith('/admin')) {
+        const adminToken = getAdminAuthToken();
+        if (adminToken) {
+          try {
+            const admin = await adminApi.getMe();
+            setAdminUser(admin);
+            setCurrentView('admin-dashboard');
+          } catch {
+            clearAdminAuthToken();
+            setCurrentView('admin-login');
+          }
+        } else {
+          setCurrentView('admin-login');
+        }
+        setIsLoading(false);
+        return;
+      }
+
+      // Regular business user session
       const token = getAuthToken();
       if (!token) {
         setIsLoading(false);
@@ -86,6 +113,21 @@ function App() {
     setSelectedReview(null);
     setCurrentView('landing');
     setDashboardSection('overview');
+  };
+
+  // Admin handlers
+  const handleAdminLogin = (admin: Admin) => {
+    setAdminUser(admin);
+    setCurrentView('admin-dashboard');
+    // Update URL to /admin without full page reload
+    window.history.pushState({}, '', '/admin');
+  };
+
+  const handleAdminLogout = () => {
+    adminApi.logout();
+    setAdminUser(null);
+    setCurrentView('admin-login');
+    window.history.pushState({}, '', '/admin');
   };
 
   const handleStartInterview = (mode: InterviewMode, reviewId?: string, participantId?: string) => {
@@ -224,6 +266,16 @@ function App() {
         )}
       </>
     );
+  }
+
+  // Admin Login Page
+  if (currentView === 'admin-login') {
+    return <AdminLogin onSuccess={handleAdminLogin} />;
+  }
+
+  // Admin Dashboard
+  if (currentView === 'admin-dashboard' && adminUser) {
+    return <AdminDashboard admin={adminUser} onLogout={handleAdminLogout} />;
   }
 
   return null;

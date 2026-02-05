@@ -1,0 +1,590 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Interview Detail — Premium Minimal</title>
+  <style>
+    /* Premium Minimalist Design System */
+    /* Inspired by: Aesop, Linear, Stripe, Japanese Ma principle */
+    /* Core idea: "Quiet confidence" - luxury through restraint */
+
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    :root {
+      /* Colors - Restrained, sophisticated */
+      --color-bg: #FFFFFF;
+      --color-text: #1a1a1a;
+      --color-text-secondary: #666666;
+      --color-text-tertiary: #999999;
+      --color-border: #f0f0f0;
+      --color-border-subtle: #f5f5f5;
+
+      /* Typography */
+      --font-sans: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+
+      /* Spacing - 8pt grid, generous */
+      --space-xs: 8px;
+      --space-sm: 16px;
+      --space-md: 24px;
+      --space-lg: 32px;
+      --space-xl: 48px;
+      --space-2xl: 64px;
+
+      /* Transitions */
+      --transition: 0.2s ease;
+    }
+
+    html {
+      font-size: 16px;
+      -webkit-font-smoothing: antialiased;
+      -moz-osx-font-smoothing: grayscale;
+    }
+
+    body {
+      font-family: var(--font-sans);
+      background-color: var(--color-bg);
+      color: var(--color-text);
+      line-height: 1.5;
+      min-height: 100vh;
+    }
+
+    /* Header */
+    .header {
+      padding: var(--space-lg) var(--space-xl);
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .back-button {
+      display: inline-flex;
+      align-items: center;
+      gap: var(--space-xs);
+      background: none;
+      border: none;
+      color: var(--color-text-secondary);
+      font-size: 14px;
+      font-weight: 400;
+      cursor: pointer;
+      padding: var(--space-xs) 0;
+      transition: color var(--transition);
+    }
+
+    .back-button:hover {
+      color: var(--color-text);
+    }
+
+    .back-arrow {
+      font-size: 20px;
+      font-weight: 300;
+      line-height: 1;
+    }
+
+    /* Main Content */
+    .main {
+      max-width: 800px;
+      margin: 0 auto;
+      padding: var(--space-2xl) var(--space-xl);
+    }
+
+    /* Title Section */
+    .title-section {
+      margin-bottom: var(--space-xl);
+    }
+
+    .candidate-name {
+      font-size: 38px;
+      font-weight: 400;
+      letter-spacing: -0.02em;
+      line-height: 1.15;
+      margin-bottom: 12px;
+      color: var(--color-text);
+    }
+
+    .position {
+      font-size: 17px;
+      font-weight: 400;
+      color: var(--color-text-secondary);
+      line-height: 1.5;
+    }
+
+    /* Score Section */
+    .score-section {
+      margin-bottom: var(--space-xl);
+    }
+
+    .score-container {
+      display: flex;
+      align-items: baseline;
+      gap: 12px;
+      margin-bottom: var(--space-sm);
+    }
+
+    .score-value {
+      font-size: 56px;
+      font-weight: 300;
+      letter-spacing: -0.03em;
+      color: var(--color-text);
+      font-variant-numeric: tabular-nums;
+      line-height: 1;
+    }
+
+    .score-label {
+      font-size: 12px;
+      font-weight: 500;
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.1em;
+    }
+
+    .score-bar {
+      height: 3px;
+      background-color: var(--color-border);
+      border-radius: 2px;
+      overflow: hidden;
+    }
+
+    .score-bar-fill {
+      height: 100%;
+      background-color: var(--color-text);
+      border-radius: 2px;
+      transition: width 0.8s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Divider */
+    .divider {
+      height: 1px;
+      background-color: var(--color-border);
+      margin-bottom: var(--space-xl);
+    }
+
+    /* Meta Grid */
+    .meta-grid {
+      display: grid;
+      grid-template-columns: repeat(2, 1fr);
+      gap: var(--space-lg);
+      margin-bottom: var(--space-xl);
+    }
+
+    @media (max-width: 600px) {
+      .meta-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .meta-item {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .meta-label {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+    }
+
+    .meta-value {
+      font-size: 16px;
+      font-weight: 400;
+      color: var(--color-text);
+    }
+
+    /* Tabs */
+    .tab-container {
+      display: flex;
+      gap: var(--space-lg);
+      border-bottom: 1px solid var(--color-border);
+      margin-bottom: var(--space-xl);
+    }
+
+    .tab {
+      background: none;
+      border: none;
+      padding: var(--space-sm) 0;
+      font-size: 14px;
+      font-weight: 400;
+      color: var(--color-text-tertiary);
+      cursor: pointer;
+      position: relative;
+      transition: color var(--transition);
+    }
+
+    .tab:hover {
+      color: var(--color-text-secondary);
+    }
+
+    .tab.active {
+      color: var(--color-text);
+      font-weight: 500;
+    }
+
+    .tab.active::after {
+      content: '';
+      position: absolute;
+      bottom: -1px;
+      left: 0;
+      right: 0;
+      height: 1px;
+      background-color: var(--color-text);
+    }
+
+    /* Tab Content */
+    .tab-content {
+      min-height: 320px;
+    }
+
+    .tab-panel {
+      display: none;
+      animation: fadeIn 0.3s ease;
+    }
+
+    .tab-panel.active {
+      display: block;
+    }
+
+    @keyframes fadeIn {
+      from { opacity: 0; transform: translateY(8px); }
+      to { opacity: 1; transform: translateY(0); }
+    }
+
+    /* Summary Tab */
+    .summary-text {
+      font-size: 17px;
+      line-height: 1.75;
+      color: #333333;
+      margin-bottom: var(--space-xl);
+      max-width: 640px;
+    }
+
+    .section-group {
+      margin-bottom: 40px;
+    }
+
+    .section-title {
+      font-size: 11px;
+      font-weight: 500;
+      color: var(--color-text-tertiary);
+      text-transform: uppercase;
+      letter-spacing: 0.12em;
+      margin-bottom: 20px;
+    }
+
+    .highlight-list {
+      list-style: none;
+    }
+
+    .highlight-item {
+      font-size: 15px;
+      line-height: 1.65;
+      color: var(--color-text);
+      padding-left: 20px;
+      margin-bottom: 14px;
+      position: relative;
+    }
+
+    .highlight-item::before {
+      content: '';
+      position: absolute;
+      left: 0;
+      top: 10px;
+      width: 4px;
+      height: 4px;
+      background-color: var(--color-text-tertiary);
+      border-radius: 50%;
+    }
+
+    /* Metrics Tab */
+    .metrics-container {
+      display: flex;
+      flex-direction: column;
+      gap: var(--space-lg);
+    }
+
+    .metric-row {
+      padding-bottom: var(--space-lg);
+      border-bottom: 1px solid var(--color-border-subtle);
+    }
+
+    .metric-row:last-child {
+      border-bottom: none;
+      padding-bottom: 0;
+    }
+
+    .metric-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      margin-bottom: 12px;
+    }
+
+    .metric-label {
+      font-size: 15px;
+      font-weight: 400;
+      color: var(--color-text);
+    }
+
+    .metric-score {
+      font-size: 15px;
+      font-weight: 500;
+      color: var(--color-text);
+      font-variant-numeric: tabular-nums;
+    }
+
+    .metric-bar {
+      height: 2px;
+      background-color: var(--color-border);
+      border-radius: 1px;
+      overflow: hidden;
+    }
+
+    .metric-bar-fill {
+      height: 100%;
+      background-color: var(--color-text);
+      border-radius: 1px;
+      transition: width 0.6s cubic-bezier(0.4, 0, 0.2, 1);
+    }
+
+    /* Notes Tab */
+    .note-card {
+      border-left: 2px solid #e0e0e0;
+      padding-left: var(--space-md);
+      margin-bottom: var(--space-lg);
+    }
+
+    .note-text {
+      font-size: 16px;
+      line-height: 1.75;
+      color: #333333;
+      font-style: italic;
+      margin-bottom: 20px;
+    }
+
+    .note-footer {
+      display: flex;
+      gap: var(--space-sm);
+      font-size: 13px;
+      color: var(--color-text-tertiary);
+    }
+
+    .note-author {
+      font-weight: 500;
+    }
+
+    /* Focus states - Premium, subtle */
+    button:focus-visible {
+      outline: none;
+      box-shadow: 0 0 0 2px var(--color-bg), 0 0 0 4px var(--color-text);
+      border-radius: 2px;
+    }
+
+    /* Selection */
+    ::selection {
+      background-color: rgba(26, 26, 26, 0.1);
+    }
+  </style>
+</head>
+<body>
+  <!-- Header -->
+  <header class="header">
+    <button class="back-button">
+      <span class="back-arrow">←</span>
+      <span>Back</span>
+    </button>
+  </header>
+
+  <!-- Main Content -->
+  <main class="main">
+    <!-- Title Section -->
+    <div class="title-section">
+      <h1 class="candidate-name">Sarah Mitchell</h1>
+      <p class="position">Senior Vice President, Portfolio Management</p>
+    </div>
+
+    <!-- Score Section -->
+    <div class="score-section">
+      <div class="score-container">
+        <span class="score-value">87</span>
+        <span class="score-label">Overall Score</span>
+      </div>
+      <div class="score-bar">
+        <div class="score-bar-fill" style="width: 87%"></div>
+      </div>
+    </div>
+
+    <!-- Divider -->
+    <div class="divider"></div>
+
+    <!-- Meta Grid -->
+    <div class="meta-grid">
+      <div class="meta-item">
+        <span class="meta-label">Interview Date</span>
+        <span class="meta-value">March 15, 2026</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Duration</span>
+        <span class="meta-value">47 minutes</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Status</span>
+        <span class="meta-value">Completed</span>
+      </div>
+      <div class="meta-item">
+        <span class="meta-label">Interviewer</span>
+        <span class="meta-value">Michael Chen</span>
+      </div>
+    </div>
+
+    <!-- Divider -->
+    <div class="divider"></div>
+
+    <!-- Tabs -->
+    <div class="tab-container">
+      <button class="tab active" data-tab="summary">Summary</button>
+      <button class="tab" data-tab="metrics">Metrics</button>
+      <button class="tab" data-tab="notes">Notes</button>
+    </div>
+
+    <!-- Tab Content -->
+    <div class="tab-content">
+      <!-- Summary Panel -->
+      <div class="tab-panel active" id="summary">
+        <p class="summary-text">
+          The candidate demonstrated exceptional expertise in portfolio management
+          and derivatives trading. Her leadership experience at previous institutions
+          positions her well for this senior role.
+        </p>
+
+        <div class="section-group">
+          <h3 class="section-title">Key Strengths</h3>
+          <ul class="highlight-list">
+            <li class="highlight-item">Exceptional knowledge of derivatives markets</li>
+            <li class="highlight-item">Strong track record in team development</li>
+            <li class="highlight-item">Proven ability to manage large portfolios under pressure</li>
+          </ul>
+        </div>
+
+        <div class="section-group">
+          <h3 class="section-title">Considerations</h3>
+          <ul class="highlight-list">
+            <li class="highlight-item">Prefers collaborative decision-making environments</li>
+            <li class="highlight-item">May require adjustment period for proprietary systems</li>
+          </ul>
+        </div>
+      </div>
+
+      <!-- Metrics Panel -->
+      <div class="tab-panel" id="metrics">
+        <div class="metrics-container">
+          <div class="metric-row">
+            <div class="metric-header">
+              <span class="metric-label">Technical Competency</span>
+              <span class="metric-score">92</span>
+            </div>
+            <div class="metric-bar">
+              <div class="metric-bar-fill" style="width: 92%"></div>
+            </div>
+          </div>
+
+          <div class="metric-row">
+            <div class="metric-header">
+              <span class="metric-label">Leadership Presence</span>
+              <span class="metric-score">88</span>
+            </div>
+            <div class="metric-bar">
+              <div class="metric-bar-fill" style="width: 88%"></div>
+            </div>
+          </div>
+
+          <div class="metric-row">
+            <div class="metric-header">
+              <span class="metric-label">Strategic Thinking</span>
+              <span class="metric-score">85</span>
+            </div>
+            <div class="metric-bar">
+              <div class="metric-bar-fill" style="width: 85%"></div>
+            </div>
+          </div>
+
+          <div class="metric-row">
+            <div class="metric-header">
+              <span class="metric-label">Communication</span>
+              <span class="metric-score">84</span>
+            </div>
+            <div class="metric-bar">
+              <div class="metric-bar-fill" style="width: 84%"></div>
+            </div>
+          </div>
+
+          <div class="metric-row">
+            <div class="metric-header">
+              <span class="metric-label">Cultural Alignment</span>
+              <span class="metric-score">89</span>
+            </div>
+            <div class="metric-bar">
+              <div class="metric-bar-fill" style="width: 89%"></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Notes Panel -->
+      <div class="tab-panel" id="notes">
+        <div class="note-card">
+          <p class="note-text">
+            "Strong technical background with demonstrated success in high-pressure
+            trading environments. Consider for future roles in derivatives trading
+            or risk management leadership."
+          </p>
+          <div class="note-footer">
+            <span class="note-author">Michael Chen</span>
+            <span class="note-date">March 15, 2026</span>
+          </div>
+        </div>
+
+        <div class="note-card">
+          <p class="note-text">
+            "Excellent rapport with the team during panel interview. Asked insightful
+            questions about our risk management framework."
+          </p>
+          <div class="note-footer">
+            <span class="note-author">Jennifer Wu</span>
+            <span class="note-date">March 15, 2026</span>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <script>
+    // Tab switching
+    document.querySelectorAll('.tab').forEach(tab => {
+      tab.addEventListener('click', () => {
+        // Update tabs
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        tab.classList.add('active');
+
+        // Update panels
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        document.getElementById(tab.dataset.tab).classList.add('active');
+      });
+    });
+
+    // Animate bars on load
+    window.addEventListener('load', () => {
+      document.querySelectorAll('.score-bar-fill, .metric-bar-fill').forEach(bar => {
+        const width = bar.style.width;
+        bar.style.width = '0%';
+        setTimeout(() => {
+          bar.style.width = width;
+        }, 100);
+      });
+    });
+  </script>
+</body>
+</html>

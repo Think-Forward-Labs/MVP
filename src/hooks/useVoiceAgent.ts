@@ -31,11 +31,33 @@ export type AgentStatus =
   | 'ready'   // agent confirmed all checklist items covered
   | 'error';
 
+// Checklist tracking types
+export interface ChecklistItemState {
+  item_id: string;
+  satisfied: boolean;
+  value?: string;
+  quote?: string;
+}
+
+export interface ChecklistState {
+  items: Record<string, ChecklistItemState>;
+  allItemIds: string[];
+}
+
 interface UseVoiceAgentOptions {
   onConversationUpdate?: (history: ConversationTurn[]) => void;
   onAgentReady?: (mergedTranscript: string) => void;
   onError?: (error: string) => void;
   onStatusChange?: (status: AgentStatus) => void;
+  onChecklistUpdate?: (state: ChecklistState) => void;
+  // Called when agent triggers proceed_to_next in hands-free mode
+  onProceedToNext?: (reason: 'completed' | 'skipped', mergedTranscript: string) => void;
+  // Called when agent triggers complete_assessment (last question in hands-free mode)
+  onCompleteAssessment?: (reason: 'completed' | 'skipped', mergedTranscript: string) => void;
+  // Called when agent sets a structured response (scale, select, percentage)
+  onStructuredResponse?: (value: string) => void;
+  // Initial checklist items from the question
+  checklistItems?: Array<{ id: string; key: string; description: string }>;
 }
 
 interface UseVoiceAgentReturn {
@@ -48,6 +70,9 @@ interface UseVoiceAgentReturn {
   // Transcripts
   userTranscript: string;
   conversationHistory: ConversationTurn[];
+
+  // Checklist
+  checklistState: ChecklistState;
 
   // Controls
   isMuted: boolean;
@@ -112,7 +137,7 @@ const READY_PATTERNS = [
 // ─── Hook ────────────────────────────────────────────────────────────
 
 export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgentReturn {
-  const { onConversationUpdate, onAgentReady, onError, onStatusChange } = options;
+  const { onConversationUpdate, onAgentReady, onError, onStatusChange, onChecklistUpdate, onProceedToNext, onCompleteAssessment, onStructuredResponse, checklistItems } = options;
 
   // State
   const [status, setStatus] = useState<AgentStatus>('disconnected');
@@ -120,6 +145,20 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
   const [conversationHistory, setConversationHistory] = useState<ConversationTurn[]>([]);
   const [isMuted, setIsMuted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  // Checklist state
+  const [checklistState, setChecklistState] = useState<ChecklistState>(() => {
+    const items: Record<string, ChecklistItemState> = {};
+    const allItemIds: string[] = [];
+    if (checklistItems) {
+      for (const item of checklistItems) {
+        items[item.id] = { item_id: item.id, satisfied: false };
+        allItemIds.push(item.id);
+      }
+    }
+    return { items, allItemIds };
+  });
+  const checklistStateRef = useRef<ChecklistState>(checklistState);
 
   // Refs for WebSocket and audio
   const socketRef = useRef<WebSocket | null>(null);
@@ -259,6 +298,191 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
     }
   }, [updateStatus, getMergedUserTranscript, onAgentReady]);
 
+  // ─── Handle Function Call Request ─────────────────────────────────
+
+  const handleFunctionCallRequest = useCallback((
+    socket: WebSocket,
+    functionCall: { id: string; name: string; arguments: string }
+  ) => {
+    // Handle update_checklist function
+    if (functionCall.name === 'update_checklist') {
+      try {
+        const args = JSON.parse(functionCall.arguments);
+        const itemsToMark: Array<{ item_id: string; value: string; quote?: string }> = args.items || [];
+
+        // Update checklist state
+        const newItems = { ...checklistStateRef.current.items };
+        for (const item of itemsToMark) {
+          if (newItems[item.item_id]) {
+            newItems[item.item_id] = {
+              item_id: item.item_id,
+              satisfied: true,
+              value: item.value,
+              quote: item.quote,
+            };
+          }
+        }
+
+        // Calculate remaining items
+        const remaining = checklistStateRef.current.allItemIds.filter(
+          id => !newItems[id]?.satisfied
+        );
+        const allComplete = remaining.length === 0;
+
+        // Update state
+        const newState: ChecklistState = {
+          items: newItems,
+          allItemIds: checklistStateRef.current.allItemIds,
+        };
+        checklistStateRef.current = newState;
+        setChecklistState(newState);
+        onChecklistUpdate?.(newState);
+
+        // Send response back to agent (Deepgram format: id, name, content)
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({
+            success: true,
+            marked: itemsToMark.map(i => i.item_id),
+            remaining: remaining,
+            all_complete: allComplete,
+          }),
+        };
+        socket.send(JSON.stringify(response));
+
+        console.log('[VoiceAgent] Checklist updated:', {
+          marked: itemsToMark.map(i => i.item_id),
+          remaining,
+          allComplete,
+        });
+
+        // NOTE: Do NOT trigger onAgentReady here!
+        // Let the agent speak "That covers everything..." first,
+        // then the READY_PATTERNS detection in checkAgentReady will trigger ready state.
+        // This keeps the conversation natural.
+      } catch (err) {
+        console.error('[VoiceAgent] Failed to handle update_checklist:', err);
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: false, error: 'Failed to process' }),
+        };
+        socket.send(JSON.stringify(response));
+      }
+      return;
+    }
+
+    // Handle proceed_to_next function (hands-free mode)
+    if (functionCall.name === 'proceed_to_next') {
+      try {
+        const args = JSON.parse(functionCall.arguments);
+        const reason: 'completed' | 'skipped' = args.reason || 'completed';
+
+        console.log('[VoiceAgent] Proceed to next:', { reason });
+
+        // Send success response back to agent
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: true }),
+        };
+        socket.send(JSON.stringify(response));
+
+        // Get merged transcript and trigger callback
+        const merged = getMergedUserTranscript();
+        onProceedToNext?.(reason, merged);
+      } catch (err) {
+        console.error('[VoiceAgent] Failed to handle proceed_to_next:', err);
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: false, error: 'Failed to process' }),
+        };
+        socket.send(JSON.stringify(response));
+      }
+      return;
+    }
+
+    // Handle complete_assessment function (last question in hands-free mode)
+    if (functionCall.name === 'complete_assessment') {
+      try {
+        const args = JSON.parse(functionCall.arguments);
+        const reason: 'completed' | 'skipped' = args.reason || 'completed';
+
+        console.log('[VoiceAgent] Complete assessment:', { reason });
+
+        // Send success response back to agent
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: true, message: 'Assessment completed' }),
+        };
+        socket.send(JSON.stringify(response));
+
+        // Get merged transcript and trigger callback
+        const merged = getMergedUserTranscript();
+        onCompleteAssessment?.(reason, merged);
+      } catch (err) {
+        console.error('[VoiceAgent] Failed to handle complete_assessment:', err);
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: false, error: 'Failed to process' }),
+        };
+        socket.send(JSON.stringify(response));
+      }
+      return;
+    }
+
+    // Handle set_structured_response function (for scale, select, percentage questions)
+    if (functionCall.name === 'set_structured_response') {
+      try {
+        const args = JSON.parse(functionCall.arguments);
+        const value: string = args.value || '';
+
+        console.log('[VoiceAgent] Set structured response:', { value });
+
+        // Update the input value in the parent component
+        if (value && onStructuredResponse) {
+          onStructuredResponse(value);
+        }
+
+        // Send success response back to agent
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({
+            success: true,
+            value_set: value,
+            message: 'Response recorded successfully',
+          }),
+        };
+        socket.send(JSON.stringify(response));
+      } catch (err) {
+        console.error('[VoiceAgent] Failed to handle set_structured_response:', err);
+        const response = {
+          type: 'FunctionCallResponse',
+          id: functionCall.id,
+          name: functionCall.name,
+          content: JSON.stringify({ success: false, error: 'Failed to process' }),
+        };
+        socket.send(JSON.stringify(response));
+      }
+      return;
+    }
+
+    // Unknown function
+    console.warn('[VoiceAgent] Unknown function:', functionCall.name);
+  }, [onChecklistUpdate, onProceedToNext, onCompleteAssessment, onStructuredResponse, getMergedUserTranscript]);
+
   // ─── Connect ─────────────────────────────────────────────────────
 
   const connect = useCallback(async (settings: VoiceAgentSettings) => {
@@ -272,6 +496,20 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
     setConversationHistory([]);
     userTranscriptRef.current = '';
     conversationRef.current = [];
+
+    // Reset checklist state for new question
+    const resetItems: Record<string, ChecklistItemState> = {};
+    const resetItemIds: string[] = [];
+    if (checklistItems) {
+      for (const item of checklistItems) {
+        resetItems[item.id] = { item_id: item.id, satisfied: false };
+        resetItemIds.push(item.id);
+      }
+    }
+    const resetState: ChecklistState = { items: resetItems, allItemIds: resetItemIds };
+    checklistStateRef.current = resetState;
+    setChecklistState(resetState);
+
     updateStatus('connecting');
 
     try {
@@ -400,6 +638,15 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
               // Agent finished a logical response segment
               break;
 
+            case 'FunctionCallRequest': {
+              // Agent is calling a function (e.g., update_checklist)
+              const func = msg.functions?.[0];
+              if (func && socket.readyState === WebSocket.OPEN) {
+                handleFunctionCallRequest(socket, func);
+              }
+              break;
+            }
+
             default:
               // Ignore unknown message types
               break;
@@ -438,7 +685,7 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
     }
   }, [cleanup, updateStatus, playAudioChunk, stopAllPlayback,
       onConversationUpdate, onAgentReady, onError, checkAgentReady,
-      getMergedUserTranscript, status]);
+      getMergedUserTranscript, handleFunctionCallRequest, checklistItems, status]);
 
   // ─── Disconnect ──────────────────────────────────────────────────
 
@@ -468,6 +715,7 @@ export function useVoiceAgent(options: UseVoiceAgentOptions = {}): UseVoiceAgent
     disconnect,
     userTranscript,
     conversationHistory,
+    checklistState,
     isMuted,
     mute,
     unmute,

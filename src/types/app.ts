@@ -124,7 +124,7 @@ export interface InterviewResponseItem {
   updated_at: string;
 }
 
-export type AppView = 'landing' | 'dashboard' | 'review-detail';
+export type AppView = 'landing' | 'dashboard' | 'review-detail' | 'admin-login' | 'admin-dashboard';
 
 export type DashboardSection =
   | 'overview'

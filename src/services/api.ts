@@ -449,11 +449,12 @@ export const authApi = {
   completeOnboarding: async (
     industry: string,
     size: string,
-    description: string
+    description: string,
+    level?: string
   ): Promise<OnboardingResponse> => {
     return apiRequest<OnboardingResponse>('/business/onboarding', {
       method: 'POST',
-      body: JSON.stringify({ industry, size, description }),
+      body: JSON.stringify({ industry, size, description, level }),
     });
   },
 };
@@ -626,11 +627,12 @@ export const reviewsApi = {
   addParticipant: async (
     reviewId: string,
     email: string,
-    name: string
+    name: string,
+    level?: string
   ): Promise<ReviewParticipantResponse> => {
     return apiRequest<ReviewParticipantResponse>(`/business/reviews/${reviewId}/participants`, {
       method: 'POST',
-      body: JSON.stringify({ email, name }),
+      body: JSON.stringify({ email, name, level }),
     });
   },
 
@@ -729,13 +731,15 @@ export const voiceAgentApi = {
    * Get Voice Agent configuration for a specific question.
    * Returns WebSocket URL, API key, and Settings message.
    * If previousResponse is provided, Eunice will have context about the prior answer.
+   * Mode can be "review" (default) or "handsfree" for fully voice-driven flow.
    */
   getConfig: async (
     interviewId: string,
     questionId: string,
     previousResponse?: string,
+    mode: 'review' | 'handsfree' = 'review',
   ): Promise<VoiceAgentConfigResponse> => {
-    let url = `/voice-agent/config?interview_id=${interviewId}&question_id=${questionId}`;
+    let url = `/voice-agent/config?interview_id=${interviewId}&question_id=${questionId}&mode=${mode}`;
     if (previousResponse) {
       url += `&previous_response=${encodeURIComponent(previousResponse)}`;
     }
