@@ -452,16 +452,8 @@ export function InterviewApp({
     },
     onProceedToNext: (reason, mergedTranscript) => {
       // Hands-free mode: agent called proceed_to_next
-      console.log('[VoiceAgent] Proceed to next:', { reason, mergedTranscript, alreadyPending: pendingNextConfirmationRef.current });
-
-      // If already showing transcript (pendingNextConfirmation is true), user is confirming → advance
-      if (pendingNextConfirmationRef.current) {
-        console.log('[VoiceAgent] User confirmed — advancing to next question');
-        handleVoiceAgentNextRef.current?.();
-        return;
-      }
-
-      // First call: show transcript for review
+      console.log('[VoiceAgent] Proceed to next:', { reason, mergedTranscript });
+      // Update the merged text before saving
       if (mergedTranscript) {
         if (previousResponseForMergeRef.current) {
           const combined = previousResponseForMergeRef.current.trim() + '\n\n' + mergedTranscript.trim();
@@ -470,22 +462,15 @@ export function InterviewApp({
           setVoiceAgentMergedText(mergedTranscript);
         }
       }
-      // Show confirmation view instead of immediately advancing
-      setVoiceAgentReady(true);
-      setPendingNextConfirmation(true);
+      // Trigger save and advance
+      if (handleVoiceAgentNextRef.current) {
+        handleVoiceAgentNextRef.current();
+      }
     },
     onCompleteAssessment: (reason, mergedTranscript) => {
       // Hands-free mode: agent called complete_assessment (last question)
-      console.log('[VoiceAgent] Complete assessment:', { reason, mergedTranscript, alreadyPending: pendingNextConfirmationRef.current });
-
-      // If already showing transcript (pendingNextConfirmation is true), user is confirming → complete
-      if (pendingNextConfirmationRef.current) {
-        console.log('[VoiceAgent] User confirmed — completing assessment');
-        handleVoiceAgentNextRef.current?.();
-        return;
-      }
-
-      // First call: show transcript for review
+      console.log('[VoiceAgent] Complete assessment:', { reason, mergedTranscript });
+      // Update the merged text before saving
       if (mergedTranscript) {
         if (previousResponseForMergeRef.current) {
           const combined = previousResponseForMergeRef.current.trim() + '\n\n' + mergedTranscript.trim();
@@ -494,9 +479,10 @@ export function InterviewApp({
           setVoiceAgentMergedText(mergedTranscript);
         }
       }
-      // Show confirmation view instead of immediately completing
-      setVoiceAgentReady(true);
-      setPendingNextConfirmation(true);
+      // Trigger save — backend will return next_action: 'complete' for last question
+      if (handleVoiceAgentNextRef.current) {
+        handleVoiceAgentNextRef.current();
+      }
     },
     onStructuredResponse: (value) => {
       // Hands-free mode: agent set a structured response (scale, select, percentage)
