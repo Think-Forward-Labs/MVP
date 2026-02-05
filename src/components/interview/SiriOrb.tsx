@@ -18,12 +18,14 @@ interface SiriOrbProps {
   className?: string;
 }
 
-// Purple color palette (4 colors for layer cycling)
+// Purple-pink color palette (6 colors for layer cycling)
 const COLORS = [
   { r: 139, g: 92, b: 246 },   // #8B5CF6 - Purple
-  { r: 99, g: 102, b: 241 },   // #6366F1 - Indigo
+  { r: 168, g: 85, b: 247 },   // #A855F7 - Violet
+  { r: 217, g: 70, b: 239 },   // #D946EF - Fuchsia
+  { r: 236, g: 72, b: 153 },   // #EC4899 - Pink
   { r: 167, g: 139, b: 250 },  // #A78BFA - Light purple
-  { r: 196, g: 181, b: 253 },  // #C4B5FD - Lavender
+  { r: 244, g: 114, b: 182 },  // #F472B6 - Light pink
 ];
 
 export function SiriOrb({
@@ -103,8 +105,8 @@ export function SiriOrb({
       const layerT = l / layers;
       const layerRadius = baseRadius * (0.6 + layerT * 0.45);
       const alpha = (0.15 + layerT * 0.12) * (0.6 + intensity * 0.4);
-      const color = COLORS[l % 4];
-      const nextColor = COLORS[(l + 1) % 4];
+      const color = COLORS[l % 6];
+      const nextColor = COLORS[(l + 1) % 6];
 
       ctx.beginPath();
 
@@ -178,7 +180,7 @@ export function SiriOrb({
       const pSize = 1.5 + Math.sin(t + i) * 1 * intensity;
       const pAlpha = (0.3 + Math.sin(t * 0.8 + i * 2.3) * 0.3) * intensity;
 
-      const pColor = COLORS[i % 4];
+      const pColor = COLORS[i % 6];
       ctx.beginPath();
       ctx.arc(px, py, pSize, 0, Math.PI * 2);
       ctx.fillStyle = `rgba(${pColor.r}, ${pColor.g}, ${pColor.b}, ${pAlpha})`;
