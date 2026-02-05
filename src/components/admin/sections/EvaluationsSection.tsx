@@ -557,6 +557,54 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
+        @keyframes gradientRotate {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+        .ask-eunice-btn {
+          position: relative;
+          display: flex;
+          align-items: center;
+          gap: 10px;
+          padding: 6px 16px 6px 6px;
+          background: rgba(255, 255, 255, 0.95);
+          color: #1D1D1F;
+          border: none;
+          border-radius: 24px;
+          font-size: 13px;
+          font-weight: 600;
+          cursor: pointer;
+          transition: all 0.28s cubic-bezier(0.32, 0.72, 0, 1);
+          letter-spacing: -0.01em;
+          z-index: 1;
+        }
+        .ask-eunice-btn::before {
+          content: '';
+          position: absolute;
+          inset: -2px;
+          border-radius: 26px;
+          background: linear-gradient(90deg, #8B5CF6, #A855F7, #D946EF, #EC4899, #A855F7, #8B5CF6);
+          background-size: 300% 100%;
+          animation: gradientRotate 3s ease infinite;
+          z-index: -1;
+          opacity: 0.8;
+        }
+        .ask-eunice-btn::after {
+          content: '';
+          position: absolute;
+          inset: 0;
+          border-radius: 24px;
+          background: rgba(255, 255, 255, 0.95);
+          z-index: -1;
+        }
+        .ask-eunice-btn:hover {
+          transform: translateY(-1px) scale(1.02);
+        }
+        .ask-eunice-btn:hover::before {
+          opacity: 1;
+          animation: gradientRotate 2s ease infinite;
+        }
       `}</style>
       {/* Breadcrumb */}
       <Breadcrumb nav={nav} onNavigate={(level) => {
@@ -2556,37 +2604,10 @@ function RunSummaryView({
             <span style={{ ...dashStyles.statusBadge, background: statusColor.bg, color: statusColor.text }}>
               {run.status}
             </span>
-            {/* Ask Eunice Button - HIG Glass Effect */}
+            {/* Ask Eunice Button - Animated Gradient Border */}
             <button
+              className="ask-eunice-btn"
               onClick={onOpenChat}
-              style={{
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                padding: '6px 16px 6px 6px',
-                background: 'rgba(255, 255, 255, 0.85)',
-                backdropFilter: 'blur(12px) saturate(180%)',
-                WebkitBackdropFilter: 'blur(12px) saturate(180%)',
-                color: '#1D1D1F',
-                border: '1px solid rgba(99, 102, 241, 0.2)',
-                borderRadius: '24px',
-                fontSize: '13px',
-                fontWeight: 600,
-                cursor: 'pointer',
-                boxShadow: '0 2px 12px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8)',
-                transition: 'all 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
-                letterSpacing: '-0.01em',
-              }}
-              onMouseEnter={(e) => {
-                e.currentTarget.style.boxShadow = '0 4px 20px rgba(99, 102, 241, 0.25), inset 0 1px 0 rgba(255, 255, 255, 0.9)';
-                e.currentTarget.style.transform = 'translateY(-2px) scale(1.02)';
-                e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.4)';
-              }}
-              onMouseLeave={(e) => {
-                e.currentTarget.style.boxShadow = '0 2px 12px rgba(99, 102, 241, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.8)';
-                e.currentTarget.style.transform = 'translateY(0) scale(1)';
-                e.currentTarget.style.borderColor = 'rgba(99, 102, 241, 0.2)';
-              }}
             >
               <div style={{
                 width: '28px',
