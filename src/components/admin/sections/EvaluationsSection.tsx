@@ -557,10 +557,9 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
           from { transform: rotate(0deg); }
           to { transform: rotate(360deg); }
         }
-        @keyframes gradientRotate {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
+        @keyframes borderRotate {
+          0% { transform: rotate(0deg); }
+          100% { transform: rotate(360deg); }
         }
         .ask-eunice-btn {
           position: relative;
@@ -568,42 +567,53 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
           align-items: center;
           gap: 10px;
           padding: 6px 16px 6px 6px;
-          background: rgba(255, 255, 255, 0.95);
+          background: #fff;
           color: #1D1D1F;
-          border: none;
+          border: 1px solid rgba(0, 0, 0, 0.12);
           border-radius: 24px;
           font-size: 13px;
           font-weight: 600;
           cursor: pointer;
           transition: all 0.28s cubic-bezier(0.32, 0.72, 0, 1);
           letter-spacing: -0.01em;
-          z-index: 1;
+          overflow: hidden;
         }
         .ask-eunice-btn::before {
           content: '';
           position: absolute;
-          inset: -2px;
-          border-radius: 26px;
-          background: linear-gradient(90deg, #8B5CF6, #A855F7, #D946EF, #EC4899, #A855F7, #8B5CF6);
-          background-size: 300% 100%;
-          animation: gradientRotate 3s ease infinite;
-          z-index: -1;
-          opacity: 0.8;
+          top: 50%;
+          left: 50%;
+          width: 150%;
+          height: 150%;
+          background: conic-gradient(
+            from 0deg,
+            transparent 0deg,
+            transparent 340deg,
+            rgba(139, 92, 246, 0.6) 350deg,
+            rgba(168, 85, 247, 0.8) 355deg,
+            rgba(139, 92, 246, 0.6) 360deg
+          );
+          transform: translate(-50%, -50%);
+          animation: borderRotate 4s linear infinite;
+          pointer-events: none;
         }
         .ask-eunice-btn::after {
           content: '';
           position: absolute;
-          inset: 0;
-          border-radius: 24px;
-          background: rgba(255, 255, 255, 0.95);
-          z-index: -1;
+          inset: 1px;
+          border-radius: 23px;
+          background: #fff;
+          pointer-events: none;
+        }
+        .ask-eunice-btn > * {
+          position: relative;
+          z-index: 1;
         }
         .ask-eunice-btn:hover {
-          transform: translateY(-1px) scale(1.02);
+          border-color: rgba(139, 92, 246, 0.3);
         }
         .ask-eunice-btn:hover::before {
-          opacity: 1;
-          animation: gradientRotate 2s ease infinite;
+          animation: borderRotate 2.5s linear infinite;
         }
       `}</style>
       {/* Breadcrumb */}
