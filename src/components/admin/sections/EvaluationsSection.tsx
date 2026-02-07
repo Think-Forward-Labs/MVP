@@ -1812,7 +1812,7 @@ function getMetricsForInterview(metricScores: MetricScoreDetail[], sourceId: str
 // Dummy data for the new dashboard design
 const DUMMY_EXECUTIVE_SUMMARY = `Your organization excels at executing today's work but is blind to market shifts. Frontline workers see problems first but have learned to "keep their heads down" unless issues are safety-critical. This creates a dangerous gap: the people closest to operational reality are systematically excluded from shaping how work gets done.
 
-The data reveals strong operational execution (Technical Fitness: 62) but concerning gaps in adaptability (Evolutionary Fitness: 28). Multiple perception-reality contradictions suggest leadership may not have accurate visibility into actual organizational dynamics.`;
+The data reveals strong operational execution (Operational Strength: 62) but concerning gaps in adaptability (Future Readiness: 28). Multiple perception-reality contradictions suggest leadership may not have accurate visibility into actual organizational dynamics.`;
 
 const DUMMY_KEY_ACTIONS: KeyActionType[] = [
   {
@@ -1901,11 +1901,11 @@ const DUMMY_STRENGTHS = [
 
 // Dummy Metric Insights - narrative-focused per-metric descriptions (all 14 metrics)
 const DUMMY_METRIC_INSIGHTS = [
-  // TECHNICAL FITNESS
+  // OPERATIONAL STRENGTH
   {
     metric_code: 'M1',
     metric_name: 'Operational Strength',
-    category: 'Technical Fitness',
+    category: 'Operational Strength',
     health_status: 'strong' as const,
     score: 66,
     summary: 'Your operational execution is a clear strength. Teams deliver reliably on commitments, and work quality remains consistent.',
@@ -1936,7 +1936,7 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M4',
     metric_name: 'Implementation Speed',
-    category: 'Technical Fitness',
+    category: 'Operational Strength',
     health_status: 'developing' as const,
     score: 56,
     summary: 'Changes happen, but slowly. Approval processes and hierarchical decision-making create bottlenecks.',
@@ -1967,7 +1967,7 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M7',
     metric_name: 'Resource Efficiency',
-    category: 'Technical Fitness',
+    category: 'Operational Strength',
     health_status: 'strong' as const,
     score: 72,
     summary: 'Resources are well-utilized for current operations. Teams make do with what they have.',
@@ -1998,7 +1998,7 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M10',
     metric_name: 'Quality Standards',
-    category: 'Technical Fitness',
+    category: 'Operational Strength',
     health_status: 'strong' as const,
     score: 68,
     summary: 'Quality is taken seriously. Clear standards exist and are generally followed.',
@@ -2026,11 +2026,11 @@ const DUMMY_METRIC_INSIGHTS = [
     related_strength_ids: ['strength_2'],
     related_action_ids: [],
   },
-  // EVOLUTIONARY FITNESS
+  // FUTURE READINESS
   {
     metric_code: 'M2',
     metric_name: 'Future Readiness',
-    category: 'Evolutionary Fitness',
+    category: 'Future Readiness',
     health_status: 'critical' as const,
     score: 18,
     summary: 'Your organization is optimized for today but dangerously blind to tomorrow.',
@@ -2063,7 +2063,7 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M5',
     metric_name: 'Market Radar',
-    category: 'Evolutionary Fitness',
+    category: 'Future Readiness',
     health_status: 'critical' as const,
     score: 0,
     summary: 'Your frontline has zero visibility into market shifts or competitive dynamics.',
@@ -2094,7 +2094,7 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M8',
     metric_name: 'Innovation Capacity',
-    category: 'Evolutionary Fitness',
+    category: 'Future Readiness',
     health_status: 'attention' as const,
     score: 24,
     summary: 'Frontline has no time, permission, or mechanisms for creative problem-solving.',
@@ -2125,7 +2125,7 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M11',
     metric_name: 'Adaptability',
-    category: 'Evolutionary Fitness',
+    category: 'Future Readiness',
     health_status: 'attention' as const,
     score: 32,
     summary: 'The organization can respond to change, but only through top-down directives, not organic adaptation.',
@@ -2557,33 +2557,53 @@ function RunSummaryView({
   const aggregatedMetrics = getAggregatedMetrics(scores?.metric_scores || []);
   const sortedMetrics = sortMetricsByNumber(aggregatedMetrics);
 
-  // Calculate overall score
-  const avgScore = sortedMetrics.length > 0
-    ? Math.round(sortedMetrics.reduce((sum, m) => sum + (m.overall_score || 0), 0) / sortedMetrics.length)
-    : 0;
-
-  // Calculate Technical vs Evolutionary Fitness (dummy calculation for now)
-  const technicalMetrics = sortedMetrics.filter(m => ['M1', 'M4', 'M7', 'M10'].includes(m.metric_code || ''));
-  const evolutionaryMetrics = sortedMetrics.filter(m => ['M2', 'M5', 'M8', 'M11'].includes(m.metric_code || ''));
-
-  const technicalFitness = technicalMetrics.length > 0
-    ? Math.round(technicalMetrics.reduce((sum, m) => sum + (m.overall_score || 0), 0) / technicalMetrics.length)
-    : 62; // Fallback dummy value
-
-  const evolutionaryFitness = evolutionaryMetrics.length > 0
-    ? Math.round(evolutionaryMetrics.reduce((sum, m) => sum + (m.overall_score || 0), 0) / evolutionaryMetrics.length)
-    : 28; // Fallback dummy value
-
-  // Determine quadrant
-  const getQuadrant = (tech: number, evol: number) => {
-    if (tech >= 50 && evol >= 50) return { name: 'Ambidextrous Leader', color: '#1A7F37' };
-    if (tech >= 50 && evol < 50) return { name: 'Efficient Executor', color: '#0969DA' };
-    if (tech < 50 && evol >= 50) return { name: 'Chaotic Innovator', color: '#9A6700' };
-    return { name: 'Vulnerable Drifter', color: '#CF222E' };
+  // Helper to get individual metric score by code
+  const getMetricScore = (code: string): number => {
+    const metric = sortedMetrics.find(m => m.metric_code === code);
+    return metric?.overall_score || 0;
   };
 
-  const quadrant = getQuadrant(technicalFitness, evolutionaryFitness);
-  const pointGap = Math.abs(technicalFitness - evolutionaryFitness);
+  // Weighted composite: Operational Strength (X-axis)
+  // X = (M1 × 0.40) + (M4 × 0.20) + (M9 × 0.15) + (M11 × 0.15) + (M8 × 0.10)
+  const operationalStrength = sortedMetrics.length > 0
+    ? Math.round(
+        (getMetricScore('M1') * 0.40) +
+        (getMetricScore('M4') * 0.20) +
+        (getMetricScore('M9') * 0.15) +
+        (getMetricScore('M11') * 0.15) +
+        (getMetricScore('M8') * 0.10)
+      )
+    : 0;
+
+  // Weighted composite: Future Readiness (Y-axis)
+  // Y = (M2 × 0.40) + (M5 × 0.20) + (M3 × 0.15) + (M14 × 0.15) + (M10 × 0.10)
+  const futureReadiness = sortedMetrics.length > 0
+    ? Math.round(
+        (getMetricScore('M2') * 0.40) +
+        (getMetricScore('M5') * 0.20) +
+        (getMetricScore('M3') * 0.15) +
+        (getMetricScore('M14') * 0.15) +
+        (getMetricScore('M10') * 0.10)
+      )
+    : 0;
+
+  // Overall = average of both axes
+  const avgScore = sortedMetrics.length > 0
+    ? Math.round((operationalStrength + futureReadiness) / 2)
+    : 0;
+
+  // Gap = X - Y (positive = stronger operational, negative = stronger future readiness)
+  const pointGap = operationalStrength - futureReadiness;
+
+  // Determine quadrant
+  const getQuadrant = (opStrength: number, futReady: number) => {
+    if (opStrength >= 50 && futReady >= 50) return { name: 'Adaptive Leader', color: '#1A7F37' };
+    if (opStrength >= 50 && futReady < 50) return { name: 'Solid Performer', color: '#C65D07' };
+    if (opStrength < 50 && futReady >= 50) return { name: 'Scattered Experimenter', color: '#0969DA' };
+    return { name: 'At-Risk', color: '#CF222E' };
+  };
+
+  const quadrant = getQuadrant(operationalStrength, futureReadiness);
 
   const dashStyles = dashboardStyles;
 
@@ -2709,35 +2729,35 @@ function RunSummaryView({
             <div style={dashStyles.quadrantGrid}>
               {/* Y-axis label */}
               <div style={dashStyles.yAxisLabel}>
-                <span style={dashStyles.axisText}>Evolutionary Fitness</span>
+                <span style={dashStyles.axisText}>Future Readiness</span>
               </div>
 
               {/* Quadrant boxes */}
               <div style={dashStyles.quadrantBoxes}>
                 <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantTL }}>
-                  <span style={dashStyles.quadrantLabel}>Chaotic Innovator</span>
+                  <span style={dashStyles.quadrantLabel}>Scattered Experimenter</span>
                 </div>
                 <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantTR }}>
-                  <span style={dashStyles.quadrantLabel}>Ambidextrous Leader</span>
+                  <span style={dashStyles.quadrantLabel}>Adaptive Leader</span>
                 </div>
                 <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantBL }}>
-                  <span style={dashStyles.quadrantLabel}>Vulnerable Drifter</span>
+                  <span style={dashStyles.quadrantLabel}>At-Risk</span>
                 </div>
                 <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantBR }}>
-                  <span style={dashStyles.quadrantLabel}>Efficient Executor</span>
+                  <span style={dashStyles.quadrantLabel}>Solid Performer</span>
                 </div>
 
                 {/* Position dot */}
                 <div style={{
                   ...dashStyles.positionDot,
-                  left: `${technicalFitness}%`,
-                  bottom: `${evolutionaryFitness}%`,
+                  left: `${operationalStrength}%`,
+                  bottom: `${futureReadiness}%`,
                 }} />
               </div>
 
               {/* X-axis label */}
               <div style={dashStyles.xAxisLabel}>
-                <span style={dashStyles.axisText}>Technical Fitness</span>
+                <span style={dashStyles.axisText}>Operational Strength</span>
               </div>
             </div>
           </div>
@@ -2752,15 +2772,15 @@ function RunSummaryView({
           {/* Key Stats */}
           <div style={dashStyles.keyStatsRow}>
             <div style={dashStyles.keyStat}>
-              <span style={dashStyles.keyStatValue}>{technicalFitness}</span>
-              <span style={dashStyles.keyStatLabel}>Technical</span>
+              <span style={dashStyles.keyStatValue}>{operationalStrength}</span>
+              <span style={dashStyles.keyStatLabel}>Op. Strength</span>
             </div>
             <div style={dashStyles.keyStat}>
-              <span style={dashStyles.keyStatValue}>{evolutionaryFitness}</span>
-              <span style={dashStyles.keyStatLabel}>Evolutionary</span>
+              <span style={dashStyles.keyStatValue}>{futureReadiness}</span>
+              <span style={dashStyles.keyStatLabel}>Future Ready</span>
             </div>
             <div style={dashStyles.keyStat}>
-              <span style={dashStyles.keyStatValue}>{pointGap}</span>
+              <span style={dashStyles.keyStatValue}>{pointGap > 0 ? '+' : ''}{pointGap}</span>
               <span style={dashStyles.keyStatLabel}>Gap</span>
             </div>
             <div style={dashStyles.keyStat}>
@@ -2799,13 +2819,23 @@ function RunSummaryView({
             {showStrategicReasoning && (
               <div style={dashStyles.reasoningContent}>
                 <p style={dashStyles.reasoningText}>
-                  Strategic position is calculated by mapping Technical Fitness (operational strength, execution speed, knowledge leverage)
-                  against Evolutionary Fitness (future readiness, market sensing, innovation capacity). Your position in the "{quadrant.name}"
-                  quadrant indicates {technicalFitness > evolutionaryFitness
-                    ? 'stronger operational capabilities relative to adaptive capacity'
-                    : 'stronger adaptive capacity relative to operational execution'}.
-                  The {pointGap}-point gap suggests {pointGap > 15 ? 'significant imbalance requiring attention' : 'reasonable balance between dimensions'}.
+                  Strategic position is determined by a weighted composite of your 14 metric scores across two axes.
+                  Operational Strength (X-axis) weighs execution capability, process maturity, and knowledge systems.
+                  Future Readiness (Y-axis) weighs adaptive capacity, innovation culture, and strategic foresight.
+                  Your "{quadrant.name}" positioning reflects {operationalStrength > futureReadiness
+                    ? 'stronger current execution relative to adaptive capacity'
+                    : operationalStrength < futureReadiness
+                    ? 'stronger adaptive capacity relative to current execution'
+                    : 'balanced capability across both dimensions'}.
+                  {Math.abs(pointGap) > 15
+                    ? ` The ${Math.abs(pointGap)}-point gap between axes signals a meaningful imbalance that warrants focused attention.`
+                    : ` The ${Math.abs(pointGap)}-point gap suggests reasonable balance between operational and adaptive capabilities.`}
                 </p>
+                {(run.sources?.length || 0) <= 2 && (
+                  <p style={{ ...dashStyles.reasoningText, marginTop: '8px', fontStyle: 'italic', color: 'rgba(60, 60, 67, 0.5)' }}>
+                    Note: This assessment is based on {run.sources?.length || 0} respondent{(run.sources?.length || 0) !== 1 ? 's' : ''}. Results become more reliable with broader organizational input.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -3356,7 +3386,7 @@ function RunSummaryView({
         <div style={dashStyles.metricInsightsHeader}>
           <h3 style={dashStyles.metricInsightsTitle}>Where You Stand</h3>
           <p style={dashStyles.metricInsightsSubtitle}>
-            14 dimensions analyzed • Benchmarked against 2,600+ organizations
+            14 dimensions analyzed • Research-grounded scoring framework
           </p>
         </div>
 
@@ -3366,8 +3396,8 @@ function RunSummaryView({
             Loading refined insights...
           </div>
         ) : [
-          { name: 'Technical Fitness', subtitle: 'How well you execute today', codes: ['M1', 'M4', 'M7', 'M10'] },
-          { name: 'Evolutionary Fitness', subtitle: 'How ready you are for tomorrow', codes: ['M2', 'M5', 'M8', 'M11'] },
+          { name: 'Operational Strength', subtitle: 'How well you execute today', codes: ['M1', 'M4', 'M7', 'M10'] },
+          { name: 'Future Readiness', subtitle: 'How ready you are for tomorrow', codes: ['M2', 'M5', 'M8', 'M11'] },
           { name: 'Cultural Health', subtitle: 'How your people enable change', codes: ['M3', 'M6', 'M9', 'M12'] },
           { name: 'Resource Capability', subtitle: 'Whether you have what you need', codes: ['M13', 'M14'] },
         ].map((category) => {
@@ -5021,10 +5051,10 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
     padding: '12px',
     transition: 'opacity 0.2s',
   },
-  quadrantTL: { backgroundColor: 'rgba(255, 204, 0, 0.12)' },
-  quadrantTR: { backgroundColor: 'rgba(52, 199, 89, 0.12)' },
-  quadrantBL: { backgroundColor: 'rgba(255, 59, 48, 0.08)' },
-  quadrantBR: { backgroundColor: 'rgba(0, 122, 255, 0.10)' },
+  quadrantTL: { backgroundColor: 'rgba(214, 234, 248, 0.5)' },  // Scattered Experimenter - blue
+  quadrantTR: { backgroundColor: 'rgba(212, 237, 218, 0.5)' },  // Adaptive Leader - green
+  quadrantBL: { backgroundColor: 'rgba(248, 215, 218, 0.5)' },  // At-Risk - red
+  quadrantBR: { backgroundColor: 'rgba(252, 228, 214, 0.5)' },  // Solid Performer - orange
   quadrantLabel: {
     fontSize: '9px',
     fontWeight: 600,
