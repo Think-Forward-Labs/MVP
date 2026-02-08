@@ -62,7 +62,7 @@ const METRIC_ORDER: { code: string; clientName: string; academicTerm: string }[]
 function getMetricDisplayName(metricCode: string, metricName?: string): string {
   const metricDef = METRIC_ORDER.find(m => m.code === metricCode);
   if (metricDef) {
-    return `${metricDef.clientName} (${metricDef.academicTerm})`;
+    return metricDef.clientName;
   }
   return metricName || metricCode || 'Unknown Metric';
 }
