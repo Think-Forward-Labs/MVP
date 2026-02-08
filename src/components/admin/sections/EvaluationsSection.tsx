@@ -1906,6 +1906,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M1',
     metric_name: 'Operational Strength',
     category: 'Operational Strength',
+    executive_insight: 'Operational Strength scores 66/100 vs research target ≥65 (Helfat & Peteraf, 2003). You exceed the threshold by 2%. At this level, monitor for \'competency trap\' — strong execution can mask need for adaptation. Your current advantage is narrow and could erode without deliberate investment in adaptive capacity.',
     health_status: 'strong' as const,
     score: 66,
     summary: 'Your operational execution is a clear strength. Teams deliver reliably on commitments, and work quality remains consistent.',
@@ -2031,6 +2032,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M2',
     metric_name: 'Future Readiness',
     category: 'Future Readiness',
+    executive_insight: 'Future Readiness scores 18/100 vs research target ≥60 (Teece, 2018). CRITICAL: 70% below the research target and below the critical threshold of 40. Your organization is operating blind to emerging threats and opportunities. This score correlates with strategic disruption risk in dynamic capabilities literature.',
     health_status: 'critical' as const,
     score: 18,
     summary: 'Your organization is optimized for today but dangerously blind to tomorrow.',
@@ -2064,6 +2066,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M5',
     metric_name: 'Market Radar',
     category: 'Future Readiness',
+    executive_insight: 'Market Radar scores 0/100 vs research target ≥60 (Teece, 2007). CRITICAL: 100% below threshold. Scores below 40 indicate strategic blind spots. Your teams have zero systematic market sensing — competitive signals are invisible until they become crises. Action required within 30 days.',
     health_status: 'critical' as const,
     score: 0,
     summary: 'Your frontline has zero visibility into market shifts or competitive dynamics.',
@@ -2391,12 +2394,31 @@ type KeyActionType = {
 };
 
 // Type for refined metric insights (from API or dummy data)
+// Research benchmarks for executive insight display (from CABAS Business Language Guide Section 9)
+const RESEARCH_BENCHMARKS: Record<string, { target: number; critical: number; source: string }> = {
+  M1:  { target: 65, critical: 45, source: 'Helfat & Peteraf (2003)' },
+  M2:  { target: 60, critical: 40, source: 'Teece (2018)' },
+  M3:  { target: 65, critical: 45, source: 'Argyris & Schön' },
+  M4:  { target: 60, critical: 40, source: 'Eisenhardt (1989)' },
+  M5:  { target: 60, critical: 40, source: 'Teece (2007)' },
+  M6:  { target: 60, critical: 40, source: 'March & Simon' },
+  M7:  { target: 55, critical: 35, source: 'Grant (1996)' },
+  M8:  { target: 60, critical: 40, source: 'Boyd OODA Loop' },
+  M9:  { target: 75, critical: 45, source: 'March (1991)' },
+  M10: { target: 60, critical: 40, source: 'Edmondson (1999)' },
+  M11: { target: 60, critical: 40, source: 'O\'Reilly & Tushman' },
+  M12: { target: 55, critical: 35, source: 'Barney (1991)' },
+  M13: { target: 50, critical: 30, source: 'Barney RBV' },
+  M14: { target: 55, critical: 35, source: 'Mission Command' },
+};
+
 type MetricInsight = {
   metric_code: string;
   metric_name: string;
   category: string;
   health_status: 'strong' | 'developing' | 'attention' | 'critical';
   score: number;
+  executive_insight?: string;
   summary: string;
   observations: string[];
   evidence: Array<{
@@ -3495,6 +3517,82 @@ function RunSummaryView({
                       {/* Expanded Content - Clean & Elegant */}
                       {isExpanded && (
                         <div style={dashStyles.metricInsightExpandedContent} onClick={(e) => e.stopPropagation()}>
+
+                          {/* Executive Insight — First thing a CEO reads */}
+                          {(() => {
+                            const bm = RESEARCH_BENCHMARKS[insight.metric_code];
+                            if (!bm && !insight.executive_insight) return null;
+
+                            const gapPct = bm ? Math.round(Math.abs(insight.score - bm.target) / bm.target * 100) : 0;
+                            const aboveTarget = bm ? insight.score >= bm.target : false;
+                            const belowCritical = bm ? insight.score < bm.critical : false;
+
+                            return (
+                              <div style={dashStyles.executiveInsightSection}>
+                                {/* Score vs Target bar */}
+                                {bm && (
+                                  <div style={dashStyles.executiveInsightBar}>
+                                    <div style={dashStyles.executiveInsightBarTrack}>
+                                      {/* Critical zone */}
+                                      <div style={{
+                                        position: 'absolute' as const,
+                                        left: 0,
+                                        top: 0,
+                                        bottom: 0,
+                                        width: `${bm.critical}%`,
+                                        backgroundColor: 'rgba(248, 215, 218, 0.5)',
+                                        borderRadius: '4px 0 0 4px',
+                                      }} />
+                                      {/* Target marker */}
+                                      <div style={{
+                                        position: 'absolute' as const,
+                                        left: `${bm.target}%`,
+                                        top: '-2px',
+                                        bottom: '-2px',
+                                        width: '2px',
+                                        backgroundColor: '#86868B',
+                                        zIndex: 2,
+                                      }} />
+                                      {/* Score fill */}
+                                      <div style={{
+                                        position: 'absolute' as const,
+                                        left: 0,
+                                        top: 0,
+                                        bottom: 0,
+                                        width: `${Math.min(insight.score, 100)}%`,
+                                        backgroundColor: belowCritical ? '#CF222E' : aboveTarget ? '#1A7F37' : '#C65D07',
+                                        borderRadius: '4px',
+                                        opacity: 0.7,
+                                        transition: 'width 0.6s ease',
+                                      }} />
+                                    </div>
+                                    <div style={dashStyles.executiveInsightBarLabels}>
+                                      <span style={{ fontSize: '10px', color: '#CF222E', fontWeight: 500 }}>
+                                        Critical &lt;{bm.critical}
+                                      </span>
+                                      <span style={{ fontSize: '10px', color: '#86868B', fontWeight: 500 }}>
+                                        Target ≥{bm.target} ({bm.source})
+                                      </span>
+                                      <span style={{
+                                        fontSize: '10px',
+                                        fontWeight: 600,
+                                        color: belowCritical ? '#CF222E' : aboveTarget ? '#1A7F37' : '#C65D07',
+                                      }}>
+                                        Score: {insight.score} ({aboveTarget ? `+${gapPct}%` : `-${gapPct}%`})
+                                      </span>
+                                    </div>
+                                  </div>
+                                )}
+
+                                {/* LLM-generated executive insight text */}
+                                {insight.executive_insight && (
+                                  <p style={dashStyles.executiveInsightText}>
+                                    {insight.executive_insight}
+                                  </p>
+                                )}
+                              </div>
+                            );
+                          })()}
 
                           {/* Two Column Layout */}
                           <div style={dashStyles.metricExpandedGrid}>
@@ -6057,6 +6155,36 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
     padding: '24px 32px 28px 80px',
     backgroundColor: '#FAFAFA',
     borderTop: '1px solid #EEEEEE',
+  },
+
+  // Executive Insight section (first thing shown on expand)
+  executiveInsightSection: {
+    marginBottom: '24px',
+    paddingBottom: '20px',
+    borderBottom: '1px solid #E8E8E8',
+  },
+  executiveInsightBar: {
+    marginBottom: '12px',
+  },
+  executiveInsightBarTrack: {
+    position: 'relative' as const,
+    height: '6px',
+    backgroundColor: '#F0F0F0',
+    borderRadius: '4px',
+    overflow: 'visible',
+  },
+  executiveInsightBarLabels: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginTop: '6px',
+  },
+  executiveInsightText: {
+    fontSize: '14px',
+    lineHeight: '1.6',
+    color: '#1D1D1F',
+    fontWeight: 450,
+    letterSpacing: '-0.01em',
+    margin: 0,
   },
 
   // Two column grid
