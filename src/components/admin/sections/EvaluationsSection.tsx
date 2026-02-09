@@ -2382,6 +2382,19 @@ type StrengthType = {
   opportunity: string;
 };
 
+// Type for detected pathologies from API
+type DetectedPathologyType = {
+  pathology_type: string;
+  severity: 'critical' | 'moderate' | 'informational';
+  client_title: string;
+  client_description: string;
+  coaching_question: string;
+  icon: string;
+  category: string;
+  evidence: Array<{ quote: string; role: string }>;
+  related_metrics: string[];
+};
+
 // Type for key actions from API
 type KeyActionType = {
   title: string;
@@ -2457,7 +2470,7 @@ function RunSummaryView({
   onViewInterview: (sourceId: string) => void;
   onOpenChat: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<SummaryTabType>('issues');
+  const [activeTab, setActiveTab] = useState<SummaryTabType>('strengths');
   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
   const [expandedAIReasoning, setExpandedAIReasoning] = useState<string | null>(null);
   const [showStrategicReasoning, setShowStrategicReasoning] = useState(false);
@@ -2488,6 +2501,7 @@ function RunSummaryView({
     key_actions: KeyActionType[];
     critical_issues: CriticalIssueType[];
     strengths: StrengthType[];
+    pathologies: DetectedPathologyType[];
   } | null>(null);
   const [refinedReportLoading, setRefinedReportLoading] = useState(true);
 
@@ -2555,6 +2569,7 @@ function RunSummaryView({
             key_actions: normalizedActions,
             critical_issues: normalizedIssues,
             strengths: normalizedStrengths,
+            pathologies: response.report.pathologies || [],
           });
         }
       } catch (err) {
@@ -3555,6 +3570,249 @@ function RunSummaryView({
         </div>
       </div>
 
+      {/* Organizational Health Signals — Client-facing pathology section */}
+      {refinedReport?.pathologies && refinedReport.pathologies.length > 0 && (
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          border: '1px solid #E0E0E0',
+          marginBottom: '24px',
+          overflow: 'hidden',
+        }}>
+          {/* Section Header */}
+          <div style={{
+            padding: '24px 32px 20px',
+            borderBottom: '1px solid #F0F0F0',
+          }}>
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              color: '#1A1A1A',
+              margin: 0,
+              marginBottom: '4px',
+            }}>Organizational Health Signals</h3>
+            <p style={{
+              fontSize: '14px',
+              color: '#86868B',
+              margin: 0,
+            }}>
+              Patterns detected across interview responses that may affect organizational effectiveness
+            </p>
+          </div>
+
+          {/* Pathology Cards */}
+          <div style={{ padding: '16px 32px 8px' }}>
+            {refinedReport.pathologies.map((pathology, idx) => {
+              const isLast = idx === refinedReport.pathologies.length - 1;
+              const severityColor = pathology.severity === 'critical'
+                ? '#CF222E'
+                : pathology.severity === 'moderate'
+                  ? '#9A6700'
+                  : '#0969DA';
+              const severityBg = pathology.severity === 'critical'
+                ? '#FFF0F0'
+                : pathology.severity === 'moderate'
+                  ? '#FFF8E1'
+                  : '#F0F7FF';
+
+              return (
+                <div
+                  key={`pathology-${idx}`}
+                  style={{
+                    padding: '20px 0',
+                    borderBottom: isLast ? 'none' : '1px solid #F0F0F0',
+                  }}
+                >
+                  {/* Header: severity dot + title + badges */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    marginBottom: '12px',
+                  }}>
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: severityColor,
+                      marginTop: '7px',
+                      flexShrink: 0,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                        marginBottom: '8px',
+                      }}>
+                        <h4 style={{
+                          fontSize: '15px',
+                          fontWeight: 600,
+                          color: '#1A1A1A',
+                          margin: 0,
+                        }}>{pathology.client_title}</h4>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          textTransform: 'uppercase' as const,
+                          letterSpacing: '0.5px',
+                          color: severityColor,
+                          backgroundColor: severityBg,
+                        }}>
+                          {pathology.severity}
+                        </span>
+                        {pathology.category && (
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            color: '#57606A',
+                            backgroundColor: '#F6F8FA',
+                          }}>
+                            {pathology.category}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Client description */}
+                      <p style={{
+                        fontSize: '14px',
+                        color: '#4A4A4A',
+                        lineHeight: '1.6',
+                        margin: '0 0 16px 0',
+                      }}>
+                        {pathology.client_description}
+                      </p>
+
+                      {/* Two-column: evidence + coaching question */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: pathology.evidence?.length > 0 ? '1fr 1fr' : '1fr',
+                        gap: '20px',
+                      }}>
+                        {/* Evidence quote */}
+                        {pathology.evidence?.length > 0 && (
+                          <div>
+                            <span style={{
+                              display: 'block',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              textTransform: 'uppercase' as const,
+                              letterSpacing: '0.8px',
+                              color: '#86868B',
+                              marginBottom: '8px',
+                            }}>What we heard</span>
+                            <div style={{
+                              padding: '12px 16px',
+                              borderLeft: `3px solid ${severityColor}20`,
+                              backgroundColor: '#FAFAFA',
+                              borderRadius: '0 8px 8px 0',
+                            }}>
+                              <p style={{
+                                fontSize: '13px',
+                                color: '#4A4A4A',
+                                fontStyle: 'italic',
+                                lineHeight: '1.5',
+                                margin: '0 0 4px 0',
+                              }}>"{pathology.evidence[0].quote}"</p>
+                              <span style={{
+                                fontSize: '11px',
+                                color: '#86868B',
+                              }}>— {pathology.evidence[0].role}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Coaching question */}
+                        <div>
+                          <span style={{
+                            display: 'block',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            textTransform: 'uppercase' as const,
+                            letterSpacing: '0.8px',
+                            color: '#86868B',
+                            marginBottom: '8px',
+                          }}>Question to consider</span>
+                          <div style={{
+                            padding: '12px 16px',
+                            backgroundColor: '#F8F9FF',
+                            borderRadius: '8px',
+                            border: '1px solid #E8EAFF',
+                          }}>
+                            <p style={{
+                              fontSize: '13px',
+                              color: '#1A1A1A',
+                              fontWeight: 500,
+                              lineHeight: '1.5',
+                              margin: 0,
+                            }}>{pathology.coaching_question}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Related metrics tags */}
+                      {pathology.related_metrics?.length > 0 && (
+                        <div style={{
+                          display: 'flex',
+                          gap: '6px',
+                          flexWrap: 'wrap',
+                          marginTop: '12px',
+                        }}>
+                          {pathology.related_metrics.map((metric, mIdx) => (
+                            <span
+                              key={`metric-tag-${mIdx}`}
+                              style={{
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: 500,
+                                color: '#57606A',
+                                backgroundColor: '#F0F0F0',
+                              }}
+                            >{metric}</span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Footer note */}
+          <div style={{
+            padding: '12px 32px',
+            borderTop: '1px solid #F0F0F0',
+            backgroundColor: '#FAFAFA',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868B" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+            <span style={{
+              fontSize: '12px',
+              color: '#86868B',
+              lineHeight: '1.4',
+            }}>
+              These signals are diagnostic patterns detected across interviews — they highlight areas for reflection, not scores.
+              Each pattern is based on converging evidence from multiple questions.
+            </span>
+          </div>
+        </div>
+      )}
+
       {/* Metric Insights Section - McKinsey "Insight Headlines" Style */}
       <div style={dashStyles.metricInsightsSection}>
         <div style={dashStyles.metricInsightsHeader}>
@@ -4024,12 +4282,23 @@ function RunSummaryView({
         })}
       </div>
 
-      {/* Tabbed Content */}
+      {/* In General — Strengths, Critical Issues, Data Sources */}
       <div style={dashStyles.tabbedSection}>
+        <div style={{
+          padding: '24px 32px 16px',
+          borderBottom: 'none',
+        }}>
+          <h3 style={{
+            fontSize: '18px',
+            fontWeight: 600,
+            color: '#1A1A1A',
+            margin: 0,
+          }}>In General</h3>
+        </div>
         <div style={dashStyles.tabsHeader}>
           {[
-            { id: 'issues', label: 'Critical Issues', count: refinedReport?.critical_issues?.length || DUMMY_CRITICAL_ISSUES.length },
             { id: 'strengths', label: 'Strengths', count: refinedReport?.strengths?.length || DUMMY_STRENGTHS.length },
+            { id: 'issues', label: 'Critical Issues', count: refinedReport?.critical_issues?.length || DUMMY_CRITICAL_ISSUES.length },
             { id: 'sources', label: 'Data Sources', count: run.sources?.length || 0 },
           ].map((tab) => (
             <button
