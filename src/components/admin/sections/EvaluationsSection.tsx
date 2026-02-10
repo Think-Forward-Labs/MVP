@@ -1823,6 +1823,9 @@ const DUMMY_KEY_ACTIONS: KeyActionType[] = [
     priority: 'critical' as const,
     impact: 'high' as const,
     effort: 'medium' as const,
+    metrics: ['M2', 'M9'],
+    evidence: [{ quote: "Pretty much all of it, like 95%. I'm here to do the work, not think about how to improve the work.", role: 'Field Technician' }],
+    related_issues: ['Optimization Lock'],
   },
   {
     title: 'Establish skip-level sensing sessions to surface frontline insights directly to leadership',
@@ -1832,15 +1835,21 @@ const DUMMY_KEY_ACTIONS: KeyActionType[] = [
     priority: 'high' as const,
     impact: 'high' as const,
     effort: 'low' as const,
+    metrics: ['M5', 'M6'],
+    evidence: [{ quote: "Coordination mostly happens above us. We just do what we're told.", role: 'Field Technician' }],
+    related_issues: ['Implementation Gap'],
   },
   {
     title: 'Conduct tool friction audit across teams to identify and eliminate workflow blockers',
     description: 'Systematically document where current tools create friction, manual workarounds, or data re-entry. Prioritize fixes based on time saved and frustration reduced.',
     owner: 'IT Lead',
-    timeline: '45 days',
+    timeline: '60 days',
     priority: 'medium' as const,
     impact: 'medium' as const,
     effort: 'medium' as const,
+    metrics: ['M12', 'M7'],
+    evidence: [],
+    related_issues: ['Resource Starvation'],
   },
 ];
 
@@ -2391,6 +2400,21 @@ type DetectedPathologyType = {
   coaching_question: string;
   icon: string;
   category: string;
+  is_core: boolean;
+  evidence: Array<{ quote: string; role: string }>;
+  related_metrics: string[];
+};
+
+// Type for detected contradictions (Say-Do Gap) from API
+type DetectedContradictionType = {
+  contradiction_id: string;
+  primary_question_code: string;
+  linked_question_code: string;
+  severity: 'high' | 'moderate';
+  client_title: string;
+  client_callout: string;
+  client_description: string;
+  coaching_question: string;
   evidence: Array<{ quote: string; role: string }>;
   related_metrics: string[];
 };
@@ -2404,6 +2428,9 @@ type KeyActionType = {
   priority: 'critical' | 'high' | 'medium';
   impact: 'high' | 'medium' | 'low';
   effort: 'high' | 'medium' | 'low';
+  metrics: string[];
+  evidence: Array<{ quote: string; role: string }>;
+  related_issues: string[];
 };
 
 // Type for refined metric insights (from API or dummy data)
@@ -2448,6 +2475,13 @@ type MetricInsight = {
   };
   benchmark_narrative?: string;
   recommendations: string[];
+  // Metric-specific contextual data (e.g., M9 exploitation/exploration split)
+  context_data?: {
+    exploitation_pct?: number;
+    exploration_pct?: number;
+    label?: string;
+    [key: string]: any;
+  };
   // Optional fields for issue/action linking (may not be present in API data)
   related_issue_ids?: string[];
   related_action_ids?: string[];
@@ -2502,6 +2536,7 @@ function RunSummaryView({
     critical_issues: CriticalIssueType[];
     strengths: StrengthType[];
     pathologies: DetectedPathologyType[];
+    contradictions: DetectedContradictionType[];
   } | null>(null);
   const [refinedReportLoading, setRefinedReportLoading] = useState(true);
 
@@ -2547,7 +2582,8 @@ function RunSummaryView({
           });
 
           // Normalize key_actions: handle both old (string[]) and new (object[]) formats
-          const normalizedActions: KeyActionType[] = (response.report.key_actions || []).map((action: KeyActionType | string) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const normalizedActions: KeyActionType[] = (response.report.key_actions || []).map((action: any) => {
             if (typeof action === 'string') {
               // Convert old string format to rich object - use full string as title
               return {
@@ -2558,9 +2594,17 @@ function RunSummaryView({
                 priority: 'medium' as const,
                 impact: 'medium' as const,
                 effort: 'medium' as const,
+                metrics: [],
+                evidence: [],
+                related_issues: [],
               };
             }
-            return action;
+            return {
+              ...action,
+              metrics: action.metrics || [],
+              evidence: action.evidence || [],
+              related_issues: action.related_issues || [],
+            };
           });
 
           setRefinedReport({
@@ -2570,6 +2614,7 @@ function RunSummaryView({
             critical_issues: normalizedIssues,
             strengths: normalizedStrengths,
             pathologies: response.report.pathologies || [],
+            contradictions: response.report.contradictions || [],
           });
         }
       } catch (err) {
@@ -3068,406 +3113,6 @@ function RunSummaryView({
         </div>
       </div>
 
-      {/* Key Actions Section */}
-      <div style={dashStyles.actionsSection}>
-        <div style={dashStyles.actionsSectionHeader}>
-          <h3 style={dashStyles.sectionTitle}>Key Actions to Take</h3>
-          <button style={dashStyles.addButton}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            Add Action
-          </button>
-        </div>
-
-        <style>{`
-          @keyframes slideInFromRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-        `}</style>
-
-        <div style={dashStyles.actionsList}>
-          {/* Use refined report key_actions if available, otherwise fallback to dummy data */}
-          {(refinedReport?.key_actions?.length ? refinedReport.key_actions : DUMMY_KEY_ACTIONS).map((action, index) => {
-            const priorityColors = {
-              critical: { bg: '#FEE2E2', text: '#DC2626', dot: '#DC2626' },
-              high: { bg: '#FEF3C7', text: '#D97706', dot: '#F59E0B' },
-              medium: { bg: '#DBEAFE', text: '#2563EB', dot: '#3B82F6' },
-              low: { bg: '#D1FAE5', text: '#059669', dot: '#10B981' },
-            };
-            const pStyle = priorityColors[action.priority] || priorityColors.medium;
-
-            return (
-              <div
-                key={index}
-                onClick={() => setExpandedActionIndex(index)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '14px',
-                  padding: '16px 20px',
-                  backgroundColor: '#FAFAFA',
-                  borderRadius: '10px',
-                  border: '1px solid rgba(0, 0, 0, 0.06)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#F5F5F5';
-                  e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#FAFAFA';
-                  e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.06)';
-                }}
-              >
-                {/* Priority Dot */}
-                <div style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: pStyle.dot,
-                  marginTop: '6px',
-                  flexShrink: 0,
-                }} />
-
-                {/* Title */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    color: '#1A1A1A',
-                    lineHeight: 1.5,
-                    display: 'block',
-                  }}>
-                    {action.title}
-                  </span>
-                </div>
-
-                {/* Expand Icon */}
-                <div style={{
-                  color: '#999',
-                  flexShrink: 0,
-                  marginTop: '2px',
-                }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
-                </div>
-              </div>
-            );
-          })}
-        </div>
-
-        {/* Action Details Side Drawer */}
-        {expandedActionIndex !== null && (() => {
-          const actions = refinedReport?.key_actions?.length ? refinedReport.key_actions : DUMMY_KEY_ACTIONS;
-          const action = actions[expandedActionIndex];
-          const priorityConfig = {
-            critical: { bg: '#FEE2E2', text: '#DC2626', label: 'Critical' },
-            high: { bg: '#FEF3C7', text: '#D97706', label: 'High' },
-            medium: { bg: '#DBEAFE', text: '#2563EB', label: 'Medium' },
-            low: { bg: '#D1FAE5', text: '#059669', label: 'Low' },
-          };
-          const pStyle = priorityConfig[action.priority] || priorityConfig.medium;
-
-          return (
-            <>
-              {/* Backdrop */}
-              <div
-                onClick={() => setExpandedActionIndex(null)}
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: 'rgba(0, 0, 0, 0.4)',
-                  zIndex: 1000,
-                  animation: 'fadeIn 0.2s ease',
-                }}
-              />
-
-              {/* Drawer */}
-              <div
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  right: 0,
-                  width: '440px',
-                  maxWidth: '90vw',
-                  height: '100%',
-                  background: '#FFFFFF',
-                  boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.12)',
-                  zIndex: 1001,
-                  overflow: 'auto',
-                  animation: 'slideInFromRight 0.25s ease',
-                }}
-              >
-                {/* Header */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '20px 24px',
-                  borderBottom: '1px solid #F0F0F0',
-                }}>
-                  <span style={{
-                    background: pStyle.bg,
-                    color: pStyle.text,
-                    padding: '5px 12px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    letterSpacing: '0.02em',
-                  }}>
-                    {pStyle.label} Priority
-                  </span>
-                  <button
-                    onClick={() => setExpandedActionIndex(null)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '8px',
-                      color: '#999',
-                      borderRadius: '6px',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#F5F5F5';
-                      e.currentTarget.style.color = '#666';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = '#999';
-                    }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M18 6L6 18M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Content */}
-                <div style={{ padding: '24px' }}>
-                  {/* Title */}
-                  <h3 style={{
-                    fontSize: '18px',
-                    fontWeight: 600,
-                    color: '#1A1A1A',
-                    margin: '0 0 24px 0',
-                    lineHeight: 1.5,
-                    letterSpacing: '-0.01em',
-                  }}>
-                    {action.title}
-                  </h3>
-
-                  {/* Description */}
-                  {action.description && (
-                    <div style={{ marginBottom: '28px' }}>
-                      <h4 style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#888',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        margin: '0 0 10px 0',
-                      }}>
-                        Description
-                      </h4>
-                      <p style={{
-                        fontSize: '14px',
-                        color: '#444',
-                        lineHeight: 1.7,
-                        margin: 0,
-                      }}>
-                        {action.description}
-                      </p>
-                    </div>
-                  )}
-
-                  {/* Details Grid */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '20px',
-                    padding: '20px',
-                    background: '#FAFAFA',
-                    borderRadius: '10px',
-                    marginBottom: '24px',
-                  }}>
-                    {action.owner && (
-                      <div>
-                        <h4 style={{
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: '#888',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          margin: '0 0 6px 0',
-                        }}>
-                          Owner
-                        </h4>
-                        <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500 }}>
-                          {action.owner}
-                        </p>
-                      </div>
-                    )}
-                    {action.timeline && (
-                      <div>
-                        <h4 style={{
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: '#888',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          margin: '0 0 6px 0',
-                        }}>
-                          Timeline
-                        </h4>
-                        <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500 }}>
-                          {action.timeline}
-                        </p>
-                      </div>
-                    )}
-                    <div>
-                      <h4 style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#888',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        margin: '0 0 6px 0',
-                      }}>
-                        Impact
-                      </h4>
-                      <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500, textTransform: 'capitalize' }}>
-                        {action.impact}
-                      </p>
-                    </div>
-                    <div>
-                      <h4 style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#888',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        margin: '0 0 6px 0',
-                      }}>
-                        Effort
-                      </h4>
-                      <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500, textTransform: 'capitalize' }}>
-                        {action.effort}
-                      </p>
-                    </div>
-                  </div>
-                </div>
-
-                {/* Footer Actions */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  padding: '20px 24px',
-                  borderTop: '1px solid #F0F0F0',
-                  background: '#FFFFFF',
-                  display: 'flex',
-                  gap: '12px',
-                }}>
-                  <button
-                    style={{
-                      flex: 1,
-                      padding: '12px 20px',
-                      background: '#1A1A1A',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#333'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = '#1A1A1A'}
-                  >
-                    Mark as Started
-                  </button>
-                  <button
-                    style={{
-                      padding: '12px 20px',
-                      background: '#FFFFFF',
-                      color: '#666',
-                      border: '1px solid #E0E0E0',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#F5F5F5';
-                      e.currentTarget.style.borderColor = '#CCC';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = '#FFFFFF';
-                      e.currentTarget.style.borderColor = '#E0E0E0';
-                    }}
-                  >
-                    Dismiss
-                  </button>
-                </div>
-              </div>
-            </>
-          );
-        })()}
-
-        {/* How we reached this conclusion */}
-        <div style={{ ...dashStyles.reasoningToggleSection, marginTop: '16px' }}>
-          <button
-            onClick={() => setShowActionsReasoning(!showActionsReasoning)}
-            style={dashStyles.reasoningToggleBtn}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#FCD34D" stroke="#F59E0B" strokeWidth="1.5">
-              <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-            <span>How we reached this conclusion</span>
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              style={{
-                marginLeft: '4px',
-                opacity: 0.5,
-                transform: showActionsReasoning ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.2s ease',
-              }}
-            >
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-          {showActionsReasoning && (
-            <div style={dashStyles.reasoningContent}>
-              <p style={dashStyles.reasoningText}>
-                Key actions are prioritized using a weighted scoring model that considers: (1) potential business impact based on metric gaps,
-                (2) feasibility given current resource capacity, (3) interdependencies between metrics, and (4) time-to-value.
-                Critical actions address scores below 40% in high-impact areas. High-priority actions target the largest gaps between
-                current state and industry benchmarks.
-              </p>
-            </div>
-          )}
-        </div>
-      </div>
-
       {/* Business Impact Translation — P1.1 */}
       <div style={dashStyles.businessImpactSection}>
         <div style={dashStyles.businessImpactHeader}>
@@ -3678,6 +3323,20 @@ function RunSummaryView({
                             {pathology.category}
                           </span>
                         )}
+                        {pathology.is_core === false && (
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            fontStyle: 'italic',
+                            color: '#8250DF',
+                            backgroundColor: '#FBEFFF',
+                          }}>
+                            Extended Signal
+                          </span>
+                        )}
                       </div>
 
                       {/* Client description */}
@@ -3809,6 +3468,232 @@ function RunSummaryView({
               These signals are diagnostic patterns detected across interviews — they highlight areas for reflection, not scores.
               Each pattern is based on converging evidence from multiple questions.
             </span>
+          </div>
+        </div>
+      )}
+
+      {/* Say-Do Gap Analysis — Client-facing contradiction section */}
+      {refinedReport?.contradictions && refinedReport.contradictions.length > 0 && (
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          border: '1px solid #E0E0E0',
+          marginBottom: '24px',
+          overflow: 'hidden',
+        }}>
+          {/* Section Header */}
+          <div style={{
+            padding: '24px 32px 20px',
+            borderBottom: '1px solid #F0F0F0',
+          }}>
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              color: '#1A1A1A',
+              margin: 0,
+              marginBottom: '4px',
+            }}>Say-Do Gap Analysis</h3>
+            <p style={{
+              fontSize: '14px',
+              color: '#86868B',
+              margin: 0,
+            }}>
+              Where perceptions and descriptions tell different stories — areas worth investigating
+            </p>
+          </div>
+
+          {/* Contradiction Cards */}
+          <div style={{ padding: '16px 32px 8px' }}>
+            {refinedReport.contradictions.map((contradiction, idx) => {
+              const isLast = idx === refinedReport.contradictions.length - 1;
+              const severityColor = contradiction.severity === 'high' ? '#CF222E' : '#9A6700';
+              const severityBg = contradiction.severity === 'high' ? '#FFF0F0' : '#FFF8E1';
+
+              return (
+                <div
+                  key={`contradiction-${idx}`}
+                  style={{
+                    padding: '20px 0',
+                    borderBottom: isLast ? 'none' : '1px solid #F0F0F0',
+                  }}
+                >
+                  {/* Callout headline */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    marginBottom: '12px',
+                  }}>
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: severityColor,
+                      marginTop: '7px',
+                      flexShrink: 0,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                        marginBottom: '8px',
+                      }}>
+                        <h4 style={{
+                          fontSize: '15px',
+                          fontWeight: 600,
+                          color: '#1A1A1A',
+                          margin: 0,
+                        }}>{contradiction.client_title}</h4>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          textTransform: 'uppercase' as const,
+                          letterSpacing: '0.5px',
+                          color: severityColor,
+                          backgroundColor: severityBg,
+                        }}>
+                          {contradiction.severity}
+                        </span>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontSize: '11px',
+                          fontWeight: 500,
+                          color: '#57606A',
+                          backgroundColor: '#F6F8FA',
+                        }}>
+                          {contradiction.primary_question_code} ↔ {contradiction.linked_question_code}
+                        </span>
+                      </div>
+
+                      {/* Client callout — the impactful statement */}
+                      <p style={{
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        fontStyle: 'italic',
+                        color: '#1A1A1A',
+                        lineHeight: '1.6',
+                        margin: '0 0 12px 0',
+                        padding: '12px 16px',
+                        background: severityBg,
+                        borderLeft: `3px solid ${severityColor}`,
+                        borderRadius: '0 8px 8px 0',
+                      }}>
+                        {contradiction.client_callout}
+                      </p>
+
+                      {/* Client description */}
+                      <p style={{
+                        fontSize: '14px',
+                        color: '#4A4A4A',
+                        lineHeight: '1.6',
+                        margin: '0 0 16px 0',
+                      }}>
+                        {contradiction.client_description}
+                      </p>
+
+                      {/* Evidence + coaching question grid */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: contradiction.evidence.length > 0 ? '1fr 1fr' : '1fr',
+                        gap: '16px',
+                      }}>
+                        {/* Evidence quote */}
+                        {contradiction.evidence.length > 0 && (
+                          <div>
+                            <span style={{
+                              display: 'block',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              textTransform: 'uppercase' as const,
+                              letterSpacing: '0.5px',
+                              color: '#8C959F',
+                              marginBottom: '8px',
+                            }}>What we heard</span>
+                            {contradiction.evidence.slice(0, 1).map((ev, evIdx) => (
+                              <div key={evIdx} style={{
+                                padding: '10px 14px',
+                                background: '#FAFAFA',
+                                borderLeft: `3px solid ${severityColor}`,
+                                borderRadius: '0 6px 6px 0',
+                              }}>
+                                <p style={{
+                                  fontSize: '13px',
+                                  color: '#4A4A4A',
+                                  fontStyle: 'italic',
+                                  lineHeight: '1.5',
+                                  margin: '0 0 4px 0',
+                                }}>"{ev.quote}"</p>
+                                <span style={{
+                                  fontSize: '11px',
+                                  color: '#8C959F',
+                                }}>— {ev.role}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Coaching question */}
+                        <div>
+                          <span style={{
+                            display: 'block',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            textTransform: 'uppercase' as const,
+                            letterSpacing: '0.5px',
+                            color: '#8C959F',
+                            marginBottom: '8px',
+                          }}>Question to consider</span>
+                          <div style={{
+                            padding: '10px 14px',
+                            background: '#F8F9FF',
+                            border: '1px solid #E8EAFF',
+                            borderRadius: '6px',
+                          }}>
+                            <p style={{
+                              fontSize: '13px',
+                              color: '#3D4752',
+                              lineHeight: '1.5',
+                              margin: 0,
+                            }}>{contradiction.coaching_question}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Related metric badges */}
+                      {contradiction.related_metrics.length > 0 && (
+                        <div style={{
+                          display: 'flex',
+                          gap: '6px',
+                          marginTop: '12px',
+                          flexWrap: 'wrap',
+                        }}>
+                          {contradiction.related_metrics.map((code, mIdx) => (
+                            <span key={mIdx} style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              borderRadius: '10px',
+                              fontSize: '11px',
+                              fontWeight: 500,
+                              color: '#57606A',
+                              backgroundColor: '#F0F3F6',
+                            }}>
+                              {code}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
       )}
@@ -4138,6 +4023,70 @@ function RunSummaryView({
                               </div>
                             );
                           })()}
+
+                          {/* M9 Exploitation/Exploration Split Bar */}
+                          {insight.metric_code === 'M9' && insight.context_data?.exploitation_pct != null && insight.context_data?.exploration_pct != null && (
+                            <div style={{
+                              margin: '0 0 24px 0',
+                              padding: '16px 20px',
+                              background: '#F8FAFC',
+                              borderRadius: '10px',
+                              border: '1px solid #E2E8F0',
+                            }}>
+                              <span style={{
+                                display: 'block',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                textTransform: 'uppercase' as const,
+                                letterSpacing: '0.5px',
+                                color: '#64748B',
+                                marginBottom: '10px',
+                              }}>Current Allocation</span>
+                              <div style={{
+                                display: 'flex',
+                                height: '28px',
+                                borderRadius: '6px',
+                                overflow: 'hidden',
+                                marginBottom: '8px',
+                              }}>
+                                <div style={{
+                                  width: `${insight.context_data.exploitation_pct}%`,
+                                  background: '#3B82F6',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'white',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  minWidth: '40px',
+                                }}>
+                                  {insight.context_data.exploitation_pct}%
+                                </div>
+                                <div style={{
+                                  width: `${insight.context_data.exploration_pct}%`,
+                                  background: '#8B5CF6',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'white',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  minWidth: '40px',
+                                }}>
+                                  {insight.context_data.exploration_pct}%
+                                </div>
+                              </div>
+                              <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                fontSize: '12px',
+                                color: '#475569',
+                              }}>
+                                <span><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '2px', background: '#3B82F6', marginRight: '6px' }} />Running today's business</span>
+                                <span><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '2px', background: '#8B5CF6', marginRight: '6px' }} />Building for tomorrow</span>
+                              </div>
+                            </div>
+                          )}
 
                           {/* Two Column Layout */}
                           <div style={dashStyles.metricExpandedGrid}>
@@ -4657,6 +4606,609 @@ function RunSummaryView({
           )}
         </div>
       </div>
+
+      {/* Recommendations & Roadmap — Gantt-style 90-day action plan */}
+      {(() => {
+        const actions = refinedReport?.key_actions?.length ? refinedReport.key_actions : DUMMY_KEY_ACTIONS;
+
+        // Parse timeline to number of days (duration from day 0)
+        const parseDays = (timeline: string): number => {
+          const t = (timeline || '').toLowerCase().replace(/\s+/g, '');
+          const num = parseInt(t.replace(/[^0-9]/g, ''), 10);
+          if (!isNaN(num) && num > 0) return Math.min(num, 120);
+          if (t.includes('immediate') || t.includes('week')) return 14;
+          return 90;
+        };
+
+        // Sort actions by priority weight then duration
+        const priorityWeight: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+        const sortedActions = [...actions].sort((a, b) => {
+          const pw = (priorityWeight[a.priority] ?? 2) - (priorityWeight[b.priority] ?? 2);
+          if (pw !== 0) return pw;
+          return parseDays(a.timeline) - parseDays(b.timeline);
+        });
+
+        const maxDays = 90;
+        const milestones = [0, 30, 60, 90];
+
+        // Convert hex to rgba for cross-browser gradient support
+        const hexToRgba = (hex: string, alpha: number) => {
+          const r = parseInt(hex.slice(1, 3), 16);
+          const g = parseInt(hex.slice(3, 5), 16);
+          const b = parseInt(hex.slice(5, 7), 16);
+          return `rgba(${r},${g},${b},${alpha})`;
+        };
+
+        const priorityColors: Record<string, { bar: string; barBg: string; text: string; badge: string; badgeBg: string }> = {
+          critical: { bar: '#DC2626', barBg: '#FEE2E2', text: '#DC2626', badge: '#DC2626', badgeBg: '#FEE2E2' },
+          high: { bar: '#D97706', barBg: '#FEF3C7', text: '#D97706', badge: '#D97706', badgeBg: '#FEF3C7' },
+          medium: { bar: '#2563EB', barBg: '#DBEAFE', text: '#2563EB', badge: '#2563EB', badgeBg: '#DBEAFE' },
+          low: { bar: '#059669', barBg: '#D1FAE5', text: '#059669', badge: '#059669', badgeBg: '#D1FAE5' },
+        };
+
+        return (
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid #E0E0E0',
+            marginTop: '32px',
+            marginBottom: '24px',
+          }}>
+            {/* Section Header */}
+            <div style={{
+              padding: '28px 32px 22px',
+              borderBottom: '1px solid #F0F0F0',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+            }}>
+              <div>
+                <h3 style={{
+                  fontSize: '18px',
+                  fontWeight: 600,
+                  color: '#1A1A1A',
+                  margin: 0,
+                  marginBottom: '4px',
+                }}>Recommendations & Roadmap</h3>
+                <p style={{
+                  fontSize: '14px',
+                  color: '#86868B',
+                  margin: 0,
+                }}>
+                  Prioritised 90-day action plan — all actions begin immediately with different delivery horizons
+                </p>
+              </div>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                flexShrink: 0,
+              }}>
+                {['critical', 'high', 'medium'].map(p => (
+                  <div key={p} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: priorityColors[p].bar }} />
+                    <span style={{ fontSize: '11px', color: '#86868B', textTransform: 'capitalize' as const }}>{p}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Gantt Chart */}
+            <div style={{ padding: '0' }}>
+              {/* Timeline Header Row */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '320px 1fr',
+                borderBottom: '1px solid #F0F0F0',
+              }}>
+                <div style={{
+                  padding: '12px 24px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#86868B',
+                  textTransform: 'uppercase' as const,
+                  letterSpacing: '0.8px',
+                  borderRight: '1px solid #F0F0F0',
+                }}>Action</div>
+                <div style={{ padding: '12px 40px 12px 0' }}>
+                  <div style={{ position: 'relative', height: '16px' }}>
+                    {milestones.map(day => {
+                      const posStyle: React.CSSProperties = day === 0
+                        ? { left: '0%', transform: 'none' }
+                        : day === maxDays
+                          ? { left: '100%', transform: 'translateX(-100%)' }
+                          : { left: `${(day / maxDays) * 100}%`, transform: 'translateX(-50%)' };
+                      return (
+                        <span
+                          key={day}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            ...posStyle,
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: '#86868B',
+                            letterSpacing: '0.5px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {day === 0 ? 'Now' : `Day ${day}`}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Rows */}
+              {sortedActions.map((action, idx) => {
+                const days = parseDays(action.timeline);
+                const barWidth = Math.max((days / maxDays) * 100, 10); // min 10%, no cap — bars beyond 90 days extend past the gridline
+                const pStyle = priorityColors[action.priority] || priorityColors.medium;
+                const globalIdx = actions.indexOf(action);
+                const isLast = idx === sortedActions.length - 1;
+
+                return (
+                  <div
+                    key={`gantt-${idx}`}
+                    onClick={() => setExpandedActionIndex(globalIdx)}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '320px 1fr',
+                      borderBottom: isLast ? 'none' : '1px solid #F5F5F5',
+                      cursor: 'pointer',
+                      transition: 'background 0.12s ease',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FAFBFC'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    {/* Left: Action info */}
+                    <div style={{
+                      padding: '16px 24px',
+                      borderRight: '1px solid #F0F0F0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <div style={{
+                          width: '7px',
+                          height: '7px',
+                          borderRadius: '50%',
+                          backgroundColor: pStyle.bar,
+                          marginTop: '6px',
+                          flexShrink: 0,
+                        }} />
+                        <span style={{
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#1A1A1A',
+                          lineHeight: 1.4,
+                        }}>{action.title}</span>
+                      </div>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        paddingLeft: '15px',
+                      }}>
+                        <span style={{
+                          padding: '1px 7px',
+                          borderRadius: '8px',
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          textTransform: 'uppercase' as const,
+                          color: pStyle.badge,
+                          backgroundColor: pStyle.badgeBg,
+                          letterSpacing: '0.3px',
+                        }}>{action.priority}</span>
+                        {action.owner && (
+                          <span style={{
+                            fontSize: '11px',
+                            color: '#86868B',
+                          }}>{action.owner}</span>
+                        )}
+                        <span style={{
+                          marginLeft: 'auto',
+                          flexShrink: 0,
+                          fontSize: '11px',
+                          color: '#AAAAAA',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          transition: 'color 0.12s ease',
+                        }}>
+                          View details
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M9 18l6-6-6-6" />
+                          </svg>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right: Gantt bar */}
+                    <div style={{
+                      padding: '16px 40px 16px 0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        position: 'relative',
+                        flex: 1,
+                        height: '30px',
+                        overflow: 'visible',
+                      }}>
+                        {/* Vertical gridlines */}
+                        {milestones.map(day => (
+                          <div
+                            key={`grid-${day}`}
+                            style={{
+                              position: 'absolute',
+                              left: `${(day / maxDays) * 100}%`,
+                              top: '-16px',
+                              bottom: '-16px',
+                              width: '1px',
+                              backgroundColor: day === 0 ? '#E0E0E0' : '#F0F0F0',
+                              zIndex: 0,
+                            }}
+                          />
+                        ))}
+
+                        {/* The bar */}
+                        <div style={{
+                          position: 'absolute',
+                          left: '0%',
+                          top: 0,
+                          width: `${barWidth}%`,
+                          height: '30px',
+                          borderRadius: days > maxDays ? '6px 0 0 6px' : '6px',
+                          background: `linear-gradient(90deg, ${hexToRgba(pStyle.bar, 0.1)} 0%, ${hexToRgba(pStyle.bar, 0.22)} 100%)`,
+                          border: `1px solid ${hexToRgba(pStyle.bar, 0.25)}`,
+                          borderRight: days > maxDays ? 'none' : `1px solid ${hexToRgba(pStyle.bar, 0.25)}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          paddingLeft: '12px',
+                          paddingRight: '12px',
+                          minWidth: '70px',
+                          boxSizing: 'border-box',
+                          zIndex: 1,
+                        }}>
+                          <span style={{
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            color: pStyle.bar,
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {days} days {days > maxDays ? '+' : ''}
+                          </span>
+                          {action.impact === 'high' && barWidth > 30 && (
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: 500,
+                              color: pStyle.bar,
+                              opacity: 0.55,
+                              whiteSpace: 'nowrap',
+                            }}>High impact</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '14px 32px',
+              borderTop: '1px solid #F0F0F0',
+              backgroundColor: '#FAFAFA',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868B" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              <span style={{
+                fontSize: '12px',
+                color: '#86868B',
+                lineHeight: '1.4',
+              }}>
+                All actions begin immediately. Bars show expected delivery horizon, not start date.
+                Click any action for full details, evidence, and related metrics.
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Action Details Side Drawer */}
+      <style>{`
+        @keyframes slideInFromRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+      `}</style>
+      {expandedActionIndex !== null && (() => {
+        const actions = refinedReport?.key_actions?.length ? refinedReport.key_actions : DUMMY_KEY_ACTIONS;
+        const action = actions[expandedActionIndex];
+        const priorityConfig: Record<string, { bg: string; text: string; label: string }> = {
+          critical: { bg: '#FEE2E2', text: '#DC2626', label: 'Critical' },
+          high: { bg: '#FEF3C7', text: '#D97706', label: 'High' },
+          medium: { bg: '#DBEAFE', text: '#2563EB', label: 'Medium' },
+          low: { bg: '#D1FAE5', text: '#059669', label: 'Low' },
+        };
+        const pStyle = priorityConfig[action.priority] || priorityConfig.medium;
+
+        return (
+          <>
+            {/* Backdrop */}
+            <div
+              onClick={() => setExpandedActionIndex(null)}
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.4)',
+                zIndex: 1000,
+                animation: 'fadeIn 0.2s ease',
+              }}
+            />
+
+            {/* Drawer */}
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                right: 0,
+                width: '480px',
+                maxWidth: '90vw',
+                height: '100%',
+                background: '#FFFFFF',
+                boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.12)',
+                zIndex: 1001,
+                overflow: 'auto',
+                animation: 'slideInFromRight 0.25s ease',
+              }}
+            >
+              {/* Header */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '20px 24px',
+                borderBottom: '1px solid #F0F0F0',
+              }}>
+                <span style={{
+                  background: pStyle.bg,
+                  color: pStyle.text,
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  letterSpacing: '0.02em',
+                }}>
+                  {pStyle.label} Priority
+                </span>
+                <button
+                  onClick={() => setExpandedActionIndex(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '8px',
+                    color: '#999',
+                    borderRadius: '6px',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F5F5F5';
+                    e.currentTarget.style.color = '#666';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#999';
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Content */}
+              <div style={{ padding: '24px', paddingBottom: '100px' }}>
+                {/* Title */}
+                <h3 style={{
+                  fontSize: '18px',
+                  fontWeight: 600,
+                  color: '#1A1A1A',
+                  margin: '0 0 20px 0',
+                  lineHeight: 1.5,
+                  letterSpacing: '-0.01em',
+                }}>
+                  {action.title}
+                </h3>
+
+                {/* Description */}
+                {action.description && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <h4 style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#888',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      margin: '0 0 10px 0',
+                    }}>Strategic Rationale</h4>
+                    <p style={{
+                      fontSize: '14px',
+                      color: '#444',
+                      lineHeight: 1.7,
+                      margin: 0,
+                    }}>{action.description}</p>
+                  </div>
+                )}
+
+                {/* Details Grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '16px',
+                  padding: '20px',
+                  background: '#FAFAFA',
+                  borderRadius: '10px',
+                  marginBottom: '24px',
+                }}>
+                  {action.owner && (
+                    <div>
+                      <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px 0' }}>Owner</h4>
+                      <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500 }}>{action.owner}</p>
+                    </div>
+                  )}
+                  {action.timeline && (
+                    <div>
+                      <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px 0' }}>Timeline</h4>
+                      <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500 }}>{action.timeline}</p>
+                    </div>
+                  )}
+                  <div>
+                    <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px 0' }}>Impact</h4>
+                    <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500, textTransform: 'capitalize' }}>{action.impact}</p>
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px 0' }}>Effort</h4>
+                    <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500, textTransform: 'capitalize' }}>{action.effort}</p>
+                  </div>
+                </div>
+
+                {/* Evidence */}
+                {action.evidence?.length > 0 && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 10px 0' }}>Supporting Evidence</h4>
+                    {action.evidence.map((ev, evIdx) => (
+                      <div key={evIdx} style={{
+                        padding: '12px 16px',
+                        borderLeft: `3px solid ${pStyle.text}30`,
+                        backgroundColor: '#FAFAFA',
+                        borderRadius: '0 8px 8px 0',
+                        marginBottom: evIdx < action.evidence.length - 1 ? '8px' : '0',
+                      }}>
+                        <p style={{ fontSize: '13px', color: '#4A4A4A', fontStyle: 'italic', lineHeight: 1.5, margin: '0 0 4px 0' }}>"{ev.quote}"</p>
+                        <span style={{ fontSize: '11px', color: '#86868B' }}>— {ev.role}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Related Issues */}
+                {action.related_issues?.length > 0 && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 10px 0' }}>Addresses</h4>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {action.related_issues.map((issue, iIdx) => (
+                        <span key={iIdx} style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          color: '#CF222E',
+                          backgroundColor: '#FFF0F0',
+                        }}>{issue}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Related Metrics */}
+                {action.metrics?.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 10px 0' }}>Related Metrics</h4>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {action.metrics.map((m, mIdx) => (
+                        <span key={mIdx} style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#0969DA',
+                          backgroundColor: '#F0F7FF',
+                        }}>{m}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                padding: '20px 24px',
+                borderTop: '1px solid #F0F0F0',
+                background: '#FFFFFF',
+                display: 'flex',
+                gap: '12px',
+              }}>
+                <button
+                  style={{
+                    flex: 1,
+                    padding: '12px 20px',
+                    background: '#1A1A1A',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#333'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#1A1A1A'}
+                >
+                  Mark as Started
+                </button>
+                <button
+                  style={{
+                    padding: '12px 20px',
+                    background: '#FFFFFF',
+                    color: '#666',
+                    border: '1px solid #E0E0E0',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#F5F5F5';
+                    e.currentTarget.style.borderColor = '#CCC';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#FFFFFF';
+                    e.currentTarget.style.borderColor = '#E0E0E0';
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
