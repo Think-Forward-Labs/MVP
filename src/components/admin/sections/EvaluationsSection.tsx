@@ -2480,6 +2480,17 @@ type MetricInsight = {
     exploitation_pct?: number;
     exploration_pct?: number;
     label?: string;
+    vrin_assets?: Array<{
+      asset_name: string;
+      valuable: boolean;
+      rare: boolean;
+      inimitable: string;
+      non_substitutable: boolean;
+      verdict: string;
+      reasoning: string;
+      trajectory?: 'appreciating' | 'stable' | 'depreciating';
+    }>;
+    vrin_summary?: string;
     [key: string]: any;
   };
   // Optional fields for issue/action linking (may not be present in API data)
@@ -4085,6 +4096,108 @@ function RunSummaryView({
                                 <span><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '2px', background: '#3B82F6', marginRight: '6px' }} />Running today's business</span>
                                 <span><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '2px', background: '#8B5CF6', marginRight: '6px' }} />Building for tomorrow</span>
                               </div>
+                            </div>
+                          )}
+
+                          {/* M13 VRIN Competitive Position Audit */}
+                          {insight.metric_code === 'M13' && insight.context_data?.vrin_assets && insight.context_data.vrin_assets.length > 0 && (
+                            <div style={{
+                              margin: '0 0 24px 0',
+                              padding: '20px',
+                              background: '#FAFBFC',
+                              borderRadius: '10px',
+                              border: '1px solid #E2E8F0',
+                            }}>
+                              <span style={{
+                                display: 'block',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                textTransform: 'uppercase' as const,
+                                letterSpacing: '0.5px',
+                                color: '#64748B',
+                                marginBottom: '14px',
+                              }}>Competitive Position Audit</span>
+                              <div style={{ overflowX: 'auto' as const }}>
+                                <table style={{
+                                  width: '100%',
+                                  borderCollapse: 'collapse' as const,
+                                  fontSize: '13px',
+                                }}>
+                                  <thead>
+                                    <tr style={{ borderBottom: '2px solid #E2E8F0' }}>
+                                      <th style={{ textAlign: 'left' as const, padding: '8px 12px', color: '#334155', fontWeight: 600, fontSize: '12px' }}>Asset Claimed</th>
+                                      <th style={{ textAlign: 'center' as const, padding: '8px 6px', color: '#334155', fontWeight: 600, fontSize: '12px', width: '36px' }} title="Valuable">V</th>
+                                      <th style={{ textAlign: 'center' as const, padding: '8px 6px', color: '#334155', fontWeight: 600, fontSize: '12px', width: '36px' }} title="Rare">R</th>
+                                      <th style={{ textAlign: 'center' as const, padding: '8px 6px', color: '#334155', fontWeight: 600, fontSize: '12px', width: '36px' }} title="Inimitable">I</th>
+                                      <th style={{ textAlign: 'center' as const, padding: '8px 6px', color: '#334155', fontWeight: 600, fontSize: '12px', width: '36px' }} title="Non-substitutable">N</th>
+                                      <th style={{ textAlign: 'left' as const, padding: '8px 12px', color: '#334155', fontWeight: 600, fontSize: '12px' }}>Verdict</th>
+                                      <th style={{ textAlign: 'center' as const, padding: '8px 6px', color: '#334155', fontWeight: 600, fontSize: '12px', width: '70px' }} title="Asset trajectory: Appreciating / Stable / Depreciating">Trend</th>
+                                    </tr>
+                                  </thead>
+                                  <tbody>
+                                    {insight.context_data.vrin_assets.map((asset, i) => {
+                                      const verdictStyles: Record<string, { bg: string; color: string; label: string }> = {
+                                        confirmed_defensible: { bg: '#DAFBE1', color: '#1A7F37', label: 'Defensible' },
+                                        potential_advantage: { bg: '#FFF8C5', color: '#9A6700', label: 'Potential' },
+                                        competitive_parity: { bg: '#F6F8FA', color: '#656D76', label: 'Parity' },
+                                        commodity: { bg: '#FFEBE9', color: '#CF222E', label: 'Commodity' },
+                                      };
+                                      const vs = verdictStyles[asset.verdict] || verdictStyles.competitive_parity;
+                                      const checkStyle = { color: '#1A7F37', fontWeight: 700 as const };
+                                      const crossStyle = { color: '#CF222E', fontWeight: 700 as const };
+                                      const partialStyle = { color: '#9A6700', fontWeight: 700 as const };
+                                      return (
+                                        <tr key={i} style={{ borderBottom: '1px solid #F1F5F9' }} title={asset.reasoning}>
+                                          <td style={{ padding: '10px 12px', color: '#1E293B', fontWeight: 500 }}>{asset.asset_name}</td>
+                                          <td style={{ textAlign: 'center' as const, padding: '10px 6px', ...(asset.valuable ? checkStyle : crossStyle) }}>{asset.valuable ? '✓' : '✗'}</td>
+                                          <td style={{ textAlign: 'center' as const, padding: '10px 6px', ...(asset.rare ? checkStyle : crossStyle) }}>{asset.rare ? '✓' : '✗'}</td>
+                                          <td style={{ textAlign: 'center' as const, padding: '10px 6px', ...(asset.inimitable === 'yes' ? checkStyle : asset.inimitable === 'partial' ? partialStyle : crossStyle) }}>{asset.inimitable === 'yes' ? '✓' : asset.inimitable === 'partial' ? '~' : '✗'}</td>
+                                          <td style={{ textAlign: 'center' as const, padding: '10px 6px', ...(asset.non_substitutable ? checkStyle : crossStyle) }}>{asset.non_substitutable ? '✓' : '✗'}</td>
+                                          <td style={{ padding: '10px 12px' }}>
+                                            <span style={{
+                                              display: 'inline-block',
+                                              padding: '3px 10px',
+                                              borderRadius: '12px',
+                                              fontSize: '11px',
+                                              fontWeight: 600,
+                                              background: vs.bg,
+                                              color: vs.color,
+                                            }}>{vs.label}</span>
+                                          </td>
+                                          <td style={{ textAlign: 'center' as const, padding: '10px 6px' }}>
+                                            {asset.trajectory ? (() => {
+                                              const trajectoryConfig: Record<string, { arrow: string; color: string; label: string }> = {
+                                                appreciating: { arrow: '↑', color: '#1A7F37', label: 'Appreciating' },
+                                                stable: { arrow: '→', color: '#656D76', label: 'Stable' },
+                                                depreciating: { arrow: '↓', color: '#CF222E', label: 'Depreciating' },
+                                              };
+                                              const tc = trajectoryConfig[asset.trajectory] || trajectoryConfig.stable;
+                                              return (
+                                                <span title={tc.label} style={{
+                                                  fontSize: '16px',
+                                                  fontWeight: 700,
+                                                  color: tc.color,
+                                                }}>{tc.arrow}</span>
+                                              );
+                                            })() : (
+                                              <span style={{ color: '#CBD5E1', fontSize: '12px' }}>—</span>
+                                            )}
+                                          </td>
+                                        </tr>
+                                      );
+                                    })}
+                                  </tbody>
+                                </table>
+                              </div>
+                              {insight.context_data.vrin_summary && (
+                                <p style={{
+                                  marginTop: '12px',
+                                  fontSize: '12px',
+                                  color: '#64748B',
+                                  fontStyle: 'italic' as const,
+                                  lineHeight: 1.5,
+                                }}>{insight.context_data.vrin_summary}</p>
+                              )}
                             </div>
                           )}
 
