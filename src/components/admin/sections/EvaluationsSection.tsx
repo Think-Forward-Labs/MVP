@@ -3757,19 +3757,6 @@ function RunSummaryView({
         };
 
         const groupOrder = ['confirmed_defensible', 'potential_advantage', 'competitive_parity', 'commodity'];
-        const groupLabels: Record<string, string> = {
-          confirmed_defensible: 'Defensible Strengths',
-          potential_advantage: 'Potential Strengths',
-          competitive_parity: 'Table Stakes',
-          commodity: 'At Risk',
-        };
-        const groupDots: Record<string, string> = {
-          confirmed_defensible: '#1A7F37',
-          potential_advantage: '#9A6700',
-          competitive_parity: '#656D76',
-          commodity: '#CF222E',
-        };
-
         // Cross-metric insight card definitions
         const insightCardDefs: Record<string, { title: string; coachingQuestion: string }> = {
           part3_defensible_slow_sensing: { title: 'Strong Assets, Slow Detection', coachingQuestion: "How can we improve market sensing to protect what we've built?" },
@@ -3779,6 +3766,8 @@ function RunSummaryView({
           part4_resilient_nothing_distinctive: { title: 'Resilient But Generic', coachingQuestion: 'What unique position should we build toward?' },
           part5_milking_strengths: { title: 'Harvesting Without Replanting', coachingQuestion: 'Where should we invest to build the next generation of advantages?' },
           part5_critical_no_replacement: { title: 'Strengths Eroding, Nothing New', coachingQuestion: 'What immediate investments can we make to build new strengths?' },
+          perception_gap_overconfidence: { title: 'Readiness Overconfidence Detected', coachingQuestion: 'What evidence would you need to see to feel confident your teams are truly prepared for major change?' },
+          perception_gap_underconfidence: { title: 'Hidden Readiness Potential', coachingQuestion: 'How might you help teams recognize the capabilities they already have?' },
         };
 
         const activeInsights = Object.entries(crossMetricInsights).filter(([key]) => key in insightCardDefs);
@@ -3806,185 +3795,110 @@ function RunSummaryView({
               }}>Your competitive strengths &mdash; which assets give you an edge and which need attention</p>
             </div>
 
-            {/* Asset groups */}
-            <div style={{ padding: '0 32px 24px' }}>
-              {groupOrder.map(verdict => {
-                const assets = vrinAssets.filter(a => a.verdict === verdict);
-                if (assets.length === 0) return null;
-                const vc = verdictConfig[verdict];
-                return (
-                  <div key={verdict} style={{ marginBottom: '24px' }}>
-                    {/* Group header */}
-                    <div style={{
-                      display: 'flex',
-                      alignItems: 'center',
-                      gap: '8px',
-                      marginBottom: '12px',
-                    }}>
-                      <span style={{
-                        width: '10px',
-                        height: '10px',
-                        borderRadius: '50%',
-                        background: groupDots[verdict],
-                        flexShrink: 0,
-                      }} />
-                      <span style={{
-                        fontSize: '15px',
-                        fontWeight: 600,
-                        color: '#1D1D1F',
-                      }}>{groupLabels[verdict]} ({assets.length})</span>
-                    </div>
+            {/* VRIN Asset Table */}
+            <div style={{ padding: '0 32px 24px', overflowX: 'auto' }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: '13px',
+              }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #E0E0E0' }}>
+                    <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px' }}>Asset</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '70px' }}>Valuable?</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '60px' }}>Rare?</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '90px' }}>Hard to Copy?</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '100px' }}>No Substitute?</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '140px' }}>Verdict</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '100px' }}>Trend</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...vrinAssets].sort((a, b) => groupOrder.indexOf(a.verdict || 'commodity') - groupOrder.indexOf(b.verdict || 'commodity')).map((asset, idx) => {
+                    const vc = verdictConfig[asset.verdict || 'commodity'];
+                    const tc = asset.trajectory ? trajectoryConfig[asset.trajectory] : null;
 
-                    {/* Asset cards */}
-                    {assets.map((asset, aIdx) => {
-                      const tc = asset.trajectory ? trajectoryConfig[asset.trajectory] : null;
-                      return (
-                        <details key={aIdx} style={{
-                          marginBottom: '8px',
-                          border: '1px solid #F0F0F0',
-                          borderRadius: '10px',
-                          overflow: 'hidden',
-                        }}>
-                          <summary style={{
-                            padding: '16px 20px',
-                            cursor: 'pointer',
-                            listStyle: 'none',
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'space-between',
-                            gap: '12px',
-                            background: '#FAFAFA',
-                          }}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
-                              <span style={{
-                                fontSize: '14px',
-                                fontWeight: 600,
-                                color: '#1D1D1F',
-                                whiteSpace: 'nowrap',
-                                overflow: 'hidden',
-                                textOverflow: 'ellipsis',
-                              }}>{asset.asset_name}</span>
-                              <span style={{
-                                display: 'inline-block',
-                                padding: '2px 10px',
-                                borderRadius: '12px',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                background: vc.badgeBg,
-                                color: vc.badgeColor,
-                                flexShrink: 0,
-                              }}>{vc.label}</span>
-                              {tc && (
-                                <span style={{
-                                  display: 'inline-flex',
-                                  alignItems: 'center',
-                                  gap: '4px',
-                                  fontSize: '12px',
-                                  fontWeight: 500,
-                                  color: tc.color,
-                                  flexShrink: 0,
-                                }}>
-                                  <span style={{ fontSize: '14px', fontWeight: 700 }}>{tc.arrow}</span>
-                                  {tc.label}
-                                </span>
-                              )}
-                            </div>
-                            <span style={{ fontSize: '12px', color: '#86868B', flexShrink: 0 }}>\u25B6</span>
-                          </summary>
+                    const renderTick = (val: boolean | string | undefined) => {
+                      const isYes = val === true || val === 'yes';
+                      const isPartial = val === 'partial';
+                      if (isYes) return <span style={{ color: '#1A7F37', fontSize: '16px', fontWeight: 700 }}>{'\u2713'}</span>;
+                      if (isPartial) return <span style={{ color: '#9A6700', fontSize: '14px', fontWeight: 600 }}>{'~'}</span>;
+                      return <span style={{ color: '#CF222E', fontSize: '16px', fontWeight: 700 }}>{'\u2717'}</span>;
+                    };
 
-                          <div style={{ padding: '16px 20px', borderTop: '1px solid #F0F0F0' }}>
-                            {/* Plain language description */}
-                            <p style={{
-                              fontSize: '14px',
-                              fontWeight: 500,
-                              color: '#1D1D1F',
-                              margin: '0 0 4px 0',
-                            }}>{vc.plainLanguage}</p>
-                            <p style={{
-                              fontSize: '13px',
-                              color: '#86868B',
-                              margin: '0 0 16px 0',
-                              lineHeight: 1.5,
-                            }}>{vc.description}</p>
-
-                            {/* Why we assessed it this way */}
+                    return (
+                      <tr key={idx} style={{
+                        borderBottom: '1px solid #F0F0F0',
+                        background: idx % 2 === 0 ? '#FFFFFF' : '#FAFAFA',
+                      }}>
+                        <td style={{ padding: '12px', fontWeight: 500, color: '#1D1D1F', maxWidth: '220px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span>{asset.asset_name}</span>
                             {asset.reasoning && (
-                              <details style={{ marginBottom: '14px' }}>
-                                <summary style={{
-                                  fontSize: '13px',
-                                  fontWeight: 500,
-                                  color: '#57606A',
-                                  cursor: 'pointer',
-                                  padding: '4px 0',
-                                }}>Why we assessed it this way</summary>
-                                <p style={{
-                                  fontSize: '13px',
-                                  color: '#57606A',
-                                  lineHeight: 1.6,
-                                  margin: '8px 0 0 0',
-                                  padding: '10px 14px',
-                                  background: '#F6F8FA',
-                                  borderRadius: '8px',
-                                }}>{asset.reasoning}</p>
-                              </details>
+                              <span style={{ fontSize: '11px', color: '#86868B', lineHeight: 1.3, fontWeight: 400 }}>
+                                {asset.reasoning.length > 80 ? asset.reasoning.slice(0, 80) + '...' : asset.reasoning}
+                              </span>
                             )}
-
-                            {/* Framework breakdown — VRIN criteria chips */}
-                            <details>
-                              <summary style={{
-                                fontSize: '13px',
-                                fontWeight: 500,
-                                color: '#57606A',
-                                cursor: 'pointer',
-                                padding: '4px 0',
-                              }}>Framework breakdown</summary>
-                              <div style={{
-                                display: 'grid',
-                                gridTemplateColumns: '1fr 1fr',
-                                gap: '8px',
-                                marginTop: '10px',
-                              }}>
-                                {(['valuable', 'rare', 'inimitable', 'non_substitutable'] as const).map(criterion => {
-                                  const val = criterion === 'inimitable'
-                                    ? (asset.inimitable === 'yes' ? true : asset.inimitable === 'partial' ? 'partial' : false)
-                                    : asset[criterion];
-                                  const isYes = val === true;
-                                  const isPartial = val === 'partial';
-                                  const displayVal = isYes ? 'Yes' : isPartial ? 'Partial' : 'No';
-                                  const chipColor = isYes ? '#1A7F37' : isPartial ? '#9A6700' : '#CF222E';
-                                  const chipBg = isYes ? '#DAFBE1' : isPartial ? '#FFF8C5' : '#FFEBE9';
-                                  return (
-                                    <div key={criterion} style={{
-                                      display: 'flex',
-                                      alignItems: 'center',
-                                      justifyContent: 'space-between',
-                                      padding: '8px 12px',
-                                      borderRadius: '8px',
-                                      background: '#F6F8FA',
-                                    }}>
-                                      <span style={{ fontSize: '12px', color: '#57606A', fontWeight: 500 }}>
-                                        {vrinCriteriaLabels[criterion]}
-                                      </span>
-                                      <span style={{
-                                        fontSize: '11px',
-                                        fontWeight: 600,
-                                        color: chipColor,
-                                        background: chipBg,
-                                        padding: '2px 8px',
-                                        borderRadius: '10px',
-                                      }}>{displayVal}</span>
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            </details>
                           </div>
-                        </details>
-                      );
-                    })}
-                  </div>
-                );
-              })}
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>{renderTick(asset.valuable)}</td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>{renderTick(asset.rare)}</td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>{renderTick(asset.inimitable)}</td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>{renderTick(asset.non_substitutable)}</td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '3px 10px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            background: vc.badgeBg,
+                            color: vc.badgeColor,
+                            whiteSpace: 'nowrap',
+                          }}>{vc.label}</span>
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>
+                          {tc ? (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              color: tc.color,
+                            }}>
+                              <span style={{ fontSize: '15px', fontWeight: 700 }}>{tc.arrow}</span>
+                              {tc.label}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#86868B', fontSize: '12px' }}>&mdash;</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* Table legend */}
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '16px',
+                marginTop: '14px',
+                padding: '10px 0',
+                borderTop: '1px solid #F0F0F0',
+              }}>
+                <span style={{ fontSize: '12px', color: '#86868B', fontWeight: 500 }}>Key:</span>
+                <span style={{ fontSize: '12px', color: '#1A7F37', fontWeight: 600 }}>{'\u2713'} Yes</span>
+                <span style={{ fontSize: '12px', color: '#9A6700', fontWeight: 600 }}>~ Partial</span>
+                <span style={{ fontSize: '12px', color: '#CF222E', fontWeight: 600 }}>{'\u2717'} No</span>
+                <span style={{ fontSize: '12px', color: '#86868B' }}>|</span>
+                <span style={{ fontSize: '12px', color: '#1A7F37' }}>{'\u2191'} Appreciating</span>
+                <span style={{ fontSize: '12px', color: '#656D76' }}>{'\u2192'} Stable</span>
+                <span style={{ fontSize: '12px', color: '#CF222E' }}>{'\u2193'} Weakening</span>
+              </div>
+
 
               {/* VRIN summary narrative */}
               {vrinSummary && (
