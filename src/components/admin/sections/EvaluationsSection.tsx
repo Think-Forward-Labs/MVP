@@ -2492,6 +2492,8 @@ type MetricInsight = {
     vrin_summary?: string;
     [key: string]: any;
   };
+  // Narrative text (for derived metrics D1/D2)
+  narrative?: string;
   // Optional fields for issue/action linking (may not be present in API data)
   related_issue_ids?: string[];
   related_action_ids?: string[];
@@ -2548,6 +2550,13 @@ function RunSummaryView({
     pathologies: DetectedPathologyType[];
     contradictions: DetectedContradictionType[];
     cross_metric_insights?: Record<string, string>;
+    level_comparison?: {
+      level_scores: Record<string, Record<string, { level: string; score: number; respondent_count: number }>>;
+      implementation_gaps: Array<{ metric_code: string; metric_name: string; senior_score: number; frontline_score: number; gap: number; direction: string }>;
+      narrative: string;
+      source_count: number;
+      levels_present: string[];
+    };
   } | null>(null);
   const [refinedReportLoading, setRefinedReportLoading] = useState(true);
 
