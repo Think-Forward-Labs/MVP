@@ -491,7 +491,7 @@ export const adminApi = {
         metric_name: string;
         category: string;
         score: number;
-        health_status: 'strong' | 'developing' | 'attention' | 'critical';
+        health_status: 'excellent' | 'good' | 'at_risk' | 'critical';
         summary: string;
         observations: string[];
         recommendations: string[];
@@ -508,6 +508,7 @@ export const adminApi = {
           limitations: string[];
         };
         benchmark_narrative?: string;
+        context_data?: Record<string, any>;
       }>;
       executive_summary: string;
       key_actions: Array<string | {
@@ -537,6 +538,31 @@ export const adminApi = {
         evidence: Array<{ quote: string; role: string }>;
         opportunity: string;
       }>;
+      pathologies?: Array<{
+        pathology_type: string;
+        severity: 'critical' | 'moderate' | 'informational';
+        client_title: string;
+        client_description: string;
+        coaching_question: string;
+        icon: string;
+        category: string;
+        evidence: Array<{ quote: string; role: string }>;
+        related_metrics: string[];
+        is_core?: boolean;
+      }>;
+      contradictions?: Array<{
+        contradiction_id: string;
+        primary_question_code: string;
+        linked_question_code: string;
+        severity: 'high' | 'moderate';
+        client_title: string;
+        client_callout: string;
+        client_description: string;
+        coaching_question: string;
+        evidence: Array<{ quote: string; role: string }>;
+        related_metrics: string[];
+      }>;
+      cross_metric_insights?: Record<string, string>;
       generated_at: string;
       evaluation_id: string;
       business_id: string;

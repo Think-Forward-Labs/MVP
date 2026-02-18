@@ -1916,7 +1916,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_name: 'Operational Strength',
     category: 'Operational Strength',
     executive_insight: 'Operational Strength scores 66/100 vs research target ≥65 (Helfat & Peteraf, 2003). You exceed the threshold by 2%. At this level, monitor for \'competency trap\' — strong execution can mask need for adaptation. Your current advantage is narrow and could erode without deliberate investment in adaptive capacity.',
-    health_status: 'strong' as const,
+    health_status: 'excellent' as const,
     score: 66,
     summary: 'Your operational execution is a clear strength. Teams deliver reliably on commitments, and work quality remains consistent.',
     observations: [
@@ -1947,7 +1947,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M4',
     metric_name: 'Implementation Speed',
     category: 'Operational Strength',
-    health_status: 'developing' as const,
+    health_status: 'good' as const,
     score: 56,
     summary: 'Changes happen, but slowly. Approval processes and hierarchical decision-making create bottlenecks.',
     observations: [
@@ -1978,7 +1978,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M7',
     metric_name: 'Resource Efficiency',
     category: 'Operational Strength',
-    health_status: 'strong' as const,
+    health_status: 'excellent' as const,
     score: 72,
     summary: 'Resources are well-utilized for current operations. Teams make do with what they have.',
     observations: [
@@ -2009,7 +2009,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M10',
     metric_name: 'Quality Standards',
     category: 'Operational Strength',
-    health_status: 'strong' as const,
+    health_status: 'excellent' as const,
     score: 68,
     summary: 'Quality is taken seriously. Clear standards exist and are generally followed.',
     observations: [
@@ -2107,7 +2107,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M8',
     metric_name: 'Innovation Capacity',
     category: 'Future Readiness',
-    health_status: 'attention' as const,
+    health_status: 'at_risk' as const,
     score: 24,
     summary: 'Frontline has no time, permission, or mechanisms for creative problem-solving.',
     observations: [
@@ -2138,7 +2138,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M11',
     metric_name: 'Adaptability',
     category: 'Future Readiness',
-    health_status: 'attention' as const,
+    health_status: 'at_risk' as const,
     score: 32,
     summary: 'The organization can respond to change, but only through top-down directives, not organic adaptation.',
     observations: [
@@ -2170,7 +2170,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M3',
     metric_name: 'Insight-to-Action',
     category: 'Cultural Health',
-    health_status: 'attention' as const,
+    health_status: 'at_risk' as const,
     score: 34,
     summary: 'Insights are generated but rarely translate into action. Good observations die in the system.',
     observations: [
@@ -2201,7 +2201,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M6',
     metric_name: 'Psychological Safety',
     category: 'Cultural Health',
-    health_status: 'developing' as const,
+    health_status: 'good' as const,
     score: 42,
     summary: 'Safety-critical concerns are taken seriously, but speaking up about operational improvements is risky.',
     observations: [
@@ -2232,7 +2232,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M9',
     metric_name: 'Learning Culture',
     category: 'Cultural Health',
-    health_status: 'strong' as const,
+    health_status: 'excellent' as const,
     score: 64,
     summary: 'Learning from mistakes happens, especially for safety incidents. Broader learning culture is less developed.',
     observations: [
@@ -2263,7 +2263,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M12',
     metric_name: 'Collaboration Quality',
     category: 'Cultural Health',
-    health_status: 'developing' as const,
+    health_status: 'good' as const,
     score: 48,
     summary: 'Teams work well internally but cross-team collaboration is limited and mostly top-down coordinated.',
     observations: [
@@ -2295,7 +2295,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M13',
     metric_name: 'Skills & Capabilities',
     category: 'Resource Capability',
-    health_status: 'strong' as const,
+    health_status: 'excellent' as const,
     score: 70,
     summary: 'Teams have the skills needed for current work. Future capability development is less clear.',
     observations: [
@@ -2326,7 +2326,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M14',
     metric_name: 'Tools & Technology',
     category: 'Resource Capability',
-    health_status: 'developing' as const,
+    health_status: 'good' as const,
     score: 52,
     summary: 'Tools work for current needs but create friction. Technology is adequate, not enabling.',
     observations: [
@@ -2358,11 +2358,10 @@ const DUMMY_METRIC_INSIGHTS = [
 // Helper to get health status color and label
 const getHealthStatus = (status: string) => {
   switch (status) {
-    case 'exceptional': return { color: '#1A7F37', bg: 'rgba(52, 199, 89, 0.10)', label: 'Exceptional' };
-    case 'strong': return { color: '#0969DA', bg: 'rgba(0, 122, 255, 0.10)', label: 'Strong' };
-    case 'developing': return { color: '#9A6700', bg: 'rgba(255, 149, 0, 0.10)', label: 'Developing' };
-    case 'attention': return { color: '#CF222E', bg: 'rgba(255, 59, 48, 0.10)', label: 'Attention' };
-    case 'critical': return { color: '#CF222E', bg: 'rgba(255, 59, 48, 0.12)', label: 'Critical' };
+    case 'excellent': return { color: '#059669', bg: 'rgba(5, 150, 105, 0.10)', label: 'Excellent' };
+    case 'good': return { color: '#2563EB', bg: 'rgba(37, 99, 235, 0.10)', label: 'Good' };
+    case 'at_risk': return { color: '#D97706', bg: 'rgba(217, 119, 6, 0.10)', label: 'At Risk' };
+    case 'critical': return { color: '#DC2626', bg: 'rgba(220, 38, 38, 0.12)', label: 'Critical' };
     default: return { color: '#86868B', bg: 'rgba(0, 0, 0, 0.05)', label: 'Unknown' };
   }
 };
@@ -2456,7 +2455,7 @@ type MetricInsight = {
   metric_code: string;
   metric_name: string;
   category: string;
-  health_status: 'strong' | 'developing' | 'attention' | 'critical';
+  health_status: 'excellent' | 'good' | 'at_risk' | 'critical';
   score: number;
   executive_insight?: string;
   summary: string;
@@ -2548,6 +2547,7 @@ function RunSummaryView({
     strengths: StrengthType[];
     pathologies: DetectedPathologyType[];
     contradictions: DetectedContradictionType[];
+    cross_metric_insights?: Record<string, string>;
   } | null>(null);
   const [refinedReportLoading, setRefinedReportLoading] = useState(true);
 
@@ -2624,8 +2624,9 @@ function RunSummaryView({
             key_actions: normalizedActions,
             critical_issues: normalizedIssues,
             strengths: normalizedStrengths,
-            pathologies: response.report.pathologies || [],
+            pathologies: (response.report.pathologies || []).map(p => ({ ...p, is_core: p.is_core ?? true })),
             contradictions: response.report.contradictions || [],
+            cross_metric_insights: response.report.cross_metric_insights || {},
           });
         }
       } catch (err) {
@@ -2643,6 +2644,12 @@ function RunSummaryView({
   const metricInsights: MetricInsight[] = refinedReport?.metrics?.length
     ? refinedReport.metrics
     : DUMMY_METRIC_INSIGHTS;
+
+  // Extract VRIN data from M13 metric for standalone Strategic Asset Assessment section
+  const m13Insight = refinedReport?.metrics?.find(m => m.metric_code === 'M13');
+  const vrinAssets = m13Insight?.context_data?.vrin_assets || [];
+  const vrinSummary = m13Insight?.context_data?.vrin_summary || '';
+  const crossMetricInsights = refinedReport?.cross_metric_insights || {};
 
   const statusColor = getStatusColor(run.status);
   const totalFlags = run.flags?.filter(f => !f.is_resolved) || [];
@@ -2664,28 +2671,14 @@ function RunSummaryView({
   // Check if we have any metric data (raw scores OR refined report)
   const hasMetricData = sortedMetrics.length > 0 || metricInsights.length > 0;
 
-  // Weighted composite: Operational Strength (X-axis)
-  // X = (M1 × 0.40) + (M4 × 0.20) + (M9 × 0.15) + (M11 × 0.15) + (M8 × 0.10)
+  // Operational Strength (X-axis) = M1 individual metric score
   const operationalStrength = hasMetricData
-    ? Math.round(
-        (getMetricScore('M1') * 0.40) +
-        (getMetricScore('M4') * 0.20) +
-        (getMetricScore('M9') * 0.15) +
-        (getMetricScore('M11') * 0.15) +
-        (getMetricScore('M8') * 0.10)
-      )
+    ? Math.round(getMetricScore('M1'))
     : 0;
 
-  // Weighted composite: Future Readiness (Y-axis)
-  // Y = (M2 × 0.40) + (M5 × 0.20) + (M3 × 0.15) + (M14 × 0.15) + (M10 × 0.10)
+  // Future Readiness (Y-axis) = M2 individual metric score
   const futureReadiness = hasMetricData
-    ? Math.round(
-        (getMetricScore('M2') * 0.40) +
-        (getMetricScore('M5') * 0.20) +
-        (getMetricScore('M3') * 0.15) +
-        (getMetricScore('M14') * 0.15) +
-        (getMetricScore('M10') * 0.10)
-      )
+    ? Math.round(getMetricScore('M2'))
     : 0;
 
   // Overall = average of both axes
@@ -2840,11 +2833,42 @@ function RunSummaryView({
         </div>
       )}
 
+      {/* Single-Respondent Caveat Banner */}
+      {(run.sources?.length || 0) < 3 && run.status === 'completed' && (
+        <div style={{
+          background: 'linear-gradient(90deg, #FFFBEB 0%, #FEF3C7 100%)',
+          border: '1px solid #F59E0B',
+          borderRadius: '8px',
+          padding: '16px 20px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '12px',
+        }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" style={{ flexShrink: 0, marginTop: '2px' }}>
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <div>
+            <p style={{ margin: 0, fontWeight: 600, color: '#92400E', fontSize: '14px' }}>
+              Single-Respondent Evaluation
+            </p>
+            <p style={{ margin: '4px 0 0 0', color: '#92400E', fontSize: '13px', lineHeight: 1.5 }}>
+              This evaluation is based on a single respondent. Results reflect one perspective and should be interpreted as directional insights rather than validated findings. Cross-level triangulation requires 3+ respondents.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Two Column Layout: Strategic Position + Executive Summary */}
       <div style={dashStyles.twoColumnGrid}>
         {/* Strategic Position Quadrant */}
         <div style={dashStyles.quadrantCard}>
           <h3 style={dashStyles.cardTitle}>Strategic Position</h3>
+          <p style={{ fontSize: '12px', color: '#86868B', margin: '0 0 8px 0' }}>
+            Based on your Operational Strength ({operationalStrength}) and Future Readiness ({futureReadiness}) scores
+          </p>
 
           <div style={dashStyles.quadrantContainer}>
             <div style={dashStyles.quadrantGrid}>
@@ -2974,7 +2998,7 @@ function RunSummaryView({
                     ? ` The ${Math.abs(pointGap)}-point gap between axes signals a meaningful imbalance that warrants focused attention.`
                     : ` The ${Math.abs(pointGap)}-point gap suggests reasonable balance between operational and adaptive capabilities.`}
                 </p>
-                {(run.sources?.length || 0) <= 2 && (
+                {(run.sources?.length || 0) < 3 && (
                   <p style={{ ...dashStyles.reasoningText, marginTop: '8px', fontStyle: 'italic', color: 'rgba(60, 60, 67, 0.5)' }}>
                     Note: This assessment is based on {run.sources?.length || 0} respondent{(run.sources?.length || 0) !== 1 ? 's' : ''}. Results become more reliable with broader organizational input.
                   </p>
@@ -3446,7 +3470,7 @@ function RunSummaryView({
                                 color: '#57606A',
                                 backgroundColor: '#F0F0F0',
                               }}
-                            >{metric}</span>
+                            >{getMetricDisplayName(metric)}</span>
                           ))}
                         </div>
                       )}
@@ -3579,7 +3603,7 @@ function RunSummaryView({
                           color: '#57606A',
                           backgroundColor: '#F6F8FA',
                         }}>
-                          {contradiction.primary_question_code} ↔ {contradiction.linked_question_code}
+                          Self-rating vs described experience
                         </span>
                       </div>
 
@@ -3695,7 +3719,7 @@ function RunSummaryView({
                               color: '#57606A',
                               backgroundColor: '#F0F3F6',
                             }}>
-                              {code}
+                              {getMetricDisplayName(code)}
                             </span>
                           ))}
                         </div>
@@ -3708,6 +3732,634 @@ function RunSummaryView({
           </div>
         </div>
       )}
+
+      {/* Strategic Asset Assessment — Standalone VRIN section */}
+      {vrinAssets.length > 0 && (() => {
+        // Group assets by verdict
+        const verdictConfig: Record<string, { label: string; badgeColor: string; badgeBg: string; dotColor: string; plainLanguage: string; description: string }> = {
+          confirmed_defensible: { label: 'Defensible Strength', badgeColor: '#1A7F37', badgeBg: '#DAFBE1', dotColor: '#1A7F37', plainLanguage: 'This is a real competitive advantage', description: 'This asset meets all four criteria \u2014 competitors struggle to copy it.' },
+          potential_advantage: { label: 'Potential Strength', badgeColor: '#9A6700', badgeBg: '#FFF8C5', dotColor: '#9A6700', plainLanguage: 'This could become an advantage', description: "This asset has some strengths but doesn't fully meet all criteria yet." },
+          competitive_parity: { label: 'Table Stakes', badgeColor: '#656D76', badgeBg: '#F6F8FA', dotColor: '#656D76', plainLanguage: "You're on par with competitors", description: "You need this to compete, but it doesn't differentiate you." },
+          commodity: { label: 'At Risk', badgeColor: '#CF222E', badgeBg: '#FFEBE9', dotColor: '#CF222E', plainLanguage: 'Competitors can easily match this', description: 'This may not provide meaningful differentiation.' },
+        };
+
+        const trajectoryConfig: Record<string, { arrow: string; label: string; color: string }> = {
+          appreciating: { arrow: '\u2191', label: 'Getting Stronger', color: '#1A7F37' },
+          stable: { arrow: '\u2192', label: 'Holding Steady', color: '#656D76' },
+          depreciating: { arrow: '\u2193', label: 'Weakening', color: '#CF222E' },
+        };
+
+        const vrinCriteriaLabels: Record<string, string> = {
+          valuable: 'Valuable',
+          rare: 'Rare',
+          inimitable: 'Hard to Copy',
+          non_substitutable: 'No Substitutes',
+        };
+
+        const groupOrder = ['confirmed_defensible', 'potential_advantage', 'competitive_parity', 'commodity'];
+        const groupLabels: Record<string, string> = {
+          confirmed_defensible: 'Defensible Strengths',
+          potential_advantage: 'Potential Strengths',
+          competitive_parity: 'Table Stakes',
+          commodity: 'At Risk',
+        };
+        const groupDots: Record<string, string> = {
+          confirmed_defensible: '#1A7F37',
+          potential_advantage: '#9A6700',
+          competitive_parity: '#656D76',
+          commodity: '#CF222E',
+        };
+
+        // Cross-metric insight card definitions
+        const insightCardDefs: Record<string, { title: string; coachingQuestion: string }> = {
+          part3_defensible_slow_sensing: { title: 'Strong Assets, Slow Detection', coachingQuestion: "How can we improve market sensing to protect what we've built?" },
+          part3_fast_nothing_distinctive: { title: 'Fast Moves, No Moat', coachingQuestion: 'Where should we invest to build defensible advantages?' },
+          part3_depreciating_low_radar: { title: 'Assets Weakening, Radar Off', coachingQuestion: 'What early warning systems can we put in place?' },
+          part4_strengths_low_resilience: { title: 'Strong But Fragile', coachingQuestion: 'How do we protect our strengths during disruption?' },
+          part4_resilient_nothing_distinctive: { title: 'Resilient But Generic', coachingQuestion: 'What unique position should we build toward?' },
+          part5_milking_strengths: { title: 'Harvesting Without Replanting', coachingQuestion: 'Where should we invest to build the next generation of advantages?' },
+          part5_critical_no_replacement: { title: 'Strengths Eroding, Nothing New', coachingQuestion: 'What immediate investments can we make to build new strengths?' },
+        };
+
+        const activeInsights = Object.entries(crossMetricInsights).filter(([key]) => key in insightCardDefs);
+
+        return (
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid #E0E0E0',
+            overflow: 'hidden',
+            marginBottom: '24px',
+          }}>
+            {/* Section header */}
+            <div style={{ padding: '24px 32px 20px' }}>
+              <h3 style={{
+                fontSize: '18px',
+                fontWeight: 600,
+                color: '#1D1D1F',
+                margin: '0 0 4px 0',
+              }}>Strategic Asset Assessment</h3>
+              <p style={{
+                fontSize: '14px',
+                color: '#86868B',
+                margin: 0,
+              }}>Your competitive strengths &mdash; which assets give you an edge and which need attention</p>
+            </div>
+
+            {/* Asset groups */}
+            <div style={{ padding: '0 32px 24px' }}>
+              {groupOrder.map(verdict => {
+                const assets = vrinAssets.filter(a => a.verdict === verdict);
+                if (assets.length === 0) return null;
+                const vc = verdictConfig[verdict];
+                return (
+                  <div key={verdict} style={{ marginBottom: '24px' }}>
+                    {/* Group header */}
+                    <div style={{
+                      display: 'flex',
+                      alignItems: 'center',
+                      gap: '8px',
+                      marginBottom: '12px',
+                    }}>
+                      <span style={{
+                        width: '10px',
+                        height: '10px',
+                        borderRadius: '50%',
+                        background: groupDots[verdict],
+                        flexShrink: 0,
+                      }} />
+                      <span style={{
+                        fontSize: '15px',
+                        fontWeight: 600,
+                        color: '#1D1D1F',
+                      }}>{groupLabels[verdict]} ({assets.length})</span>
+                    </div>
+
+                    {/* Asset cards */}
+                    {assets.map((asset, aIdx) => {
+                      const tc = asset.trajectory ? trajectoryConfig[asset.trajectory] : null;
+                      return (
+                        <details key={aIdx} style={{
+                          marginBottom: '8px',
+                          border: '1px solid #F0F0F0',
+                          borderRadius: '10px',
+                          overflow: 'hidden',
+                        }}>
+                          <summary style={{
+                            padding: '16px 20px',
+                            cursor: 'pointer',
+                            listStyle: 'none',
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'space-between',
+                            gap: '12px',
+                            background: '#FAFAFA',
+                          }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flex: 1, minWidth: 0 }}>
+                              <span style={{
+                                fontSize: '14px',
+                                fontWeight: 600,
+                                color: '#1D1D1F',
+                                whiteSpace: 'nowrap',
+                                overflow: 'hidden',
+                                textOverflow: 'ellipsis',
+                              }}>{asset.asset_name}</span>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '2px 10px',
+                                borderRadius: '12px',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                background: vc.badgeBg,
+                                color: vc.badgeColor,
+                                flexShrink: 0,
+                              }}>{vc.label}</span>
+                              {tc && (
+                                <span style={{
+                                  display: 'inline-flex',
+                                  alignItems: 'center',
+                                  gap: '4px',
+                                  fontSize: '12px',
+                                  fontWeight: 500,
+                                  color: tc.color,
+                                  flexShrink: 0,
+                                }}>
+                                  <span style={{ fontSize: '14px', fontWeight: 700 }}>{tc.arrow}</span>
+                                  {tc.label}
+                                </span>
+                              )}
+                            </div>
+                            <span style={{ fontSize: '12px', color: '#86868B', flexShrink: 0 }}>\u25B6</span>
+                          </summary>
+
+                          <div style={{ padding: '16px 20px', borderTop: '1px solid #F0F0F0' }}>
+                            {/* Plain language description */}
+                            <p style={{
+                              fontSize: '14px',
+                              fontWeight: 500,
+                              color: '#1D1D1F',
+                              margin: '0 0 4px 0',
+                            }}>{vc.plainLanguage}</p>
+                            <p style={{
+                              fontSize: '13px',
+                              color: '#86868B',
+                              margin: '0 0 16px 0',
+                              lineHeight: 1.5,
+                            }}>{vc.description}</p>
+
+                            {/* Why we assessed it this way */}
+                            {asset.reasoning && (
+                              <details style={{ marginBottom: '14px' }}>
+                                <summary style={{
+                                  fontSize: '13px',
+                                  fontWeight: 500,
+                                  color: '#57606A',
+                                  cursor: 'pointer',
+                                  padding: '4px 0',
+                                }}>Why we assessed it this way</summary>
+                                <p style={{
+                                  fontSize: '13px',
+                                  color: '#57606A',
+                                  lineHeight: 1.6,
+                                  margin: '8px 0 0 0',
+                                  padding: '10px 14px',
+                                  background: '#F6F8FA',
+                                  borderRadius: '8px',
+                                }}>{asset.reasoning}</p>
+                              </details>
+                            )}
+
+                            {/* Framework breakdown — VRIN criteria chips */}
+                            <details>
+                              <summary style={{
+                                fontSize: '13px',
+                                fontWeight: 500,
+                                color: '#57606A',
+                                cursor: 'pointer',
+                                padding: '4px 0',
+                              }}>Framework breakdown</summary>
+                              <div style={{
+                                display: 'grid',
+                                gridTemplateColumns: '1fr 1fr',
+                                gap: '8px',
+                                marginTop: '10px',
+                              }}>
+                                {(['valuable', 'rare', 'inimitable', 'non_substitutable'] as const).map(criterion => {
+                                  const val = criterion === 'inimitable'
+                                    ? (asset.inimitable === 'yes' ? true : asset.inimitable === 'partial' ? 'partial' : false)
+                                    : asset[criterion];
+                                  const isYes = val === true;
+                                  const isPartial = val === 'partial';
+                                  const displayVal = isYes ? 'Yes' : isPartial ? 'Partial' : 'No';
+                                  const chipColor = isYes ? '#1A7F37' : isPartial ? '#9A6700' : '#CF222E';
+                                  const chipBg = isYes ? '#DAFBE1' : isPartial ? '#FFF8C5' : '#FFEBE9';
+                                  return (
+                                    <div key={criterion} style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      justifyContent: 'space-between',
+                                      padding: '8px 12px',
+                                      borderRadius: '8px',
+                                      background: '#F6F8FA',
+                                    }}>
+                                      <span style={{ fontSize: '12px', color: '#57606A', fontWeight: 500 }}>
+                                        {vrinCriteriaLabels[criterion]}
+                                      </span>
+                                      <span style={{
+                                        fontSize: '11px',
+                                        fontWeight: 600,
+                                        color: chipColor,
+                                        background: chipBg,
+                                        padding: '2px 8px',
+                                        borderRadius: '10px',
+                                      }}>{displayVal}</span>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </details>
+                          </div>
+                        </details>
+                      );
+                    })}
+                  </div>
+                );
+              })}
+
+              {/* VRIN summary narrative */}
+              {vrinSummary && (
+                <p style={{
+                  fontSize: '13px',
+                  color: '#64748B',
+                  fontStyle: 'italic',
+                  lineHeight: 1.6,
+                  margin: '0 0 20px 0',
+                  padding: '0 4px',
+                }}>{vrinSummary}</p>
+              )}
+            </div>
+
+            {/* Strategic Connections — cross-metric insight cards */}
+            {activeInsights.length > 0 && (
+              <div style={{
+                borderTop: '1px solid #F0F0F0',
+                padding: '24px 32px',
+              }}>
+                <h4 style={{
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: '#1D1D1F',
+                  margin: '0 0 4px 0',
+                }}>Strategic Connections</h4>
+                <p style={{
+                  fontSize: '13px',
+                  color: '#86868B',
+                  margin: '0 0 16px 0',
+                }}>How your competitive position connects to other organizational capabilities</p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {activeInsights.map(([key, description]) => {
+                    const def = insightCardDefs[key];
+                    if (!def) return null;
+                    return (
+                      <div key={key} style={{
+                        padding: '16px 20px',
+                        borderRadius: '10px',
+                        border: '1px solid #F0F0F0',
+                        background: '#FAFAFA',
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '10px',
+                        }}>
+                          <span style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: '#9A6700',
+                            marginTop: '5px',
+                            flexShrink: 0,
+                          }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '8px',
+                              marginBottom: '6px',
+                            }}>
+                              <span style={{
+                                fontSize: '14px',
+                                fontWeight: 600,
+                                color: '#1D1D1F',
+                              }}>{def.title}</span>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                textTransform: 'uppercase' as const,
+                                letterSpacing: '0.3px',
+                                background: '#FFF8C5',
+                                color: '#9A6700',
+                              }}>Signal</span>
+                            </div>
+                            <p style={{
+                              fontSize: '13px',
+                              color: '#57606A',
+                              lineHeight: 1.5,
+                              margin: '0 0 10px 0',
+                            }}>{description}</p>
+                            <div style={{
+                              padding: '10px 14px',
+                              borderRadius: '8px',
+                              background: '#F0F3F6',
+                              borderLeft: '3px solid #D0D7DE',
+                            }}>
+                              <span style={{
+                                display: 'block',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                textTransform: 'uppercase' as const,
+                                letterSpacing: '0.3px',
+                                color: '#656D76',
+                                marginBottom: '4px',
+                              }}>Question to consider</span>
+                              <p style={{
+                                fontSize: '13px',
+                                color: '#424A53',
+                                fontStyle: 'italic',
+                                margin: 0,
+                                lineHeight: 1.5,
+                              }}>{def.coachingQuestion}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Footer explainer */}
+            <div style={{
+              padding: '16px 32px',
+              background: '#FAFAFA',
+              borderTop: '1px solid #F0F0F0',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+            }}>
+              <span style={{ fontSize: '14px', marginTop: '1px', flexShrink: 0 }}>&#x2139;&#xFE0F;</span>
+              <p style={{
+                fontSize: '12px',
+                color: '#86868B',
+                margin: 0,
+                lineHeight: 1.5,
+              }}>
+                The VRIN framework identifies which assets give sustainable advantage. Cross-metric signals show how strategic position connects to capabilities.
+              </p>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Composite Scores: D1 (OODA Velocity) + D2 (Resilience Index) */}
+      {(() => {
+        const d1 = metricInsights.find(m => m.metric_code === 'D1');
+        const d2 = metricInsights.find(m => m.metric_code === 'D2');
+        if (!d1 && !d2) return null;
+
+        const getBand = (score: number, type: 'ooda' | 'resilience') => {
+          if (type === 'ooda') {
+            if (score >= 75) return { label: 'Fast', color: '#059669', bg: '#D1FAE5' };
+            if (score >= 50) return { label: 'Moderate', color: '#D97706', bg: '#FEF3C7' };
+            return { label: 'Slow', color: '#DC2626', bg: '#FEE2E2' };
+          }
+          if (score >= 75) return { label: 'High', color: '#059669', bg: '#D1FAE5' };
+          if (score >= 50) return { label: 'Moderate', color: '#D97706', bg: '#FEF3C7' };
+          return { label: 'Low', color: '#DC2626', bg: '#FEE2E2' };
+        };
+
+        const composites = [
+          d1 ? { metric: d1, type: 'ooda' as const, title: 'OODA Velocity', subtitle: 'How fast your organization moves from sensing change to taking action', sources: 'S1, S5, I4, M8' } : null,
+          d2 ? { metric: d2, type: 'resilience' as const, title: 'Resilience Index', subtitle: 'How well your organization absorbs shocks and adapts under pressure', sources: 'C3, P4, R3, M3' } : null,
+        ].filter(Boolean) as Array<{ metric: MetricInsight; type: 'ooda' | 'resilience'; title: string; subtitle: string; sources: string }>;
+
+        return (
+          <div style={{
+            marginBottom: '32px',
+            padding: '28px 32px',
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid #E5E5EA',
+          }}>
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 700,
+              color: '#1D1D1F',
+              margin: '0 0 4px 0',
+            }}>Composite Scores</h3>
+            <p style={{
+              fontSize: '13px',
+              color: '#86868B',
+              margin: '0 0 24px 0',
+            }}>Derived indicators calculated from multiple core metrics</p>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: composites.length > 1 ? '1fr 1fr' : '1fr',
+              gap: '20px',
+            }}>
+              {composites.map(({ metric, type, title, subtitle, sources }) => {
+                const band = getBand(metric.score, type);
+                return (
+                  <div key={metric.metric_code} style={{
+                    padding: '24px',
+                    background: '#F8FAFC',
+                    borderRadius: '12px',
+                    border: '1px solid #E2E8F0',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>{metric.metric_code}</span>
+                        <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#1D1D1F', margin: '2px 0 0 0' }}>{title}</h4>
+                      </div>
+                      <span style={{
+                        padding: '4px 12px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: band.color,
+                        background: band.bg,
+                      }}>{band.label}</span>
+                    </div>
+                    <p style={{ fontSize: '13px', color: '#64748B', margin: '0 0 16px 0', lineHeight: 1.5 }}>{subtitle}</p>
+
+                    {/* Score bar */}
+                    <div style={{ marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '28px', fontWeight: 700, color: band.color }}>{Math.round(metric.score)}</span>
+                        <span style={{ fontSize: '12px', color: '#94A3B8', alignSelf: 'flex-end' }}>/100</span>
+                      </div>
+                      <div style={{ height: '8px', background: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ width: `${metric.score}%`, height: '100%', background: band.color, borderRadius: '4px', transition: 'width 0.5s ease' }} />
+                      </div>
+                    </div>
+
+                    {/* Source metrics */}
+                    <p style={{ fontSize: '11px', color: '#94A3B8', margin: 0 }}>
+                      Derived from: {sources}
+                    </p>
+
+                    {/* Narrative if available */}
+                    {metric.narrative && (
+                      <p style={{ fontSize: '13px', color: '#475569', margin: '12px 0 0 0', lineHeight: 1.6, borderTop: '1px solid #E2E8F0', paddingTop: '12px' }}>
+                        {metric.narrative}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Cross-Level Analysis (Multi-Respondent only) */}
+      {(() => {
+        const levelComparison = refinedReport?.level_comparison;
+        if (!levelComparison || levelComparison.source_count < 3) return null;
+
+        const LEVEL_COLORS: Record<string, string> = {
+          senior: '#3B82F6',
+          middle: '#8B5CF6',
+          frontline: '#F59E0B',
+          unspecified: '#94A3B8',
+        };
+        const LEVEL_LABELS: Record<string, string> = {
+          senior: 'Senior Leadership',
+          middle: 'Middle Management',
+          frontline: 'Frontline Teams',
+          unspecified: 'Unspecified',
+        };
+
+        const gaps = levelComparison.implementation_gaps || [];
+        const metricsWithLevels = Object.entries(levelComparison.level_scores || {})
+          .filter(([code]) => code.startsWith('M'))
+          .sort(([a], [b]) => {
+            const numA = parseInt(a.replace('M', ''));
+            const numB = parseInt(b.replace('M', ''));
+            return numA - numB;
+          });
+
+        return (
+          <div style={{
+            marginBottom: '32px',
+            padding: '28px 32px',
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid #E5E5EA',
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#1D1D1F', margin: '0 0 4px 0' }}>
+              Cross-Level Analysis
+            </h3>
+            <p style={{ fontSize: '13px', color: '#86868B', margin: '0 0 8px 0' }}>
+              Comparing perceptions across {levelComparison.levels_present?.join(', ')} levels ({levelComparison.source_count} respondents)
+            </p>
+
+            {/* Implementation Gaps */}
+            {gaps.length > 0 && (
+              <div style={{
+                margin: '16px 0 24px 0',
+                padding: '16px 20px',
+                background: 'linear-gradient(90deg, #FEF3C7 0%, #FFFBEB 100%)',
+                borderRadius: '10px',
+                border: '1px solid #F59E0B',
+              }}>
+                <p style={{ margin: '0 0 8px 0', fontWeight: 600, fontSize: '14px', color: '#92400E' }}>
+                  {gaps.length} Implementation Gap{gaps.length !== 1 ? 's' : ''} Detected
+                </p>
+                {gaps.slice(0, 5).map((gap: any) => (
+                  <div key={gap.metric_code} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 0',
+                    borderBottom: '1px solid rgba(245, 158, 11, 0.2)',
+                  }}>
+                    <span style={{ fontSize: '13px', color: '#92400E' }}>
+                      <strong>{gap.metric_code}</strong> {gap.metric_name}
+                    </span>
+                    <span style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: gap.gap >= 25 ? '#DC2626' : '#D97706',
+                      padding: '2px 10px',
+                      borderRadius: '12px',
+                      background: gap.gap >= 25 ? '#FEE2E2' : '#FEF3C7',
+                    }}>
+                      {gap.gap.toFixed(0)}pt gap ({gap.direction === 'leadership_higher' ? 'leadership higher' : 'frontline higher'})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Per-metric level bars */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              {metricsWithLevels.slice(0, 14).map(([code, byLevel]: [string, any]) => {
+                const hasGap = gaps.some((g: any) => g.metric_code === code);
+                return (
+                  <div key={code} style={{
+                    padding: '14px 16px',
+                    background: hasGap ? '#FFFBEB' : '#F8FAFC',
+                    borderRadius: '8px',
+                    border: `1px solid ${hasGap ? '#F59E0B' : '#E2E8F0'}`,
+                  }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#1D1D1F' }}>{code}</span>
+                    <div style={{ marginTop: '8px' }}>
+                      {Object.entries(byLevel).map(([level, detail]: [string, any]) => (
+                        <div key={level} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '10px', width: '60px', color: '#64748B', flexShrink: 0 }}>
+                            {LEVEL_LABELS[level]?.split(' ')[0] || level}
+                          </span>
+                          <div style={{ flex: 1, height: '6px', background: '#E2E8F0', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${detail.score}%`, height: '100%', background: LEVEL_COLORS[level] || '#94A3B8', borderRadius: '3px' }} />
+                          </div>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569', width: '28px', textAlign: 'right' as const }}>
+                            {Math.round(detail.score)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Narrative */}
+            {levelComparison.narrative && (
+              <p style={{ fontSize: '13px', color: '#64748B', margin: '20px 0 0 0', lineHeight: 1.6, fontStyle: 'italic' }}>
+                {levelComparison.narrative}
+              </p>
+            )}
+
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: '16px', marginTop: '16px', flexWrap: 'wrap' as const }}>
+              {(levelComparison.levels_present || []).map((level: string) => (
+                <span key={level} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748B' }}>
+                  <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '2px', background: LEVEL_COLORS[level] || '#94A3B8' }} />
+                  {LEVEL_LABELS[level] || level}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Metric Insights Section - McKinsey "Insight Headlines" Style */}
       <div style={dashStyles.metricInsightsSection}>
@@ -3735,7 +4387,7 @@ function RunSummaryView({
           // Calculate category average
           const categoryAvg = Math.round(categoryMetrics.reduce((sum, m) => sum + m.score, 0) / categoryMetrics.length);
           const categoryHealth = getHealthStatus(
-            categoryAvg >= 70 ? 'strong' : categoryAvg >= 50 ? 'developing' : categoryAvg >= 30 ? 'attention' : 'critical'
+            categoryAvg >= 70 ? 'excellent' : categoryAvg >= 50 ? 'good' : categoryAvg >= 40 ? 'at_risk' : 'critical'
           );
 
           return (
@@ -4096,108 +4748,59 @@ function RunSummaryView({
                                 <span><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '2px', background: '#3B82F6', marginRight: '6px' }} />Running today's business</span>
                                 <span><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '2px', background: '#8B5CF6', marginRight: '6px' }} />Building for tomorrow</span>
                               </div>
+                              {/* Explicit text line */}
+                              <p style={{
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                color: '#1E293B',
+                                margin: '10px 0 0 0',
+                                textAlign: 'center',
+                              }}>
+                                {insight.context_data.exploitation_pct}% running the business | {insight.context_data.exploration_pct}% building the future
+                              </p>
+                              {/* Amber warning if sum != 100% */}
+                              {insight.context_data.sum_total != null && insight.context_data.sum_total !== 100 && (
+                                <div style={{
+                                  marginTop: '8px',
+                                  padding: '8px 12px',
+                                  background: 'rgba(217, 119, 6, 0.08)',
+                                  borderRadius: '6px',
+                                  border: '1px solid rgba(217, 119, 6, 0.2)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                }}>
+                                  <span style={{ fontSize: '12px' }}>&#x26A0;&#xFE0F;</span>
+                                  <span style={{
+                                    fontSize: '11px',
+                                    color: '#92400E',
+                                  }}>
+                                    Reported allocation sums to {insight.context_data.sum_total}%, not 100%. This may indicate rounding or incomplete data.
+                                  </span>
+                                </div>
+                              )}
                             </div>
                           )}
 
-                          {/* M13 VRIN Competitive Position Audit */}
+                          {/* M13 VRIN — Brief reference to standalone section */}
                           {insight.metric_code === 'M13' && insight.context_data?.vrin_assets && insight.context_data.vrin_assets.length > 0 && (
                             <div style={{
                               margin: '0 0 24px 0',
-                              padding: '20px',
-                              background: '#FAFBFC',
+                              padding: '14px 20px',
+                              background: '#F6F8FA',
                               borderRadius: '10px',
                               border: '1px solid #E2E8F0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
                             }}>
+                              <span style={{ fontSize: '14px' }}>&#x1F6E1;&#xFE0F;</span>
                               <span style={{
-                                display: 'block',
-                                fontSize: '11px',
-                                fontWeight: 600,
-                                textTransform: 'uppercase' as const,
-                                letterSpacing: '0.5px',
-                                color: '#64748B',
-                                marginBottom: '14px',
-                              }}>Competitive Position Audit</span>
-                              <div style={{ overflowX: 'auto' as const }}>
-                                <table style={{
-                                  width: '100%',
-                                  borderCollapse: 'collapse' as const,
-                                  fontSize: '13px',
-                                }}>
-                                  <thead>
-                                    <tr style={{ borderBottom: '2px solid #E2E8F0' }}>
-                                      <th style={{ textAlign: 'left' as const, padding: '8px 12px', color: '#334155', fontWeight: 600, fontSize: '12px' }}>Asset Claimed</th>
-                                      <th style={{ textAlign: 'center' as const, padding: '8px 6px', color: '#334155', fontWeight: 600, fontSize: '12px', width: '36px' }} title="Valuable">V</th>
-                                      <th style={{ textAlign: 'center' as const, padding: '8px 6px', color: '#334155', fontWeight: 600, fontSize: '12px', width: '36px' }} title="Rare">R</th>
-                                      <th style={{ textAlign: 'center' as const, padding: '8px 6px', color: '#334155', fontWeight: 600, fontSize: '12px', width: '36px' }} title="Inimitable">I</th>
-                                      <th style={{ textAlign: 'center' as const, padding: '8px 6px', color: '#334155', fontWeight: 600, fontSize: '12px', width: '36px' }} title="Non-substitutable">N</th>
-                                      <th style={{ textAlign: 'left' as const, padding: '8px 12px', color: '#334155', fontWeight: 600, fontSize: '12px' }}>Verdict</th>
-                                      <th style={{ textAlign: 'center' as const, padding: '8px 6px', color: '#334155', fontWeight: 600, fontSize: '12px', width: '70px' }} title="Asset trajectory: Appreciating / Stable / Depreciating">Trend</th>
-                                    </tr>
-                                  </thead>
-                                  <tbody>
-                                    {insight.context_data.vrin_assets.map((asset, i) => {
-                                      const verdictStyles: Record<string, { bg: string; color: string; label: string }> = {
-                                        confirmed_defensible: { bg: '#DAFBE1', color: '#1A7F37', label: 'Defensible' },
-                                        potential_advantage: { bg: '#FFF8C5', color: '#9A6700', label: 'Potential' },
-                                        competitive_parity: { bg: '#F6F8FA', color: '#656D76', label: 'Parity' },
-                                        commodity: { bg: '#FFEBE9', color: '#CF222E', label: 'Commodity' },
-                                      };
-                                      const vs = verdictStyles[asset.verdict] || verdictStyles.competitive_parity;
-                                      const checkStyle = { color: '#1A7F37', fontWeight: 700 as const };
-                                      const crossStyle = { color: '#CF222E', fontWeight: 700 as const };
-                                      const partialStyle = { color: '#9A6700', fontWeight: 700 as const };
-                                      return (
-                                        <tr key={i} style={{ borderBottom: '1px solid #F1F5F9' }} title={asset.reasoning}>
-                                          <td style={{ padding: '10px 12px', color: '#1E293B', fontWeight: 500 }}>{asset.asset_name}</td>
-                                          <td style={{ textAlign: 'center' as const, padding: '10px 6px', ...(asset.valuable ? checkStyle : crossStyle) }}>{asset.valuable ? '✓' : '✗'}</td>
-                                          <td style={{ textAlign: 'center' as const, padding: '10px 6px', ...(asset.rare ? checkStyle : crossStyle) }}>{asset.rare ? '✓' : '✗'}</td>
-                                          <td style={{ textAlign: 'center' as const, padding: '10px 6px', ...(asset.inimitable === 'yes' ? checkStyle : asset.inimitable === 'partial' ? partialStyle : crossStyle) }}>{asset.inimitable === 'yes' ? '✓' : asset.inimitable === 'partial' ? '~' : '✗'}</td>
-                                          <td style={{ textAlign: 'center' as const, padding: '10px 6px', ...(asset.non_substitutable ? checkStyle : crossStyle) }}>{asset.non_substitutable ? '✓' : '✗'}</td>
-                                          <td style={{ padding: '10px 12px' }}>
-                                            <span style={{
-                                              display: 'inline-block',
-                                              padding: '3px 10px',
-                                              borderRadius: '12px',
-                                              fontSize: '11px',
-                                              fontWeight: 600,
-                                              background: vs.bg,
-                                              color: vs.color,
-                                            }}>{vs.label}</span>
-                                          </td>
-                                          <td style={{ textAlign: 'center' as const, padding: '10px 6px' }}>
-                                            {asset.trajectory ? (() => {
-                                              const trajectoryConfig: Record<string, { arrow: string; color: string; label: string }> = {
-                                                appreciating: { arrow: '↑', color: '#1A7F37', label: 'Appreciating' },
-                                                stable: { arrow: '→', color: '#656D76', label: 'Stable' },
-                                                depreciating: { arrow: '↓', color: '#CF222E', label: 'Depreciating' },
-                                              };
-                                              const tc = trajectoryConfig[asset.trajectory] || trajectoryConfig.stable;
-                                              return (
-                                                <span title={tc.label} style={{
-                                                  fontSize: '16px',
-                                                  fontWeight: 700,
-                                                  color: tc.color,
-                                                }}>{tc.arrow}</span>
-                                              );
-                                            })() : (
-                                              <span style={{ color: '#CBD5E1', fontSize: '12px' }}>—</span>
-                                            )}
-                                          </td>
-                                        </tr>
-                                      );
-                                    })}
-                                  </tbody>
-                                </table>
-                              </div>
-                              {insight.context_data.vrin_summary && (
-                                <p style={{
-                                  marginTop: '12px',
-                                  fontSize: '12px',
-                                  color: '#64748B',
-                                  fontStyle: 'italic' as const,
-                                  lineHeight: 1.5,
-                                }}>{insight.context_data.vrin_summary}</p>
-                              )}
+                                fontSize: '13px',
+                                color: '#57606A',
+                              }}>
+                                {insight.context_data.vrin_assets.length} strategic assets assessed &mdash; see <strong>Strategic Asset Assessment</strong> section above for full analysis.
+                              </span>
                             </div>
                           )}
 
@@ -4417,7 +5020,7 @@ function RunSummaryView({
                         {/* Metrics badge */}
                         <div style={dashStyles.premiumCardMeta}>
                           <span style={dashStyles.premiumMetricsBadge}>
-                            {issue.metrics.join(' · ')}
+                            {issue.metrics.map(m => getMetricDisplayName(m)).join(' · ')}
                           </span>
                           {issue.avg_score !== undefined && (
                             <span style={{ ...dashStyles.premiumScoreBadge, color: severityColor }}>
@@ -4484,7 +5087,7 @@ function RunSummaryView({
                         {/* Metrics badge */}
                         <div style={dashStyles.premiumCardMeta}>
                           <span style={dashStyles.premiumMetricsBadge}>
-                            {issue.metrics.join(' · ')}
+                            {issue.metrics.map(m => getMetricDisplayName(m)).join(' · ')}
                           </span>
                           <span style={{ ...dashStyles.premiumScoreBadge, color: severityColor }}>
                             {issue.avgScore}
@@ -4555,7 +5158,7 @@ function RunSummaryView({
                         {/* Metrics badge */}
                         <div style={dashStyles.premiumCardMeta}>
                           <span style={dashStyles.premiumMetricsBadge}>
-                            {strength.metrics.join(' · ')}
+                            {strength.metrics.map(m => getMetricDisplayName(m)).join(' · ')}
                           </span>
                           {strength.avg_score !== undefined && (
                             <span style={{ ...dashStyles.premiumScoreBadge, color: '#1A7F37' }}>
@@ -4615,7 +5218,7 @@ function RunSummaryView({
                         {/* Metrics badge */}
                         <div style={dashStyles.premiumCardMeta}>
                           <span style={dashStyles.premiumMetricsBadge}>
-                            {strength.metrics.join(' · ')}
+                            {strength.metrics.map(m => getMetricDisplayName(m)).join(' · ')}
                           </span>
                           <span style={{ ...dashStyles.premiumScoreBadge, color: '#1A7F37' }}>
                             {strength.avgScore}
@@ -5257,7 +5860,7 @@ function RunSummaryView({
                           fontWeight: 600,
                           color: '#0969DA',
                           backgroundColor: '#F0F7FF',
-                        }}>{m}</span>
+                        }}>{getMetricDisplayName(m)}</span>
                       ))}
                     </div>
                   </div>
@@ -5620,7 +6223,7 @@ function InterviewDetailView({
                     }}
                     title={`${metricDef?.clientName || metric.metric_code}: ${Math.round(score)}`}
                   >
-                    <span style={dashboardStyles.metricBlockCode}>{metric.metric_code}</span>
+                    <span style={dashboardStyles.metricBlockCode}>{(metricDef?.clientName || metric.metric_code).split(' ').map(w => w[0]).join('')}</span>
                   </div>
                 );
               })}
@@ -5661,7 +6264,6 @@ function InterviewDetailView({
                 return (
                   <div key={idx} style={dashboardStyles.performerBar}>
                     <div style={dashboardStyles.performerInfo}>
-                      <span style={dashboardStyles.performerCode}>{metric.metric_code}</span>
                       <span style={dashboardStyles.performerName}>{metricDef?.clientName || metric.metric_name}</span>
                     </div>
                     <div style={dashboardStyles.performerBarContainer}>
@@ -5693,7 +6295,6 @@ function InterviewDetailView({
                 return (
                   <div key={idx} style={dashboardStyles.performerBar}>
                     <div style={dashboardStyles.performerInfo}>
-                      <span style={dashboardStyles.performerCode}>{metric.metric_code}</span>
                       <span style={dashboardStyles.performerName}>{metricDef?.clientName || metric.metric_name}</span>
                     </div>
                     <div style={dashboardStyles.performerBarContainer}>
@@ -8452,7 +9053,6 @@ function InterviewMetricsTab({
                 >
                   <path d="M4.427 5.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 5H4.604a.25.25 0 00-.177.427z" />
                 </svg>
-                <span style={styles.expandableMetricCode}>{metric.metric_code}</span>
                 <span style={styles.expandableMetricName}>{displayName}</span>
               </div>
               <div style={styles.expandableMetricRight}>
@@ -8491,7 +9091,7 @@ function InterviewMetricsTab({
                         <span style={styles.contributionsTableHeaderCellRight}>Weight</span>
                         <span style={styles.contributionsTableHeaderCellRight}>Contribution</span>
                       </div>
-                      {contributions.map((qc) => {
+                      {contributions.map((qc, qcIndex) => {
                         const questionDetail = questionMap.get(qc.question_id) || questionMap.get(qc.question_code);
                         const isQuestionExpanded = expandedQuestion === qc.question_id;
                         const qScoreColor = getScoreColor(qc.score || 0);
@@ -8516,7 +9116,7 @@ function InterviewMetricsTab({
                                 >
                                   <path d="M9 18l6-6-6-6" />
                                 </svg>
-                                {qc.question_code}
+                                Question {qcIndex + 1}
                               </span>
                               <span style={{ ...styles.contributionsTableCellRight, color: qScoreColor }}>
                                 {Math.round(qc.score || 0)}
@@ -8630,7 +9230,7 @@ function InterviewMetricsTab({
                                             {/* Check header */}
                                             <div style={premiumStyles.checkHeader}>
                                               <div style={premiumStyles.checkCodes}>
-                                                <span style={premiumStyles.checkCodePrimary}>{questionDetail.question_code}</span>
+                                                <span style={premiumStyles.checkCodePrimary}>{questionDetail.question_text ? questionDetail.question_text.substring(0, 25) + '...' : `Question ${questionDetail.question_code}`}</span>
                                                 <svg width="12" height="12" viewBox="0 0 12 12" fill="#8C959F">
                                                   <path d="M4 2.5L7.5 6 4 9.5" stroke="#8C959F" strokeWidth="1.5" fill="none"/>
                                                 </svg>
@@ -8655,13 +9255,13 @@ function InterviewMetricsTab({
                                             {(cr.primary_score !== null || cr.linked_score !== null) && (
                                               <div style={premiumStyles.checkScores}>
                                                 <span style={premiumStyles.checkScoreChip}>
-                                                  {cr.primary_question_code}
+                                                  Primary
                                                   <strong style={{ marginLeft: '4px', color: getScoreColor(cr.primary_score || 0) }}>
                                                     {cr.primary_score?.toFixed(0) ?? '—'}
                                                   </strong>
                                                 </span>
                                                 <span style={premiumStyles.checkScoreChip}>
-                                                  {cr.linked_question_code}
+                                                  Linked
                                                   <strong style={{ marginLeft: '4px', color: getScoreColor(cr.linked_score || 0) }}>
                                                     {cr.linked_score?.toFixed(0) ?? '—'}
                                                   </strong>
@@ -8696,7 +9296,7 @@ function InterviewMetricsTab({
                                       {questionDetail.interdependencies.map((dep, idx) => (
                                         <div key={idx} style={premiumStyles.checkCard}>
                                           <div style={premiumStyles.checkHeader}>
-                                            <span style={premiumStyles.checkCodeLinked}>{dep.linked_question_code}</span>
+                                            <span style={premiumStyles.checkCodeLinked}>Linked dependency</span>
                                             {dep.type && <span style={premiumStyles.checkType}>{dep.type}</span>}
                                           </div>
                                           <p style={premiumStyles.checkDescription}>{dep.description}</p>
@@ -8795,8 +9395,7 @@ function _MetricsTab({ metrics }: { metrics: MetricScoreDetail[] }) {
               style={styles.metricHeader}
             >
               <div style={styles.metricInfo}>
-                <span style={styles.metricCode}>{metric.metric_code}</span>
-                <span style={styles.metricName}>{metric.metric_name || metric.metric_id}</span>
+                <span style={styles.metricName}>{getMetricDisplayName(metric.metric_code, metric.metric_name)}</span>
               </div>
               <div style={styles.metricScoreContainer}>
                 <div style={{ ...styles.metricScoreCircle, borderColor: scoreColor }}>
@@ -8829,7 +9428,7 @@ function _MetricsTab({ metrics }: { metrics: MetricScoreDetail[] }) {
                     <div style={styles.contributionsList}>
                       {metric.question_contributions.map((qc, i) => (
                         <div key={i} style={styles.contributionItem}>
-                          <span style={styles.contributionCode}>{qc.question_code}</span>
+                          <span style={styles.contributionCode}>Question {i + 1}</span>
                           <div style={styles.contributionBar}>
                             <div style={{ ...styles.contributionBarFill, width: `${qc.score || 0}%` }} />
                           </div>
@@ -8924,7 +9523,6 @@ function QuestionsTab({
               </div>
               {/* Question Info Column */}
               <div style={questionsTabStyles.questionLeft}>
-                <span style={questionsTabStyles.questionCode}>{q.question_code}</span>
                 <span style={questionsTabStyles.questionPreview}>{truncatedText}</span>
               </div>
               <div style={questionsTabStyles.questionRight}>
@@ -9042,11 +9640,11 @@ function QuestionsTab({
                             {/* Header: Codes + Status */}
                             <div style={premiumStyles.checkHeader}>
                               <div style={premiumStyles.checkCodes}>
-                                <span style={premiumStyles.checkCodePrimary}>{q.question_code}</span>
+                                <span style={premiumStyles.checkCodePrimary}>{q.question_text ? q.question_text.substring(0, 25) + '...' : `Question ${q.question_code}`}</span>
                                 {linkedCode && (
                                   <>
                                     <span style={{ color: '#8C959F' }}>↔</span>
-                                    <span style={premiumStyles.checkCodeLinked}>{linkedCode}</span>
+                                    <span style={premiumStyles.checkCodeLinked}>Linked check</span>
                                   </>
                                 )}
                               </div>
@@ -9100,7 +9698,7 @@ function QuestionsTab({
                       {q.interdependencies.map((dep, idx) => (
                         <div key={idx} style={premiumStyles.checkCard}>
                           <div style={premiumStyles.checkHeader}>
-                            <span style={premiumStyles.checkCodeLinked}>{dep.linked_question_code}</span>
+                            <span style={premiumStyles.checkCodeLinked}>Linked dependency</span>
                             {dep.type && <span style={premiumStyles.checkType}>{dep.type}</span>}
                           </div>
                           <p style={premiumStyles.checkDescription}>{dep.description}</p>
@@ -9316,7 +9914,7 @@ function FlagsTab({
                     <div style={flagsTabStyles.relatedRow}>
                       <span style={flagsTabStyles.relatedLabel}>Related:</span>
                       {flag.question_ids.map((qid, idx) => (
-                        <span key={idx} style={flagsTabStyles.relatedCode}>{qid}</span>
+                        <span key={idx} style={flagsTabStyles.relatedCode}>Related evidence {idx + 1}</span>
                       ))}
                     </div>
                   )}
