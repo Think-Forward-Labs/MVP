@@ -2358,10 +2358,16 @@ const DUMMY_METRIC_INSIGHTS = [
 // Helper to get health status color and label
 const getHealthStatus = (status: string) => {
   switch (status) {
-    case 'excellent': return { color: '#059669', bg: 'rgba(5, 150, 105, 0.10)', label: 'Excellent' };
-    case 'good': return { color: '#2563EB', bg: 'rgba(37, 99, 235, 0.10)', label: 'Good' };
-    case 'at_risk': return { color: '#D97706', bg: 'rgba(217, 119, 6, 0.10)', label: 'At Risk' };
-    case 'critical': return { color: '#DC2626', bg: 'rgba(220, 38, 38, 0.12)', label: 'Critical' };
+    case 'leading_strength': return { color: '#065F46', bg: 'rgba(6, 95, 70, 0.10)', label: 'Leading Strength' };
+    case 'strong': return { color: '#059669', bg: 'rgba(5, 150, 105, 0.10)', label: 'Strong' };
+    case 'adequate': return { color: '#2563EB', bg: 'rgba(37, 99, 235, 0.10)', label: 'Adequate' };
+    case 'watch_area': return { color: '#D97706', bg: 'rgba(217, 119, 6, 0.10)', label: 'Watch Area' };
+    case 'critical_gap': return { color: '#DC2626', bg: 'rgba(220, 38, 38, 0.12)', label: 'Critical Gap' };
+    // Legacy fallbacks
+    case 'excellent': return { color: '#065F46', bg: 'rgba(6, 95, 70, 0.10)', label: 'Leading Strength' };
+    case 'good': return { color: '#2563EB', bg: 'rgba(37, 99, 235, 0.10)', label: 'Adequate' };
+    case 'at_risk': return { color: '#D97706', bg: 'rgba(217, 119, 6, 0.10)', label: 'Watch Area' };
+    case 'critical': return { color: '#DC2626', bg: 'rgba(220, 38, 38, 0.12)', label: 'Critical Gap' };
     default: return { color: '#86868B', bg: 'rgba(0, 0, 0, 0.05)', label: 'Unknown' };
   }
 };
@@ -2473,6 +2479,7 @@ type MetricInsight = {
     limitations: string[];
   };
   benchmark_narrative?: string;
+  benchmark_statement?: string;
   recommendations: string[];
   // Metric-specific contextual data (e.g., M9 exploitation/exploration split)
   context_data?: {
@@ -2716,8 +2723,10 @@ function RunSummaryView({
   ];
   const currentSpend = SPEND_BY_SIZE[selectedCompanySize].spend;
   const riskBand = RISK_BANDS.find(b => m2Score <= b.maxScore) || RISK_BANDS[RISK_BANDS.length - 1];
-  const riskExposure = Math.round(currentSpend * riskBand.midpoint);
-  const riskExposureFormatted = `£${(riskExposure / 1000).toFixed(0)}k`;
+  const riskExposureLow = Math.round(currentSpend * riskBand.midpoint * 0.75);
+  const riskExposureHigh = Math.round(currentSpend * riskBand.midpoint * 1.25);
+  const riskExposureMid = Math.round(currentSpend * riskBand.midpoint);
+  const riskExposureFormatted = `£${(riskExposureLow / 1000).toFixed(0)}k–£${(riskExposureHigh / 1000).toFixed(0)}k`;
 
   // Determine quadrant
   const getQuadrant = (opStrength: number, futReady: number) => {
@@ -3260,6 +3269,26 @@ function RunSummaryView({
       </div>
 
       {/* Organizational Health Signals — Client-facing pathology section */}
+      {refinedReport?.pathologies && refinedReport.pathologies.length === 0 && (
+        <div style={{
+          background: '#F0FDF4',
+          border: '1px solid #BBF7D0',
+          borderRadius: '12px',
+          padding: '24px 32px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+        }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <span style={{ color: '#065F46', fontSize: '14px', fontWeight: 500 }}>
+            No organisational pathologies detected. Cross-referencing of interview responses did not surface any systemic dysfunction patterns.
+          </span>
+        </div>
+      )}
       {refinedReport?.pathologies && refinedReport.pathologies.length > 0 && (
         <div style={{
           background: '#FFFFFF',
@@ -4759,8 +4788,19 @@ function RunSummaryView({
                                 ))}
                               </div>
 
-                              {/* Benchmark - subtle inline */}
-                              {insight.benchmark_narrative && (
+                              {/* Research Benchmark Statement - pre-computed factual */}
+                              {insight.benchmark_statement && (
+                                <p style={{
+                                  ...dashStyles.metricExpandedBenchmark,
+                                  fontWeight: 500,
+                                  color: '#1A1A1A',
+                                  marginBottom: '4px',
+                                }}>
+                                  {insight.benchmark_statement}
+                                </p>
+                              )}
+                              {/* Benchmark narrative - contextual */}
+                              {insight.benchmark_narrative && !insight.benchmark_statement && (
                                 <p style={dashStyles.metricExpandedBenchmark}>
                                   {insight.benchmark_narrative}
                                 </p>
