@@ -8,6 +8,34 @@ interface VitalSignsProps {
   metricScores: Array<{ label: string; score: number }>;
 }
 
+// Icon + tooltip metadata for each gauge
+const GAUGE_META: Record<string, { icon: string; tooltip: string }> = {
+  'Operational Strength': {
+    icon: '⚙',
+    tooltip: 'Current execution capability. Measures how well the organisation delivers today across leadership, processes, and alignment.',
+  },
+  'Future Readiness': {
+    icon: '🔭',
+    tooltip: 'Preparedness for disruption and change. Assesses strategic adaptability, innovation capacity, and forward-looking orientation.',
+  },
+  'Cultural Health': {
+    icon: '🤝',
+    tooltip: 'Strength of shared values, psychological safety, and team cohesion. Reflects how well people collaborate and trust each other.',
+  },
+  'Resource Capability': {
+    icon: '🏗',
+    tooltip: 'Adequacy and allocation of talent, technology, and capital resources. Indicates whether the organisation has what it needs to execute.',
+  },
+  'OODA Velocity': {
+    icon: '⚡',
+    tooltip: 'Speed of the Observe-Orient-Decide-Act loop. Measures how fast the organisation senses market shifts and responds effectively.',
+  },
+  'Resilience Index': {
+    icon: '🛡',
+    tooltip: 'Capacity to absorb shocks, recover from setbacks, and sustain strategic assets over time.',
+  },
+};
+
 function polar(cx: number, cy: number, r: number, deg: number) {
   const a = ((deg - 90) * Math.PI) / 180;
   return { x: cx + r * Math.cos(a), y: cy + r * Math.sin(a) };
@@ -34,27 +62,17 @@ function drawGaugeContent(score: number, size: number, isMain: boolean, isDark: 
   const c = scoreColor(score);
 
   // Theme-aware colors
-  const tickColor = isDark ? 'rgba(255,255,255,.12)' : 'rgba(0,0,0,.10)';
   const trackColor = isDark ? 'rgba(255,255,255,.04)' : 'rgba(0,0,0,.06)';
-
-  // Inner scale ticks — short lines pointing inward, no numbers
-  let ticks = '';
-  const tickCount = 20;
-  for (let i = 0; i <= tickCount; i++) {
-    const angle = S + (i / tickCount) * SWEEP;
-    const isMajor = i % 5 === 0;
-    const outerR = r - sw / 2 - 1;
-    const innerR = outerR - (isMajor ? 5 : 3);
-    const outer = polar(cx, cy, outerR, angle);
-    const inner = polar(cx, cy, innerR, angle);
-    ticks += `<line x1="${inner.x}" y1="${inner.y}" x2="${outer.x}" y2="${outer.y}"
-      stroke="${tickColor}" stroke-width="${isMajor ? 1 : 0.6}"/>`;
-  }
+  const borderColor = isDark ? 'rgba(255,255,255,.08)' : 'rgba(0,0,0,.07)';
 
   const scoreFontSize = isMain ? size * 0.24 : size * 0.22;
 
+  const outerBorderR = r + sw / 2 + 2;
+  const innerBorderR = r - sw / 2 - 2;
+
   return `
-    ${ticks}
+    <path d="${arcPath(cx, cy, outerBorderR, S, E)}" fill="none" stroke="${borderColor}" stroke-width="0.8" stroke-linecap="round"/>
+    <path d="${arcPath(cx, cy, innerBorderR, S, E)}" fill="none" stroke="${borderColor}" stroke-width="0.8" stroke-linecap="round"/>
     <path d="${arcPath(cx, cy, r, S, E)}" fill="none" stroke="${trackColor}" stroke-width="${sw}" stroke-linecap="round"/>
     <path d="${arcPath(cx, cy, r, S, fillEnd)}" fill="none" stroke="${c}" stroke-width="${sw}" stroke-linecap="round" style="filter:drop-shadow(0 0 4px ${c}40)"/>
     <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" style="font-family:var(--mono);font-size:${scoreFontSize}px;font-weight:700;fill:${c};font-variant-numeric:tabular-nums;letter-spacing:-0.03em">${score}</text>
@@ -86,12 +104,23 @@ function Gauge({ score, size, label, isMain }: { score: number; size: number; la
   }, [score, size, isMain, isDark]);
 
   const svgH = Math.round(size * 0.75);
+  const meta = GAUGE_META[label];
+
   return (
     <div className={`dv2-gauge-wrap ${isMain ? 'dv2-gauge-wrap--main' : ''}`}>
       <div style={{ height: isMain ? undefined : 62, display: 'flex', alignItems: 'flex-start' }}>
         <svg ref={ref} width={size} height={svgH} />
       </div>
-      <div className="dv2-gauge-lbl" style={{ marginTop: 6 }}>{label}</div>
+      {meta && (
+        <div className="dv2-gauge-icon-row">
+          <span className="dv2-gauge-icon">{meta.icon}</span>
+          <div className="dv2-gauge-tooltip">
+            <div className="dv2-gauge-tooltip-title">{label}</div>
+            <div className="dv2-gauge-tooltip-text">{meta.tooltip}</div>
+          </div>
+        </div>
+      )}
+      <div className="dv2-gauge-lbl" style={{ marginTop: meta ? 2 : 6 }}>{label}</div>
       <div className="dv2-gauge-status" style={{ color: scoreColor(score) }}>
         {scoreLabel(score)}
       </div>

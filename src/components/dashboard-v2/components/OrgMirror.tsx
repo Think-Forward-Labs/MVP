@@ -79,7 +79,7 @@ export function OrgMirror({ contradictions, crossMetricInsights, metricInsights,
     <div className="dv2-mirror-panel dv2-fi">
       <div className="dv2-mirror-head">
         <div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--tm)', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: '13px', color: 'var(--tm)', letterSpacing: '0.8px', textTransform: 'uppercase' }}>
             Organisational Mirror
           </div>
           <div style={{ fontSize: '13px', fontWeight: 600, color: 'var(--txt)', marginTop: 3 }}>
@@ -193,7 +193,7 @@ export function OrgMirror({ contradictions, crossMetricInsights, metricInsights,
 
                 {c.evidence?.[0]?.quote && (
                   <div style={{
-                    fontSize: '11px', color: 'var(--tm)', fontStyle: 'italic', lineHeight: 1.55,
+                    fontSize: '13px', color: 'var(--tm)', fontStyle: 'italic', lineHeight: 1.55,
                     borderLeft: '2px solid var(--bg4)', paddingLeft: 10, margin: '8px 0',
                   }}>
                     "{c.evidence[0].quote}"
@@ -202,11 +202,11 @@ export function OrgMirror({ contradictions, crossMetricInsights, metricInsights,
 
                 {c.coaching_question && (
                   <div style={{
-                    fontSize: '12px', color: 'var(--accent)', lineHeight: 1.55,
+                    fontSize: '13px', color: 'var(--accent)', lineHeight: 1.55,
                     background: 'var(--accent-06)', padding: '6px 10px', borderRadius: 'var(--rad)',
                     margin: '8px 0',
                   }}>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: '9px', letterSpacing: '0.1em', display: 'block', marginBottom: 3, opacity: 0.7 }}>
+                    <span style={{ fontFamily: 'var(--mono)', fontSize: '13px', letterSpacing: '0.1em', display: 'block', marginBottom: 3, opacity: 0.7 }}>
                       COACHING QUESTION
                     </span>
                     {c.coaching_question}

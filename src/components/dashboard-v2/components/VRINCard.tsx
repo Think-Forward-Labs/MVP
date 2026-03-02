@@ -79,20 +79,20 @@ export function VRINCard({ metricInsights }: VRINCardProps) {
     <div className="dv2-vrin-wrap dv2-fi">
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 12 }}>
         <div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--tm)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 3 }}>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--tm)', letterSpacing: '0.1em', textTransform: 'uppercase', marginBottom: 3 }}>
             Strategic Asset Assessment
           </div>
-          <div style={{ fontFamily: 'var(--mono)', fontSize: '10px', color: 'var(--accent)', letterSpacing: '0.08em' }}>
+          <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--accent)', letterSpacing: '0.08em' }}>
             VRIN FRAMEWORK · M13
           </div>
         </div>
-        <div style={{ fontFamily: 'var(--mono)', fontSize: '9px', color: 'var(--tm)', letterSpacing: '0.06em' }}>
+        <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--tm)', letterSpacing: '0.06em' }}>
           {assets.length} ASSET{assets.length !== 1 ? 'S' : ''} EVALUATED
         </div>
       </div>
 
       {summary && (
-        <div style={{ fontSize: '12px', color: 'var(--td)', lineHeight: 1.6, marginBottom: 14 }}>
+        <div style={{ fontSize: '13px', color: 'var(--td)', lineHeight: 1.6, marginBottom: 14 }}>
           {summary}
         </div>
       )}
@@ -122,7 +122,7 @@ export function VRINCard({ metricInsights }: VRINCardProps) {
                 style={{ cursor: 'pointer' }}
               >
                 <div className="dv2-vrin-cell dv2-vrin-cell--asset">
-                  <span style={{ fontSize: '12px', fontWeight: 600, color: 'var(--txt)' }}>{asset.asset_name}</span>
+                  <span style={{ fontSize: '13px', fontWeight: 600, color: 'var(--txt)' }}>{asset.asset_name}</span>
                 </div>
                 <div className="dv2-vrin-cell dv2-vrin-cell--indicator">{asset.valuable ? <CheckIcon /> : <CrossIcon />}</div>
                 <div className="dv2-vrin-cell dv2-vrin-cell--indicator">{asset.rare ? <CheckIcon /> : <CrossIcon />}</div>
@@ -166,7 +166,7 @@ export function VRINCard({ metricInsights }: VRINCardProps) {
                       </div>
                       <div className="dv2-vrin-reasoning-trend" style={{ color: trend.color }}>
                         <span>{trend.arrow}</span>
-                        <span style={{ fontSize: '10px', textTransform: 'capitalize' }}>{asset.trajectory}</span>
+                        <span style={{ fontSize: '11px', textTransform: 'capitalize' }}>{asset.trajectory}</span>
                       </div>
                     </div>
                   </div>

@@ -51,10 +51,10 @@ export function QuadrantCard({ quadrant, m1Score, m2Score, gap }: QuadrantCardPr
       <rect x="${W / 2}" y="${H / 2}" width="${W / 2}" height="${H / 2}" fill="${solid}"/>
       <line x1="${W / 2}" y1="0" x2="${W / 2}" y2="${H}" stroke="${gridLine}" stroke-width="0.5"/>
       <line x1="0" y1="${H / 2}" x2="${W}" y2="${H / 2}" stroke="${gridLine}" stroke-width="0.5"/>
-      <text x="${W * 0.25}" y="13" text-anchor="middle" style="font-family:var(--mono);font-size:9px;fill:${scatteredLbl};font-weight:700;letter-spacing:0.8px">SCATTERED</text>
-      <text x="${W * 0.75}" y="13" text-anchor="middle" style="font-family:var(--mono);font-size:9px;fill:${adaptiveLbl};font-weight:700;letter-spacing:0.8px">ADAPTIVE</text>
-      <text x="${W * 0.25}" y="${H - 5}" text-anchor="middle" style="font-family:var(--mono);font-size:9px;fill:${atRiskLbl};font-weight:700;letter-spacing:0.8px">AT-RISK</text>
-      <text x="${W * 0.75}" y="${H - 5}" text-anchor="middle" style="font-family:var(--mono);font-size:9px;fill:${solidLbl};font-weight:700;letter-spacing:0.8px">SOLID</text>
+      <text x="${W * 0.25}" y="16" text-anchor="middle" style="font-family:var(--mono);font-size:9px;fill:${scatteredLbl};font-weight:700;letter-spacing:0.8px">SCATTERED</text>
+      <text x="${W * 0.75}" y="16" text-anchor="middle" style="font-family:var(--mono);font-size:9px;fill:${adaptiveLbl};font-weight:700;letter-spacing:0.8px">ADAPTIVE</text>
+      <text x="${W * 0.25}" y="${H - 8}" text-anchor="middle" style="font-family:var(--mono);font-size:9px;fill:${atRiskLbl};font-weight:700;letter-spacing:0.8px">AT-RISK</text>
+      <text x="${W * 0.75}" y="${H - 8}" text-anchor="middle" style="font-family:var(--mono);font-size:9px;fill:${solidLbl};font-weight:700;letter-spacing:0.8px">SOLID</text>
       <circle cx="${px}" cy="${py}" r="18" fill="${c}12"/>
       <circle cx="${px}" cy="${py}" r="11" fill="${c}25"/>
       <circle cx="${px}" cy="${py}" r="5" fill="${c}"/>
