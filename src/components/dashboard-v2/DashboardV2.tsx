@@ -31,6 +31,7 @@ import { VitalSigns } from './components/VitalSigns';
 import { QuadrantCard } from './components/QuadrantCard';
 import { PathologyCard } from './components/PathologyCard';
 import { OrgMirror } from './components/OrgMirror';
+import { VRINCard } from './components/VRINCard';
 import { RiskExposure } from './components/RiskExposure';
 import { CriticalIssues } from './components/CriticalIssues';
 import { MetricsGrid } from './components/MetricsGrid';
@@ -213,8 +214,13 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
               <PathologyCard pathologies={refinedReport?.pathologies || []} />
             </div>
 
-            {/* Column 2: Org Mirror */}
-            <OrgMirror sortedMetrics={sortedMetrics} metricInsights={metricInsights} />
+            {/* Column 2: Org Mirror — Perception Gap + Say-Do Gaps */}
+            <OrgMirror
+              contradictions={refinedReport?.contradictions || []}
+              crossMetricInsights={refinedReport?.cross_metric_insights}
+              metricInsights={metricInsights}
+              sortedMetrics={sortedMetrics}
+            />
 
             {/* Column 3: Risk + Issues */}
             <div className="dv2-col3">
@@ -253,6 +259,9 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
               </div>
             </PremiumLock>
           )}
+
+          {/* VRIN Strategic Asset Assessment */}
+          <VRINCard metricInsights={metricInsights} />
 
           {/* 14 Metrics Grid */}
           <MetricsGrid sortedMetrics={sortedMetrics} metricInsights={metricInsights} />
