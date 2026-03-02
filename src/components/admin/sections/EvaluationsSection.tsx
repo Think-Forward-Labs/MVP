@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { adminApi } from '../../../services/adminApi';
 import { EuniceChatPanel } from '../../chat/EuniceChatPanel';
+import { DashboardV2 } from '../../dashboard-v2/DashboardV2';
 import { SiriOrb } from '../../interview/SiriOrb';
 import type {
   EvaluationRunSummary,
@@ -27,7 +28,7 @@ interface EvaluationsSectionProps {
 }
 
 // Navigation state
-type NavigationLevel = 'businesses' | 'assessments' | 'runs' | 'detail';
+type NavigationLevel = 'businesses' | 'assessments' | 'runs' | 'detail' | 'dashboard-v2';
 type DetailSubLevel = 'summary' | 'breakdown' | 'interview';
 
 interface NavigationState {
@@ -37,6 +38,7 @@ interface NavigationState {
   selectedRun?: EvaluationRunDetail;
   detailSubLevel?: DetailSubLevel;
   selectedSourceId?: string;
+  dashboardV2RunId?: string;
 }
 
 // CABAS Metric ordering with client-facing and academic terms
@@ -204,6 +206,13 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
     setIsChatOpen(false);
     onSidebarCollapse?.(false); // Expand sidebar when chat closes
   };
+
+  // Collapse sidebar when entering dashboard-v2 (full-page mode)
+  useEffect(() => {
+    if (nav.level === 'dashboard-v2') {
+      onSidebarCollapse?.(true);
+    }
+  }, [nav.level, onSidebarCollapse]);
 
   const [runningProgress, setRunningProgress] = useState<{
     step: number;
@@ -607,19 +616,21 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
           animation: borderRotate 2s linear infinite;
         }
       `}</style>
-      {/* Breadcrumb */}
-      <Breadcrumb nav={nav} onNavigate={(level) => {
-        if (level === 'businesses') {
-          setNav({ level: 'businesses' });
-          loadBusinesses();
-        } else if (level === 'assessments' && nav.selectedBusiness) {
-          setNav({ level: 'assessments', selectedBusiness: nav.selectedBusiness });
-          loadAssessments(nav.selectedBusiness.id);
-        } else if (level === 'runs' && nav.selectedBusiness && nav.selectedAssessment) {
-          setNav({ level: 'runs', selectedBusiness: nav.selectedBusiness, selectedAssessment: nav.selectedAssessment });
-          loadRuns(nav.selectedAssessment.id);
-        }
-      }} />
+      {/* Breadcrumb — hidden on dashboard-v2 (full-page mode) */}
+      {nav.level !== 'dashboard-v2' && (
+        <Breadcrumb nav={nav} onNavigate={(level) => {
+          if (level === 'businesses') {
+            setNav({ level: 'businesses' });
+            loadBusinesses();
+          } else if (level === 'assessments' && nav.selectedBusiness) {
+            setNav({ level: 'assessments', selectedBusiness: nav.selectedBusiness });
+            loadAssessments(nav.selectedBusiness.id);
+          } else if (level === 'runs' && nav.selectedBusiness && nav.selectedAssessment) {
+            setNav({ level: 'runs', selectedBusiness: nav.selectedBusiness, selectedAssessment: nav.selectedAssessment });
+            loadRuns(nav.selectedAssessment.id);
+          }
+        }} />
+      )}
 
       {/* Level 1: Split-Pane Unified View */}
       {nav.level === 'businesses' && (
@@ -656,6 +667,23 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
         />
       )}
 
+      {/* Dashboard V2 — full-page mode */}
+      {nav.level === 'dashboard-v2' && nav.dashboardV2RunId && (
+        <DashboardV2
+          runId={nav.dashboardV2RunId}
+          businessName={nav.selectedBusiness?.name}
+          onBack={() => {
+            onSidebarCollapse?.(false); // Restore sidebar
+            setNav(prev => ({
+              ...prev,
+              level: 'detail',
+              detailSubLevel: 'summary',
+              dashboardV2RunId: undefined,
+            }));
+          }}
+        />
+      )}
+
       {/* Level 4: Detail - with sub-navigation */}
       {nav.level === 'detail' && nav.selectedRun && (
         <>
@@ -668,6 +696,11 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
               onViewBreakdown={goToBreakdown}
               onViewInterview={goToInterviewDetail}
               onOpenChat={handleOpenChat}
+              onOpenDashboardV2={() => setNav(prev => ({
+                ...prev,
+                level: 'dashboard-v2',
+                dashboardV2RunId: nav.selectedRun!.id,
+              }))}
             />
           )}
           {nav.detailSubLevel === 'breakdown' && (
@@ -2514,6 +2547,7 @@ function RunSummaryView({
   onViewBreakdown,
   onViewInterview,
   onOpenChat,
+  onOpenDashboardV2,
 }: {
   run: EvaluationRunDetail;
   scores: EvaluationScoresResponse | null;
@@ -2522,6 +2556,7 @@ function RunSummaryView({
   onViewBreakdown: () => void;
   onViewInterview: (sourceId: string) => void;
   onOpenChat: () => void;
+  onOpenDashboardV2?: () => void;
 }) {
   const [activeTab, setActiveTab] = useState<SummaryTabType>('strengths');
   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
@@ -2687,14 +2722,28 @@ function RunSummaryView({
   // Check if we have any metric data (raw scores OR refined report)
   const hasMetricData = sortedMetrics.length > 0 || metricInsights.length > 0;
 
-  // Operational Strength (X-axis) = M1 individual metric score
+  // Operational Strength (X-axis) = weighted composite per Iva's spec
+  // X = (M1 × 0.40) + (M4 × 0.20) + (M9 × 0.15) + (M11 × 0.15) + (M8 × 0.10)
   const operationalStrength = hasMetricData
-    ? Math.round(getMetricScore('M1'))
+    ? Math.round(
+        getMetricScore('M1') * 0.40 +
+        getMetricScore('M4') * 0.20 +
+        getMetricScore('M9') * 0.15 +
+        getMetricScore('M11') * 0.15 +
+        getMetricScore('M8') * 0.10
+      )
     : 0;
 
-  // Future Readiness (Y-axis) = M2 individual metric score
+  // Future Readiness (Y-axis) = weighted composite per Iva's spec
+  // Y = (M2 × 0.40) + (M5 × 0.20) + (M3 × 0.15) + (M14 × 0.15) + (M10 × 0.10)
   const futureReadiness = hasMetricData
-    ? Math.round(getMetricScore('M2'))
+    ? Math.round(
+        getMetricScore('M2') * 0.40 +
+        getMetricScore('M5') * 0.20 +
+        getMetricScore('M3') * 0.15 +
+        getMetricScore('M14') * 0.15 +
+        getMetricScore('M10') * 0.10
+      )
     : 0;
 
   // Overall = average of both axes
@@ -2728,15 +2777,17 @@ function RunSummaryView({
   const riskExposureMid = Math.round(currentSpend * riskBand.midpoint);
   const riskExposureFormatted = `£${(riskExposureLow / 1000).toFixed(0)}k–£${(riskExposureHigh / 1000).toFixed(0)}k`;
 
-  // Determine quadrant
-  const getQuadrant = (opStrength: number, futReady: number) => {
-    if (opStrength >= 50 && futReady >= 50) return { name: 'Adaptive Leader', color: '#1A7F37' };
-    if (opStrength >= 50 && futReady < 50) return { name: 'Solid Performer', color: '#C65D07' };
-    if (opStrength < 50 && futReady >= 50) return { name: 'Scattered Experimenter', color: '#0969DA' };
+  // Determine quadrant — uses M1/M2 individual scores with 65 threshold per Iva's spec
+  const m1Score = getMetricScore('M1');
+  const m2ScoreForQuadrant = getMetricScore('M2');
+  const getQuadrant = () => {
+    if (m1Score >= 65 && m2ScoreForQuadrant >= 65) return { name: 'Adaptive Leader', color: '#1A7F37' };
+    if (m1Score >= 65 && m2ScoreForQuadrant < 65) return { name: 'Solid Performer', color: '#C65D07' };
+    if (m1Score < 65 && m2ScoreForQuadrant >= 65) return { name: 'Scattered Experimenter', color: '#0969DA' };
     return { name: 'At-Risk', color: '#CF222E' };
   };
 
-  const quadrant = getQuadrant(operationalStrength, futureReadiness);
+  const quadrant = getQuadrant();
 
   const dashStyles = dashboardStyles;
 
@@ -2775,6 +2826,36 @@ function RunSummaryView({
             <span style={{ ...dashStyles.statusBadge, background: statusColor.bg, color: statusColor.text }}>
               {run.status}
             </span>
+            {/* Dashboard V2 Button */}
+            {onOpenDashboardV2 && (
+              <button
+                onClick={onOpenDashboardV2}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(15, 118, 110, 0.3)',
+                  background: 'linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(45, 212, 191, 0.08))',
+                  color: '#0F766E',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(15, 118, 110, 0.15), rgba(45, 212, 191, 0.15))'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(45, 212, 191, 0.08))'; e.currentTarget.style.transform = 'none'; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+                Dashboard V2
+              </button>
+            )}
             {/* Ask Eunice Button - Animated Gradient Border */}
             <div className="ask-eunice-wrapper">
               <button
@@ -2914,11 +2995,11 @@ function RunSummaryView({
                       <span style={dashStyles.quadrantLabel}>Solid Performer</span>
                     </div>
 
-                    {/* Position dot */}
+                    {/* Position dot — rescale so score=65 maps to visual 50% midpoint */}
                     <div style={{
                       ...dashStyles.positionDot,
-                      left: `${operationalStrength}%`,
-                      bottom: `${futureReadiness}%`,
+                      left: `${operationalStrength <= 65 ? (operationalStrength / 65) * 50 : 50 + ((operationalStrength - 65) / 35) * 50}%`,
+                      bottom: `${futureReadiness <= 65 ? (futureReadiness / 65) * 50 : 50 + ((futureReadiness - 65) / 35) * 50}%`,
                     }} />
                   </div>
 
