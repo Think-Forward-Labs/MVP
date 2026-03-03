@@ -3,7 +3,7 @@
  * Premium glass-morphism design with light theme
  */
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import type { Admin, AdminSection } from '../../types/admin';
 import { AdminSidebar } from './AdminSidebar';
 import { BusinessesSection } from './sections/BusinessesSection';
@@ -54,15 +54,28 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
     }
   };
 
-  return (
-    <div style={styles.container}>
-      {/* Background gradient */}
-      <div style={styles.backgroundGradient} />
+  // Check if dark mode is active (set by DashboardV2 on <html>)
+  const [isDark, setIsDark] = useState(false);
 
-      {/* Background orbs for depth - matching business dashboard */}
-      <div style={styles.backgroundOrb1} />
-      <div style={styles.backgroundOrb2} />
-      <div style={styles.backgroundOrb3} />
+  useEffect(() => {
+    const observer = new MutationObserver(() => {
+      setIsDark(document.documentElement.getAttribute('data-theme') === 'dark');
+    });
+    observer.observe(document.documentElement, { attributes: true, attributeFilter: ['data-theme'] });
+    setIsDark(document.documentElement.getAttribute('data-theme') === 'dark');
+    return () => observer.disconnect();
+  }, []);
+
+  return (
+    <div style={{
+      ...styles.container,
+      backgroundColor: isDark ? '#060B18' : '#F5F5F7',
+    }}>
+      {/* Background gradient — hidden in dark mode */}
+      {!isDark && <div style={styles.backgroundGradient} />}
+      {!isDark && <div style={styles.backgroundOrb1} />}
+      {!isDark && <div style={styles.backgroundOrb2} />}
+      {!isDark && <div style={styles.backgroundOrb3} />}
 
       {/* Error Toast */}
       {error && (
@@ -84,6 +97,7 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
           onLogout={onLogout}
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          isDark={isDark}
         />
         <main style={styles.main}>
           {renderSection()}

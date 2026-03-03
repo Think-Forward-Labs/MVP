@@ -13,6 +13,7 @@ interface AdminSidebarProps {
   onLogout: () => void;
   collapsed?: boolean;
   onToggleCollapse?: () => void;
+  isDark?: boolean;
 }
 
 interface NavItem {
@@ -92,12 +93,23 @@ export function AdminSidebar({
   onLogout,
   collapsed = false,
   onToggleCollapse,
+  isDark = false,
 }: AdminSidebarProps) {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
+
+  // Dark mode overrides
+  const darkSidebar: React.CSSProperties = isDark ? {
+    background: 'rgba(11,18,34,0.95)',
+    backdropFilter: 'blur(20px)',
+    WebkitBackdropFilter: 'blur(20px)',
+    borderRight: '1px solid rgba(255,255,255,0.06)',
+    boxShadow: 'none',
+  } : {};
 
   return (
     <aside style={{
       ...styles.sidebar,
+      ...darkSidebar,
       width: collapsed ? '72px' : '260px',
       transition: 'width 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
     }}>
@@ -119,8 +131,15 @@ export function AdminSidebar({
         </div>
         {!collapsed && (
           <div style={styles.brandInfo}>
-            <h1 style={styles.brandTitle}>ThinkForward</h1>
-            <span style={styles.brandBadge}>Admin</span>
+            <h1 style={{
+              ...styles.brandTitle,
+              color: isDark ? 'rgba(255,255,255,0.92)' : '#1D1D1F',
+            }}>ThinkForward</h1>
+            <span style={{
+              ...styles.brandBadge,
+              color: isDark ? 'rgba(255,255,255,0.4)' : 'rgba(60, 60, 67, 0.6)',
+              background: isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0, 0, 0, 0.04)',
+            }}>Admin</span>
           </div>
         )}
       </div>
@@ -131,7 +150,10 @@ export function AdminSidebar({
         padding: collapsed ? '8px 8px' : '8px 12px',
       }}>
         <div style={styles.navSection}>
-          {!collapsed && <span style={styles.navLabel}>Platform</span>}
+          {!collapsed && <span style={{
+            ...styles.navLabel,
+            color: isDark ? 'rgba(255,255,255,0.20)' : 'rgba(60, 60, 67, 0.4)',
+          }}>Platform</span>}
           {navItems.map((item) => {
             const isAvailable = !item.requiresRole || admin.role === item.requiresRole;
             const isActive = activeSection === item.id;
@@ -148,20 +170,32 @@ export function AdminSidebar({
                 title={collapsed ? item.label : undefined}
                 style={{
                   ...styles.navItem,
-                  ...(isActive && styles.navItemActive),
-                  ...(isHovered && !isActive && styles.navItemHover),
+                  ...(isActive && (isDark ? {
+                    background: 'rgba(255,255,255,0.06)',
+                    color: 'rgba(255,255,255,0.92)',
+                  } : styles.navItemActive)),
+                  ...(isHovered && !isActive && {
+                    background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0, 0, 0, 0.03)',
+                  }),
                   justifyContent: collapsed ? 'center' : 'flex-start',
                   padding: collapsed ? '10px' : '10px 12px',
+                  color: isDark && !isActive ? 'rgba(255,255,255,0.55)' : undefined,
                 }}
               >
                 <span style={{
                   ...styles.navIcon,
-                  ...(isActive && styles.navIconActive),
+                  ...(isActive ? styles.navIconActive : (isDark ? {
+                    background: 'rgba(255,255,255,0.04)',
+                    color: 'rgba(255,255,255,0.4)',
+                  } : {})),
                 }}>
                   {item.icon}
                 </span>
                 {!collapsed && <span style={styles.navText}>{item.label}</span>}
-                {isActive && !collapsed && <div style={styles.activeIndicator} />}
+                {isActive && !collapsed && <div style={{
+                  ...styles.activeIndicator,
+                  background: isDark ? 'rgba(255,255,255,0.6)' : '#1D1D1F',
+                }} />}
               </button>
             );
           })}
@@ -172,6 +206,7 @@ export function AdminSidebar({
       <div style={{
         ...styles.footer,
         padding: collapsed ? '12px 8px' : '16px',
+        borderTop: isDark ? '1px solid rgba(255,255,255,0.06)' : '1px solid rgba(0, 0, 0, 0.06)',
       }}>
         {collapsed ? (
           /* Collapsed: Avatar only */
@@ -190,15 +225,24 @@ export function AdminSidebar({
           </div>
         ) : (
           /* Expanded: Full user card */
-          <div style={styles.userCard}>
+          <div style={{
+            ...styles.userCard,
+            background: isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0, 0, 0, 0.02)',
+          }}>
             <div style={styles.avatar}>
               <span style={styles.avatarText}>
                 {admin.name.charAt(0).toUpperCase()}
               </span>
             </div>
             <div style={styles.userInfo}>
-              <p style={styles.userName}>{admin.name}</p>
-              <p style={styles.userRole}>
+              <p style={{
+                ...styles.userName,
+                color: isDark ? 'rgba(255,255,255,0.85)' : '#1D1D1F',
+              }}>{admin.name}</p>
+              <p style={{
+                ...styles.userRole,
+                color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(60, 60, 67, 0.6)',
+              }}>
                 {admin.role === 'super_admin' ? 'Super Admin' : 'Admin'}
               </p>
             </div>
@@ -212,6 +256,7 @@ export function AdminSidebar({
             ...styles.logoutButton,
             justifyContent: collapsed ? 'center' : 'flex-start',
             padding: collapsed ? '10px' : '10px 12px',
+            color: isDark ? 'rgba(255,255,255,0.35)' : 'rgba(60, 60, 67, 0.6)',
           }}
           onMouseEnter={(e) => {
             e.currentTarget.style.background = 'rgba(220, 38, 38, 0.06)';
@@ -219,7 +264,7 @@ export function AdminSidebar({
           }}
           onMouseLeave={(e) => {
             e.currentTarget.style.background = 'transparent';
-            e.currentTarget.style.color = 'rgba(60, 60, 67, 0.6)';
+            e.currentTarget.style.color = isDark ? 'rgba(255,255,255,0.35)' : 'rgba(60, 60, 67, 0.6)';
           }}
         >
           <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">

@@ -7,6 +7,7 @@
 import { useState, useEffect } from 'react';
 import { adminApi } from '../../../services/adminApi';
 import { EuniceChatPanel } from '../../chat/EuniceChatPanel';
+import { DashboardV2 } from '../../dashboard-v2/DashboardV2';
 import { SiriOrb } from '../../interview/SiriOrb';
 import type {
   EvaluationRunSummary,
@@ -27,7 +28,7 @@ interface EvaluationsSectionProps {
 }
 
 // Navigation state
-type NavigationLevel = 'businesses' | 'assessments' | 'runs' | 'detail';
+type NavigationLevel = 'businesses' | 'assessments' | 'runs' | 'detail' | 'dashboard-v2';
 type DetailSubLevel = 'summary' | 'breakdown' | 'interview';
 
 interface NavigationState {
@@ -37,6 +38,7 @@ interface NavigationState {
   selectedRun?: EvaluationRunDetail;
   detailSubLevel?: DetailSubLevel;
   selectedSourceId?: string;
+  dashboardV2RunId?: string;
 }
 
 // CABAS Metric ordering with client-facing and academic terms
@@ -62,7 +64,7 @@ const METRIC_ORDER: { code: string; clientName: string; academicTerm: string }[]
 function getMetricDisplayName(metricCode: string, metricName?: string): string {
   const metricDef = METRIC_ORDER.find(m => m.code === metricCode);
   if (metricDef) {
-    return `${metricDef.clientName} (${metricDef.academicTerm})`;
+    return metricDef.clientName;
   }
   return metricName || metricCode || 'Unknown Metric';
 }
@@ -204,6 +206,13 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
     setIsChatOpen(false);
     onSidebarCollapse?.(false); // Expand sidebar when chat closes
   };
+
+  // Collapse sidebar when entering dashboard-v2 (full-page mode)
+  useEffect(() => {
+    if (nav.level === 'dashboard-v2') {
+      onSidebarCollapse?.(true);
+    }
+  }, [nav.level, onSidebarCollapse]);
 
   const [runningProgress, setRunningProgress] = useState<{
     step: number;
@@ -607,19 +616,21 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
           animation: borderRotate 2s linear infinite;
         }
       `}</style>
-      {/* Breadcrumb */}
-      <Breadcrumb nav={nav} onNavigate={(level) => {
-        if (level === 'businesses') {
-          setNav({ level: 'businesses' });
-          loadBusinesses();
-        } else if (level === 'assessments' && nav.selectedBusiness) {
-          setNav({ level: 'assessments', selectedBusiness: nav.selectedBusiness });
-          loadAssessments(nav.selectedBusiness.id);
-        } else if (level === 'runs' && nav.selectedBusiness && nav.selectedAssessment) {
-          setNav({ level: 'runs', selectedBusiness: nav.selectedBusiness, selectedAssessment: nav.selectedAssessment });
-          loadRuns(nav.selectedAssessment.id);
-        }
-      }} />
+      {/* Breadcrumb — hidden on dashboard-v2 (full-page mode) */}
+      {nav.level !== 'dashboard-v2' && (
+        <Breadcrumb nav={nav} onNavigate={(level) => {
+          if (level === 'businesses') {
+            setNav({ level: 'businesses' });
+            loadBusinesses();
+          } else if (level === 'assessments' && nav.selectedBusiness) {
+            setNav({ level: 'assessments', selectedBusiness: nav.selectedBusiness });
+            loadAssessments(nav.selectedBusiness.id);
+          } else if (level === 'runs' && nav.selectedBusiness && nav.selectedAssessment) {
+            setNav({ level: 'runs', selectedBusiness: nav.selectedBusiness, selectedAssessment: nav.selectedAssessment });
+            loadRuns(nav.selectedAssessment.id);
+          }
+        }} />
+      )}
 
       {/* Level 1: Split-Pane Unified View */}
       {nav.level === 'businesses' && (
@@ -656,6 +667,23 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
         />
       )}
 
+      {/* Dashboard V2 — full-page mode */}
+      {nav.level === 'dashboard-v2' && nav.dashboardV2RunId && (
+        <DashboardV2
+          runId={nav.dashboardV2RunId}
+          businessName={nav.selectedBusiness?.name}
+          onBack={() => {
+            onSidebarCollapse?.(false); // Restore sidebar
+            setNav(prev => ({
+              ...prev,
+              level: 'detail',
+              detailSubLevel: 'summary',
+              dashboardV2RunId: undefined,
+            }));
+          }}
+        />
+      )}
+
       {/* Level 4: Detail - with sub-navigation */}
       {nav.level === 'detail' && nav.selectedRun && (
         <>
@@ -668,6 +696,11 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
               onViewBreakdown={goToBreakdown}
               onViewInterview={goToInterviewDetail}
               onOpenChat={handleOpenChat}
+              onOpenDashboardV2={() => setNav(prev => ({
+                ...prev,
+                level: 'dashboard-v2',
+                dashboardV2RunId: nav.selectedRun!.id,
+              }))}
             />
           )}
           {nav.detailSubLevel === 'breakdown' && (
@@ -1812,7 +1845,7 @@ function getMetricsForInterview(metricScores: MetricScoreDetail[], sourceId: str
 // Dummy data for the new dashboard design
 const DUMMY_EXECUTIVE_SUMMARY = `Your organization excels at executing today's work but is blind to market shifts. Frontline workers see problems first but have learned to "keep their heads down" unless issues are safety-critical. This creates a dangerous gap: the people closest to operational reality are systematically excluded from shaping how work gets done.
 
-The data reveals strong operational execution (Technical Fitness: 62) but concerning gaps in adaptability (Evolutionary Fitness: 28). Multiple perception-reality contradictions suggest leadership may not have accurate visibility into actual organizational dynamics.`;
+The data reveals strong operational execution (Operational Strength: 62) but concerning gaps in adaptability (Future Readiness: 28). Multiple perception-reality contradictions suggest leadership may not have accurate visibility into actual organizational dynamics.`;
 
 const DUMMY_KEY_ACTIONS: KeyActionType[] = [
   {
@@ -1823,6 +1856,9 @@ const DUMMY_KEY_ACTIONS: KeyActionType[] = [
     priority: 'critical' as const,
     impact: 'high' as const,
     effort: 'medium' as const,
+    metrics: ['M2', 'M9'],
+    evidence: [{ quote: "Pretty much all of it, like 95%. I'm here to do the work, not think about how to improve the work.", role: 'Field Technician' }],
+    related_issues: ['Optimization Lock'],
   },
   {
     title: 'Establish skip-level sensing sessions to surface frontline insights directly to leadership',
@@ -1832,15 +1868,21 @@ const DUMMY_KEY_ACTIONS: KeyActionType[] = [
     priority: 'high' as const,
     impact: 'high' as const,
     effort: 'low' as const,
+    metrics: ['M5', 'M6'],
+    evidence: [{ quote: "Coordination mostly happens above us. We just do what we're told.", role: 'Field Technician' }],
+    related_issues: ['Implementation Gap'],
   },
   {
     title: 'Conduct tool friction audit across teams to identify and eliminate workflow blockers',
     description: 'Systematically document where current tools create friction, manual workarounds, or data re-entry. Prioritize fixes based on time saved and frustration reduced.',
     owner: 'IT Lead',
-    timeline: '45 days',
+    timeline: '60 days',
     priority: 'medium' as const,
     impact: 'medium' as const,
     effort: 'medium' as const,
+    metrics: ['M12', 'M7'],
+    evidence: [],
+    related_issues: ['Resource Starvation'],
   },
 ];
 
@@ -1901,12 +1943,13 @@ const DUMMY_STRENGTHS = [
 
 // Dummy Metric Insights - narrative-focused per-metric descriptions (all 14 metrics)
 const DUMMY_METRIC_INSIGHTS = [
-  // TECHNICAL FITNESS
+  // OPERATIONAL STRENGTH
   {
     metric_code: 'M1',
     metric_name: 'Operational Strength',
-    category: 'Technical Fitness',
-    health_status: 'strong' as const,
+    category: 'Operational Strength',
+    executive_insight: 'Operational Strength scores 66/100 vs research target ≥65 (Helfat & Peteraf, 2003). You exceed the threshold by 2%. At this level, monitor for \'competency trap\' — strong execution can mask need for adaptation. Your current advantage is narrow and could erode without deliberate investment in adaptive capacity.',
+    health_status: 'excellent' as const,
     score: 66,
     summary: 'Your operational execution is a clear strength. Teams deliver reliably on commitments, and work quality remains consistent.',
     observations: [
@@ -1936,8 +1979,8 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M4',
     metric_name: 'Implementation Speed',
-    category: 'Technical Fitness',
-    health_status: 'developing' as const,
+    category: 'Operational Strength',
+    health_status: 'good' as const,
     score: 56,
     summary: 'Changes happen, but slowly. Approval processes and hierarchical decision-making create bottlenecks.',
     observations: [
@@ -1967,8 +2010,8 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M7',
     metric_name: 'Resource Efficiency',
-    category: 'Technical Fitness',
-    health_status: 'strong' as const,
+    category: 'Operational Strength',
+    health_status: 'excellent' as const,
     score: 72,
     summary: 'Resources are well-utilized for current operations. Teams make do with what they have.',
     observations: [
@@ -1998,8 +2041,8 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M10',
     metric_name: 'Quality Standards',
-    category: 'Technical Fitness',
-    health_status: 'strong' as const,
+    category: 'Operational Strength',
+    health_status: 'excellent' as const,
     score: 68,
     summary: 'Quality is taken seriously. Clear standards exist and are generally followed.',
     observations: [
@@ -2026,11 +2069,12 @@ const DUMMY_METRIC_INSIGHTS = [
     related_strength_ids: ['strength_2'],
     related_action_ids: [],
   },
-  // EVOLUTIONARY FITNESS
+  // FUTURE READINESS
   {
     metric_code: 'M2',
     metric_name: 'Future Readiness',
-    category: 'Evolutionary Fitness',
+    category: 'Future Readiness',
+    executive_insight: 'Future Readiness scores 18/100 vs research target ≥60 (Teece, 2018). CRITICAL: 70% below the research target and below the critical threshold of 40. Your organization is operating blind to emerging threats and opportunities. This score correlates with strategic disruption risk in dynamic capabilities literature.',
     health_status: 'critical' as const,
     score: 18,
     summary: 'Your organization is optimized for today but dangerously blind to tomorrow.',
@@ -2063,7 +2107,8 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M5',
     metric_name: 'Market Radar',
-    category: 'Evolutionary Fitness',
+    category: 'Future Readiness',
+    executive_insight: 'Market Radar scores 0/100 vs research target ≥60 (Teece, 2007). CRITICAL: 100% below threshold. Scores below 40 indicate strategic blind spots. Your teams have zero systematic market sensing — competitive signals are invisible until they become crises. Action required within 30 days.',
     health_status: 'critical' as const,
     score: 0,
     summary: 'Your frontline has zero visibility into market shifts or competitive dynamics.',
@@ -2094,8 +2139,8 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M8',
     metric_name: 'Innovation Capacity',
-    category: 'Evolutionary Fitness',
-    health_status: 'attention' as const,
+    category: 'Future Readiness',
+    health_status: 'at_risk' as const,
     score: 24,
     summary: 'Frontline has no time, permission, or mechanisms for creative problem-solving.',
     observations: [
@@ -2125,8 +2170,8 @@ const DUMMY_METRIC_INSIGHTS = [
   {
     metric_code: 'M11',
     metric_name: 'Adaptability',
-    category: 'Evolutionary Fitness',
-    health_status: 'attention' as const,
+    category: 'Future Readiness',
+    health_status: 'at_risk' as const,
     score: 32,
     summary: 'The organization can respond to change, but only through top-down directives, not organic adaptation.',
     observations: [
@@ -2158,7 +2203,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M3',
     metric_name: 'Insight-to-Action',
     category: 'Cultural Health',
-    health_status: 'attention' as const,
+    health_status: 'at_risk' as const,
     score: 34,
     summary: 'Insights are generated but rarely translate into action. Good observations die in the system.',
     observations: [
@@ -2189,7 +2234,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M6',
     metric_name: 'Psychological Safety',
     category: 'Cultural Health',
-    health_status: 'developing' as const,
+    health_status: 'good' as const,
     score: 42,
     summary: 'Safety-critical concerns are taken seriously, but speaking up about operational improvements is risky.',
     observations: [
@@ -2220,7 +2265,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M9',
     metric_name: 'Learning Culture',
     category: 'Cultural Health',
-    health_status: 'strong' as const,
+    health_status: 'excellent' as const,
     score: 64,
     summary: 'Learning from mistakes happens, especially for safety incidents. Broader learning culture is less developed.',
     observations: [
@@ -2251,7 +2296,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M12',
     metric_name: 'Collaboration Quality',
     category: 'Cultural Health',
-    health_status: 'developing' as const,
+    health_status: 'good' as const,
     score: 48,
     summary: 'Teams work well internally but cross-team collaboration is limited and mostly top-down coordinated.',
     observations: [
@@ -2283,7 +2328,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M13',
     metric_name: 'Skills & Capabilities',
     category: 'Resource Capability',
-    health_status: 'strong' as const,
+    health_status: 'excellent' as const,
     score: 70,
     summary: 'Teams have the skills needed for current work. Future capability development is less clear.',
     observations: [
@@ -2314,7 +2359,7 @@ const DUMMY_METRIC_INSIGHTS = [
     metric_code: 'M14',
     metric_name: 'Tools & Technology',
     category: 'Resource Capability',
-    health_status: 'developing' as const,
+    health_status: 'good' as const,
     score: 52,
     summary: 'Tools work for current needs but create friction. Technology is adequate, not enabling.',
     observations: [
@@ -2346,11 +2391,16 @@ const DUMMY_METRIC_INSIGHTS = [
 // Helper to get health status color and label
 const getHealthStatus = (status: string) => {
   switch (status) {
-    case 'exceptional': return { color: '#1A7F37', bg: 'rgba(52, 199, 89, 0.10)', label: 'Exceptional' };
-    case 'strong': return { color: '#0969DA', bg: 'rgba(0, 122, 255, 0.10)', label: 'Strong' };
-    case 'developing': return { color: '#9A6700', bg: 'rgba(255, 149, 0, 0.10)', label: 'Developing' };
-    case 'attention': return { color: '#CF222E', bg: 'rgba(255, 59, 48, 0.10)', label: 'Attention' };
-    case 'critical': return { color: '#CF222E', bg: 'rgba(255, 59, 48, 0.12)', label: 'Critical' };
+    case 'leading_strength': return { color: '#065F46', bg: 'rgba(6, 95, 70, 0.10)', label: 'Leading Strength' };
+    case 'strong': return { color: '#059669', bg: 'rgba(5, 150, 105, 0.10)', label: 'Strong' };
+    case 'adequate': return { color: '#2563EB', bg: 'rgba(37, 99, 235, 0.10)', label: 'Adequate' };
+    case 'watch_area': return { color: '#D97706', bg: 'rgba(217, 119, 6, 0.10)', label: 'Watch Area' };
+    case 'critical_gap': return { color: '#DC2626', bg: 'rgba(220, 38, 38, 0.12)', label: 'Critical Gap' };
+    // Legacy fallbacks
+    case 'excellent': return { color: '#065F46', bg: 'rgba(6, 95, 70, 0.10)', label: 'Leading Strength' };
+    case 'good': return { color: '#2563EB', bg: 'rgba(37, 99, 235, 0.10)', label: 'Adequate' };
+    case 'at_risk': return { color: '#D97706', bg: 'rgba(217, 119, 6, 0.10)', label: 'Watch Area' };
+    case 'critical': return { color: '#DC2626', bg: 'rgba(220, 38, 38, 0.12)', label: 'Critical Gap' };
     default: return { color: '#86868B', bg: 'rgba(0, 0, 0, 0.05)', label: 'Unknown' };
   }
 };
@@ -2379,6 +2429,34 @@ type StrengthType = {
   opportunity: string;
 };
 
+// Type for detected pathologies from API
+type DetectedPathologyType = {
+  pathology_type: string;
+  severity: 'critical' | 'moderate' | 'informational';
+  client_title: string;
+  client_description: string;
+  coaching_question: string;
+  icon: string;
+  category: string;
+  is_core: boolean;
+  evidence: Array<{ quote: string; role: string }>;
+  related_metrics: string[];
+};
+
+// Type for detected contradictions (Say-Do Gap) from API
+type DetectedContradictionType = {
+  contradiction_id: string;
+  primary_question_code: string;
+  linked_question_code: string;
+  severity: 'high' | 'moderate';
+  client_title: string;
+  client_callout: string;
+  client_description: string;
+  coaching_question: string;
+  evidence: Array<{ quote: string; role: string }>;
+  related_metrics: string[];
+};
+
 // Type for key actions from API
 type KeyActionType = {
   title: string;
@@ -2388,15 +2466,37 @@ type KeyActionType = {
   priority: 'critical' | 'high' | 'medium';
   impact: 'high' | 'medium' | 'low';
   effort: 'high' | 'medium' | 'low';
+  metrics: string[];
+  evidence: Array<{ quote: string; role: string }>;
+  related_issues: string[];
 };
 
 // Type for refined metric insights (from API or dummy data)
+// Research benchmarks for executive insight display (from CABAS Business Language Guide Section 9)
+const RESEARCH_BENCHMARKS: Record<string, { target: number; critical: number; source: string; contextAbove: string; contextBelow: string; contextCritical: string }> = {
+  M1:  { target: 65, critical: 45, source: 'Helfat & Peteraf (2003)', contextAbove: 'Monitor for competency trap — strong execution can mask need for adaptation.', contextBelow: 'Fundamental execution gaps requiring immediate operational review.', contextCritical: 'Critical operational weakness. Day-to-day delivery reliability is compromised.' },
+  M2:  { target: 60, critical: 40, source: 'Teece (2018)', contextAbove: 'Strong adaptive capacity. Validate that sensing mechanisms feed into actual strategy shifts.', contextBelow: 'Vulnerability to market shifts. Exploration investment needed.', contextCritical: 'Critical adaptive deficit. Operating blind to emerging threats and opportunities.' },
+  M3:  { target: 65, critical: 45, source: 'Argyris & Schön', contextAbove: 'Effective learning loops in place. Ensure insights reach decision-makers.', contextBelow: 'Knowledge stays trapped — lessons learned aren\'t converting to operational change.', contextCritical: 'Organizational learning failure. Insights are generated but systematically lost.' },
+  M4:  { target: 60, critical: 40, source: 'Eisenhardt (1989)', contextAbove: 'Fast execution is a competitive advantage. Protect this velocity as you scale.', contextBelow: 'Initiatives stall between decision and deployment, eroding time-to-value.', contextCritical: 'Severe implementation bottleneck. Good decisions losing impact through slow execution.' },
+  M5:  { target: 60, critical: 40, source: 'Teece (2007)', contextAbove: 'Active market sensing in place. Ensure signals translate to strategic action.', contextBelow: 'Sensing blind spot — competitive signals being missed or filtered out.', contextCritical: 'Critical strategic blind spot. Scores below 40 correlate with missed market shifts.' },
+  M6:  { target: 60, critical: 40, source: 'March & Simon', contextAbove: 'Decision velocity is strong. Verify speed doesn\'t compromise decision quality.', contextBelow: 'Decision bottlenecks slowing organizational response.', contextCritical: 'Decision paralysis. Good ideas stuck in approval queues.' },
+  M7:  { target: 55, critical: 35, source: 'Grant (1996)', contextAbove: 'Cross-team learning cycles are strong. Formalize to prevent key-person dependency.', contextBelow: 'Tacit knowledge without capture creates key-person dependency.', contextCritical: 'Critical knowledge risk. Expertise walks out the door with people.' },
+  M8:  { target: 60, critical: 40, source: 'Boyd OODA Loop', contextAbove: 'Fast accountability loops drive continuous improvement.', contextBelow: 'Systematic accountability gaps exist for non-critical items.', contextCritical: 'Accountability vacuum. Issues identified but ownership assignment is slow or absent.' },
+  M9:  { target: 75, critical: 45, source: 'March (1991)', contextAbove: 'Healthy balance between exploitation and exploration. Recalibrate quarterly.', contextBelow: 'Over-indexing on operational work at the expense of future investment.', contextCritical: 'Optimization Lock risk. Less than 10% exploration predicts disruption vulnerability.' },
+  M10: { target: 60, critical: 40, source: 'Edmondson (1999)', contextAbove: 'Strong change foundation. Shift from reactive to proactive transformation.', contextBelow: 'Change processes triggered reactively. Transformation capacity at risk.', contextCritical: 'Change resistance embedded. New initiatives face systemic friction.' },
+  M11: { target: 60, critical: 40, source: 'O\'Reilly & Tushman', contextAbove: 'Structure enables strategy execution. Review alignment as strategy evolves.', contextBelow: 'Structure-strategy misalignment — org chart doesn\'t match how work needs to flow.', contextCritical: 'Structural barrier. Organization design actively works against strategic goals.' },
+  M12: { target: 55, critical: 35, source: 'Barney (1991)', contextAbove: 'Resource base is adequate. Focus on strategic allocation rather than acquisition.', contextBelow: 'Capacity gap — teams lack people, budget, or tools to execute the strategy.', contextCritical: 'Critical resource deficit. Transformation ambitions exceed available capacity.' },
+  M13: { target: 50, critical: 30, source: 'Barney RBV', contextAbove: 'Defensible assets identified. Ensure they are communicated to market.', contextBelow: 'Competitive advantages exist but aren\'t documented — invisible to the market.', contextCritical: 'No defensible positioning. Vulnerable to competitors replicating advantages.' },
+  M14: { target: 55, critical: 35, source: 'Mission Command', contextAbove: 'Healthy risk appetite supports innovation. Extend psychological safety beyond leadership.', contextBelow: 'Risk aversion limiting experimentation at operational levels.', contextCritical: 'Risk paralysis. Teams avoid action outside established procedures.' },
+};
+
 type MetricInsight = {
   metric_code: string;
   metric_name: string;
   category: string;
-  health_status: 'strong' | 'developing' | 'attention' | 'critical';
+  health_status: 'excellent' | 'good' | 'at_risk' | 'critical';
   score: number;
+  executive_insight?: string;
   summary: string;
   observations: string[];
   evidence: Array<{
@@ -2412,7 +2512,28 @@ type MetricInsight = {
     limitations: string[];
   };
   benchmark_narrative?: string;
+  benchmark_statement?: string;
   recommendations: string[];
+  // Metric-specific contextual data (e.g., M9 exploitation/exploration split)
+  context_data?: {
+    exploitation_pct?: number;
+    exploration_pct?: number;
+    label?: string;
+    vrin_assets?: Array<{
+      asset_name: string;
+      valuable: boolean;
+      rare: boolean;
+      inimitable: string;
+      non_substitutable: boolean;
+      verdict: string;
+      reasoning: string;
+      trajectory?: 'appreciating' | 'stable' | 'depreciating';
+    }>;
+    vrin_summary?: string;
+    [key: string]: any;
+  };
+  // Narrative text (for derived metrics D1/D2)
+  narrative?: string;
   // Optional fields for issue/action linking (may not be present in API data)
   related_issue_ids?: string[];
   related_action_ids?: string[];
@@ -2426,6 +2547,7 @@ function RunSummaryView({
   onViewBreakdown,
   onViewInterview,
   onOpenChat,
+  onOpenDashboardV2,
 }: {
   run: EvaluationRunDetail;
   scores: EvaluationScoresResponse | null;
@@ -2434,8 +2556,9 @@ function RunSummaryView({
   onViewBreakdown: () => void;
   onViewInterview: (sourceId: string) => void;
   onOpenChat: () => void;
+  onOpenDashboardV2?: () => void;
 }) {
-  const [activeTab, setActiveTab] = useState<SummaryTabType>('issues');
+  const [activeTab, setActiveTab] = useState<SummaryTabType>('strengths');
   const [expandedMetric, setExpandedMetric] = useState<string | null>(null);
   const [expandedAIReasoning, setExpandedAIReasoning] = useState<string | null>(null);
   const [showStrategicReasoning, setShowStrategicReasoning] = useState(false);
@@ -2444,6 +2567,7 @@ function RunSummaryView({
   const [expandedActionIndex, setExpandedActionIndex] = useState<number | null>(null);
   const [showFullExecutiveSummary, setShowFullExecutiveSummary] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [selectedCompanySize, setSelectedCompanySize] = useState<'micro' | 'small' | 'medium' | 'large' | 'other'>('other');
 
   // Handle report download
   const handleDownloadReport = async () => {
@@ -2465,6 +2589,16 @@ function RunSummaryView({
     key_actions: KeyActionType[];
     critical_issues: CriticalIssueType[];
     strengths: StrengthType[];
+    pathologies: DetectedPathologyType[];
+    contradictions: DetectedContradictionType[];
+    cross_metric_insights?: Record<string, string>;
+    level_comparison?: {
+      level_scores: Record<string, Record<string, { level: string; score: number; respondent_count: number }>>;
+      implementation_gaps: Array<{ metric_code: string; metric_name: string; senior_score: number; frontline_score: number; gap: number; direction: string }>;
+      narrative: string;
+      source_count: number;
+      levels_present: string[];
+    };
   } | null>(null);
   const [refinedReportLoading, setRefinedReportLoading] = useState(true);
 
@@ -2510,7 +2644,8 @@ function RunSummaryView({
           });
 
           // Normalize key_actions: handle both old (string[]) and new (object[]) formats
-          const normalizedActions: KeyActionType[] = (response.report.key_actions || []).map((action: KeyActionType | string) => {
+          // eslint-disable-next-line @typescript-eslint/no-explicit-any
+          const normalizedActions: KeyActionType[] = (response.report.key_actions || []).map((action: any) => {
             if (typeof action === 'string') {
               // Convert old string format to rich object - use full string as title
               return {
@@ -2521,9 +2656,17 @@ function RunSummaryView({
                 priority: 'medium' as const,
                 impact: 'medium' as const,
                 effort: 'medium' as const,
+                metrics: [],
+                evidence: [],
+                related_issues: [],
               };
             }
-            return action;
+            return {
+              ...action,
+              metrics: action.metrics || [],
+              evidence: action.evidence || [],
+              related_issues: action.related_issues || [],
+            };
           });
 
           setRefinedReport({
@@ -2532,6 +2675,9 @@ function RunSummaryView({
             key_actions: normalizedActions,
             critical_issues: normalizedIssues,
             strengths: normalizedStrengths,
+            pathologies: (response.report.pathologies || []).map(p => ({ ...p, is_core: p.is_core ?? true })),
+            contradictions: response.report.contradictions || [],
+            cross_metric_insights: response.report.cross_metric_insights || {},
           });
         }
       } catch (err) {
@@ -2550,6 +2696,12 @@ function RunSummaryView({
     ? refinedReport.metrics
     : DUMMY_METRIC_INSIGHTS;
 
+  // Extract VRIN data from M13 metric for standalone Strategic Asset Assessment section
+  const m13Insight = refinedReport?.metrics?.find(m => m.metric_code === 'M13');
+  const vrinAssets = m13Insight?.context_data?.vrin_assets || [];
+  const vrinSummary = m13Insight?.context_data?.vrin_summary || '';
+  const crossMetricInsights = refinedReport?.cross_metric_insights || {};
+
   const statusColor = getStatusColor(run.status);
   const totalFlags = run.flags?.filter(f => !f.is_resolved) || [];
 
@@ -2557,33 +2709,85 @@ function RunSummaryView({
   const aggregatedMetrics = getAggregatedMetrics(scores?.metric_scores || []);
   const sortedMetrics = sortMetricsByNumber(aggregatedMetrics);
 
-  // Calculate overall score
-  const avgScore = sortedMetrics.length > 0
-    ? Math.round(sortedMetrics.reduce((sum, m) => sum + (m.overall_score || 0), 0) / sortedMetrics.length)
-    : 0;
-
-  // Calculate Technical vs Evolutionary Fitness (dummy calculation for now)
-  const technicalMetrics = sortedMetrics.filter(m => ['M1', 'M4', 'M7', 'M10'].includes(m.metric_code || ''));
-  const evolutionaryMetrics = sortedMetrics.filter(m => ['M2', 'M5', 'M8', 'M11'].includes(m.metric_code || ''));
-
-  const technicalFitness = technicalMetrics.length > 0
-    ? Math.round(technicalMetrics.reduce((sum, m) => sum + (m.overall_score || 0), 0) / technicalMetrics.length)
-    : 62; // Fallback dummy value
-
-  const evolutionaryFitness = evolutionaryMetrics.length > 0
-    ? Math.round(evolutionaryMetrics.reduce((sum, m) => sum + (m.overall_score || 0), 0) / evolutionaryMetrics.length)
-    : 28; // Fallback dummy value
-
-  // Determine quadrant
-  const getQuadrant = (tech: number, evol: number) => {
-    if (tech >= 50 && evol >= 50) return { name: 'Ambidextrous Leader', color: '#1A7F37' };
-    if (tech >= 50 && evol < 50) return { name: 'Efficient Executor', color: '#0969DA' };
-    if (tech < 50 && evol >= 50) return { name: 'Chaotic Innovator', color: '#9A6700' };
-    return { name: 'Vulnerable Drifter', color: '#CF222E' };
+  // Helper to get individual metric score by code
+  // Falls back to refined report metrics when raw scores aren't available
+  const getMetricScore = (code: string): number => {
+    const metric = sortedMetrics.find(m => m.metric_code === code);
+    if (metric?.overall_score) return metric.overall_score;
+    // Fallback: use refined report metric scores
+    const refined = metricInsights.find(m => m.metric_code === code);
+    return refined?.score || 0;
   };
 
-  const quadrant = getQuadrant(technicalFitness, evolutionaryFitness);
-  const pointGap = Math.abs(technicalFitness - evolutionaryFitness);
+  // Check if we have any metric data (raw scores OR refined report)
+  const hasMetricData = sortedMetrics.length > 0 || metricInsights.length > 0;
+
+  // Operational Strength (X-axis) = weighted composite per Iva's spec
+  // X = (M1 × 0.40) + (M4 × 0.20) + (M9 × 0.15) + (M11 × 0.15) + (M8 × 0.10)
+  const operationalStrength = hasMetricData
+    ? Math.round(
+        getMetricScore('M1') * 0.40 +
+        getMetricScore('M4') * 0.20 +
+        getMetricScore('M9') * 0.15 +
+        getMetricScore('M11') * 0.15 +
+        getMetricScore('M8') * 0.10
+      )
+    : 0;
+
+  // Future Readiness (Y-axis) = weighted composite per Iva's spec
+  // Y = (M2 × 0.40) + (M5 × 0.20) + (M3 × 0.15) + (M14 × 0.15) + (M10 × 0.10)
+  const futureReadiness = hasMetricData
+    ? Math.round(
+        getMetricScore('M2') * 0.40 +
+        getMetricScore('M5') * 0.20 +
+        getMetricScore('M3') * 0.15 +
+        getMetricScore('M14') * 0.15 +
+        getMetricScore('M10') * 0.10
+      )
+    : 0;
+
+  // Overall = average of both axes
+  const avgScore = hasMetricData
+    ? Math.round((operationalStrength + futureReadiness) / 2)
+    : 0;
+
+  // Gap = X - Y (positive = stronger operational, negative = stronger future readiness)
+  const pointGap = operationalStrength - futureReadiness;
+
+  // Business Impact Translation — P1.1
+  // Uses M2 (Future Readiness metric) as the sole risk input
+  const m2Score = getMetricScore('M2');
+  const SPEND_BY_SIZE = {
+    micro: { label: '< 50', spend: 75000 },
+    small: { label: '50–149', spend: 200000 },
+    medium: { label: '150–250', spend: 375000 },
+    large: { label: '> 250', spend: 500000 },
+    other: { label: 'Not sure', spend: 200000 },
+  };
+  const RISK_BANDS = [
+    { maxScore: 29, midpoint: 0.75, label: 'Severely at risk', sources: 'Bain 88%, McKinsey 70%' },
+    { maxScore: 49, midpoint: 0.60, label: 'At risk', sources: 'BCG 65% failure rate' },
+    { maxScore: 69, midpoint: 0.40, label: 'Moderate risk without intervention', sources: 'BCG 35% success rate' },
+    { maxScore: 100, midpoint: 0.20, label: 'Good odds but not guaranteed', sources: 'Prosci 7x with excellent CM' },
+  ];
+  const currentSpend = SPEND_BY_SIZE[selectedCompanySize].spend;
+  const riskBand = RISK_BANDS.find(b => m2Score <= b.maxScore) || RISK_BANDS[RISK_BANDS.length - 1];
+  const riskExposureLow = Math.round(currentSpend * riskBand.midpoint * 0.75);
+  const riskExposureHigh = Math.round(currentSpend * riskBand.midpoint * 1.25);
+  const riskExposureMid = Math.round(currentSpend * riskBand.midpoint);
+  const riskExposureFormatted = `£${(riskExposureLow / 1000).toFixed(0)}k–£${(riskExposureHigh / 1000).toFixed(0)}k`;
+
+  // Determine quadrant — uses M1/M2 individual scores with 65 threshold per Iva's spec
+  const m1Score = getMetricScore('M1');
+  const m2ScoreForQuadrant = getMetricScore('M2');
+  const getQuadrant = () => {
+    if (m1Score >= 65 && m2ScoreForQuadrant >= 65) return { name: 'Adaptive Leader', color: '#1A7F37' };
+    if (m1Score >= 65 && m2ScoreForQuadrant < 65) return { name: 'Solid Performer', color: '#C65D07' };
+    if (m1Score < 65 && m2ScoreForQuadrant >= 65) return { name: 'Scattered Experimenter', color: '#0969DA' };
+    return { name: 'At-Risk', color: '#CF222E' };
+  };
+
+  const quadrant = getQuadrant();
 
   const dashStyles = dashboardStyles;
 
@@ -2622,6 +2826,36 @@ function RunSummaryView({
             <span style={{ ...dashStyles.statusBadge, background: statusColor.bg, color: statusColor.text }}>
               {run.status}
             </span>
+            {/* Dashboard V2 Button */}
+            {onOpenDashboardV2 && (
+              <button
+                onClick={onOpenDashboardV2}
+                style={{
+                  display: 'inline-flex',
+                  alignItems: 'center',
+                  gap: '6px',
+                  padding: '8px 16px',
+                  borderRadius: '10px',
+                  border: '1px solid rgba(15, 118, 110, 0.3)',
+                  background: 'linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(45, 212, 191, 0.08))',
+                  color: '#0F766E',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  transition: 'all 0.2s ease',
+                }}
+                onMouseEnter={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(15, 118, 110, 0.15), rgba(45, 212, 191, 0.15))'; e.currentTarget.style.transform = 'translateY(-1px)'; }}
+                onMouseLeave={(e) => { e.currentTarget.style.background = 'linear-gradient(135deg, rgba(15, 118, 110, 0.08), rgba(45, 212, 191, 0.08))'; e.currentTarget.style.transform = 'none'; }}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                  <rect x="3" y="3" width="7" height="7" rx="1" />
+                  <rect x="14" y="3" width="7" height="7" rx="1" />
+                  <rect x="3" y="14" width="7" height="7" rx="1" />
+                  <rect x="14" y="14" width="7" height="7" rx="1" />
+                </svg>
+                Dashboard V2
+              </button>
+            )}
             {/* Ask Eunice Button - Animated Gradient Border */}
             <div className="ask-eunice-wrapper">
               <button
@@ -2698,46 +2932,98 @@ function RunSummaryView({
         </div>
       )}
 
+      {/* Single-Respondent Caveat Banner */}
+      {(run.sources?.length || 0) < 3 && run.status === 'completed' && (
+        <div style={{
+          background: 'linear-gradient(90deg, #FFFBEB 0%, #FEF3C7 100%)',
+          border: '1px solid #F59E0B',
+          borderRadius: '8px',
+          padding: '16px 20px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'flex-start',
+          gap: '12px',
+        }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" style={{ flexShrink: 0, marginTop: '2px' }}>
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <div>
+            <p style={{ margin: 0, fontWeight: 600, color: '#92400E', fontSize: '14px' }}>
+              Single-Respondent Evaluation
+            </p>
+            <p style={{ margin: '4px 0 0 0', color: '#92400E', fontSize: '13px', lineHeight: 1.5 }}>
+              This evaluation is based on a single respondent. Results reflect one perspective and should be interpreted as directional insights rather than validated findings. Cross-level triangulation requires 3+ respondents.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Two Column Layout: Strategic Position + Executive Summary */}
       <div style={dashStyles.twoColumnGrid}>
         {/* Strategic Position Quadrant */}
         <div style={dashStyles.quadrantCard}>
           <h3 style={dashStyles.cardTitle}>Strategic Position</h3>
+          <p style={{ fontSize: '12px', color: '#86868B', margin: '0 0 8px 0' }}>
+            Based on your Operational Strength ({operationalStrength}) and Future Readiness ({futureReadiness}) scores
+          </p>
 
           <div style={dashStyles.quadrantContainer}>
-            {/* Quadrant Grid */}
             <div style={dashStyles.quadrantGrid}>
-              {/* Y-axis label */}
+              {/* Y-axis label (rotated, left of axis line) */}
               <div style={dashStyles.yAxisLabel}>
-                <span style={dashStyles.axisText}>Evolutionary Fitness</span>
+                <span style={dashStyles.axisText}>Future Readiness</span>
               </div>
 
-              {/* Quadrant boxes */}
-              <div style={dashStyles.quadrantBoxes}>
-                <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantTL }}>
-                  <span style={dashStyles.quadrantLabel}>Chaotic Innovator</span>
-                </div>
-                <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantTR }}>
-                  <span style={dashStyles.quadrantLabel}>Ambidextrous Leader</span>
-                </div>
-                <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantBL }}>
-                  <span style={dashStyles.quadrantLabel}>Vulnerable Drifter</span>
-                </div>
-                <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantBR }}>
-                  <span style={dashStyles.quadrantLabel}>Efficient Executor</span>
+              {/* Main chart area: Y-axis line + quadrant + X-axis line */}
+              <div style={{ display: 'flex', flexDirection: 'column' as const, alignItems: 'stretch' }}>
+                {/* Quadrant with axis lines drawn via SVG overlay */}
+                <div style={{ position: 'relative' as const }}>
+                  {/* Quadrant boxes */}
+                  <div style={dashStyles.quadrantBoxes}>
+                    <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantTL }}>
+                      <span style={dashStyles.quadrantLabel}>Scattered Experimenter</span>
+                    </div>
+                    <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantTR }}>
+                      <span style={dashStyles.quadrantLabel}>Adaptive Leader</span>
+                    </div>
+                    <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantBL }}>
+                      <span style={dashStyles.quadrantLabel}>At-Risk</span>
+                    </div>
+                    <div style={{ ...dashStyles.quadrantBox, ...dashStyles.quadrantBR }}>
+                      <span style={dashStyles.quadrantLabel}>Solid Performer</span>
+                    </div>
+
+                    {/* Position dot — rescale so score=65 maps to visual 50% midpoint */}
+                    <div style={{
+                      ...dashStyles.positionDot,
+                      left: `${operationalStrength <= 65 ? (operationalStrength / 65) * 50 : 50 + ((operationalStrength - 65) / 35) * 50}%`,
+                      bottom: `${futureReadiness <= 65 ? (futureReadiness / 65) * 50 : 50 + ((futureReadiness - 65) / 35) * 50}%`,
+                    }} />
+                  </div>
+
+                  {/* Cartesian axis lines overlay — arrows on both ends, flush with quadrant edges */}
+                  <svg
+                    style={{ position: 'absolute' as const, top: -10, left: -10, pointerEvents: 'none' as const, overflow: 'visible' as const }}
+                    width="240"
+                    height="240"
+                    viewBox="0 0 240 240"
+                  >
+                    {/* Y-axis: vertical line along left edge, arrow at top only */}
+                    <line x1="10" y1="230" x2="10" y2="10" stroke="#86868B" strokeWidth="1.5" />
+                    <polygon points="10,2 6,10 14,10" fill="#86868B" />
+
+                    {/* X-axis: horizontal line along bottom edge, arrow at right only */}
+                    <line x1="10" y1="230" x2="230" y2="230" stroke="#86868B" strokeWidth="1.5" />
+                    <polygon points="238,230 230,226 230,234" fill="#86868B" />
+                  </svg>
                 </div>
 
-                {/* Position dot */}
-                <div style={{
-                  ...dashStyles.positionDot,
-                  left: `${technicalFitness}%`,
-                  bottom: `${evolutionaryFitness}%`,
-                }} />
-              </div>
-
-              {/* X-axis label */}
-              <div style={dashStyles.xAxisLabel}>
-                <span style={dashStyles.axisText}>Technical Fitness</span>
+                {/* X-axis label (below) */}
+                <div style={dashStyles.xAxisLabel}>
+                  <span style={dashStyles.axisText}>Operational Strength</span>
+                </div>
               </div>
             </div>
           </div>
@@ -2752,15 +3038,15 @@ function RunSummaryView({
           {/* Key Stats */}
           <div style={dashStyles.keyStatsRow}>
             <div style={dashStyles.keyStat}>
-              <span style={dashStyles.keyStatValue}>{technicalFitness}</span>
-              <span style={dashStyles.keyStatLabel}>Technical</span>
+              <span style={dashStyles.keyStatValue}>{operationalStrength}</span>
+              <span style={dashStyles.keyStatLabel}>Op. Strength</span>
             </div>
             <div style={dashStyles.keyStat}>
-              <span style={dashStyles.keyStatValue}>{evolutionaryFitness}</span>
-              <span style={dashStyles.keyStatLabel}>Evolutionary</span>
+              <span style={dashStyles.keyStatValue}>{futureReadiness}</span>
+              <span style={dashStyles.keyStatLabel}>Future Ready</span>
             </div>
             <div style={dashStyles.keyStat}>
-              <span style={dashStyles.keyStatValue}>{pointGap}</span>
+              <span style={dashStyles.keyStatValue}>{pointGap > 0 ? '+' : ''}{pointGap}</span>
               <span style={dashStyles.keyStatLabel}>Gap</span>
             </div>
             <div style={dashStyles.keyStat}>
@@ -2799,13 +3085,23 @@ function RunSummaryView({
             {showStrategicReasoning && (
               <div style={dashStyles.reasoningContent}>
                 <p style={dashStyles.reasoningText}>
-                  Strategic position is calculated by mapping Technical Fitness (operational strength, execution speed, knowledge leverage)
-                  against Evolutionary Fitness (future readiness, market sensing, innovation capacity). Your position in the "{quadrant.name}"
-                  quadrant indicates {technicalFitness > evolutionaryFitness
-                    ? 'stronger operational capabilities relative to adaptive capacity'
-                    : 'stronger adaptive capacity relative to operational execution'}.
-                  The {pointGap}-point gap suggests {pointGap > 15 ? 'significant imbalance requiring attention' : 'reasonable balance between dimensions'}.
+                  Strategic position is determined by a weighted composite of your 14 metric scores across two axes.
+                  Operational Strength (X-axis) weighs execution capability, process maturity, and knowledge systems.
+                  Future Readiness (Y-axis) weighs adaptive capacity, innovation culture, and strategic foresight.
+                  Your "{quadrant.name}" positioning reflects {operationalStrength > futureReadiness
+                    ? 'stronger current execution relative to adaptive capacity'
+                    : operationalStrength < futureReadiness
+                    ? 'stronger adaptive capacity relative to current execution'
+                    : 'balanced capability across both dimensions'}.
+                  {Math.abs(pointGap) > 15
+                    ? ` The ${Math.abs(pointGap)}-point gap between axes signals a meaningful imbalance that warrants focused attention.`
+                    : ` The ${Math.abs(pointGap)}-point gap suggests reasonable balance between operational and adaptive capabilities.`}
                 </p>
+                {(run.sources?.length || 0) < 3 && (
+                  <p style={{ ...dashStyles.reasoningText, marginTop: '8px', fontStyle: 'italic', color: 'rgba(60, 60, 67, 0.5)' }}>
+                    Note: This assessment is based on {run.sources?.length || 0} respondent{(run.sources?.length || 0) !== 1 ? 's' : ''}. Results become more reliable with broader organizational input.
+                  </p>
+                )}
               </div>
             )}
           </div>
@@ -2951,412 +3247,1159 @@ function RunSummaryView({
         </div>
       </div>
 
-      {/* Key Actions Section */}
-      <div style={dashStyles.actionsSection}>
-        <div style={dashStyles.actionsSectionHeader}>
-          <h3 style={dashStyles.sectionTitle}>Key Actions to Take</h3>
-          <button style={dashStyles.addButton}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <path d="M12 5v14M5 12h14" />
-            </svg>
-            Add Action
-          </button>
+      {/* Business Impact Translation — P1.1 */}
+      <div style={dashStyles.businessImpactSection}>
+        <div style={dashStyles.businessImpactHeader}>
+          <div>
+            <h3 style={dashStyles.businessImpactTitle}>Transformation Risk Exposure</h3>
+            <p style={dashStyles.businessImpactSubtitle}>
+              Estimated annual change spend at risk based on your Future Readiness score
+            </p>
+          </div>
+          {/* Company size toggle */}
+          <div style={dashStyles.businessImpactSizeToggle}>
+            <span style={{ fontSize: '12px', color: '#86868B', fontWeight: 500 }}>Company size:</span>
+            <div style={dashStyles.businessImpactSizeButtons}>
+              {(['micro', 'small', 'medium', 'large', 'other'] as const).map((size) => (
+                <button
+                  key={size}
+                  onClick={() => setSelectedCompanySize(size)}
+                  style={{
+                    ...dashStyles.businessImpactSizeBtn,
+                    ...(selectedCompanySize === size ? dashStyles.businessImpactSizeBtnActive : {}),
+                  }}
+                >
+                  {SPEND_BY_SIZE[size].label}
+                </button>
+              ))}
+            </div>
+          </div>
         </div>
 
-        <style>{`
-          @keyframes slideInFromRight {
-            from { transform: translateX(100%); opacity: 0; }
-            to { transform: translateX(0); opacity: 1; }
-          }
-          @keyframes fadeIn {
-            from { opacity: 0; }
-            to { opacity: 1; }
-          }
-        `}</style>
+        <div style={dashStyles.businessImpactBody}>
+          {/* Big number */}
+          <div style={dashStyles.businessImpactHero}>
+            <div style={dashStyles.businessImpactAmount}>{riskExposureFormatted}</div>
+            <div style={dashStyles.businessImpactAmountLabel}>estimated annual risk exposure</div>
+          </div>
 
-        <div style={dashStyles.actionsList}>
-          {/* Use refined report key_actions if available, otherwise fallback to dummy data */}
-          {(refinedReport?.key_actions?.length ? refinedReport.key_actions : DUMMY_KEY_ACTIONS).map((action, index) => {
-            const priorityColors = {
-              critical: { bg: '#FEE2E2', text: '#DC2626', dot: '#DC2626' },
-              high: { bg: '#FEF3C7', text: '#D97706', dot: '#F59E0B' },
-              medium: { bg: '#DBEAFE', text: '#2563EB', dot: '#3B82F6' },
-              low: { bg: '#D1FAE5', text: '#059669', dot: '#10B981' },
-            };
-            const pStyle = priorityColors[action.priority] || priorityColors.medium;
-
-            return (
-              <div
-                key={index}
-                onClick={() => setExpandedActionIndex(index)}
-                style={{
-                  display: 'flex',
-                  alignItems: 'flex-start',
-                  gap: '14px',
-                  padding: '16px 20px',
-                  backgroundColor: '#FAFAFA',
-                  borderRadius: '10px',
-                  border: '1px solid rgba(0, 0, 0, 0.06)',
-                  cursor: 'pointer',
-                  transition: 'all 0.15s ease',
-                }}
-                onMouseEnter={(e) => {
-                  e.currentTarget.style.backgroundColor = '#F5F5F5';
-                  e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.1)';
-                }}
-                onMouseLeave={(e) => {
-                  e.currentTarget.style.backgroundColor = '#FAFAFA';
-                  e.currentTarget.style.borderColor = 'rgba(0, 0, 0, 0.06)';
-                }}
-              >
-                {/* Priority Dot */}
-                <div style={{
-                  width: '8px',
-                  height: '8px',
-                  borderRadius: '50%',
-                  backgroundColor: pStyle.dot,
-                  marginTop: '6px',
-                  flexShrink: 0,
-                }} />
-
-                {/* Title */}
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <span style={{
-                    fontSize: '14px',
-                    fontWeight: 500,
-                    color: '#1A1A1A',
-                    lineHeight: 1.5,
-                    display: 'block',
-                  }}>
-                    {action.title}
-                  </span>
+          {/* Calculation breakdown */}
+          <div style={dashStyles.businessImpactBreakdown}>
+            <div style={dashStyles.businessImpactCalcRow}>
+              <div style={dashStyles.businessImpactCalcItem}>
+                <div style={dashStyles.businessImpactCalcValue}>
+                  £{(currentSpend / 1000).toFixed(0)}k
                 </div>
-
-                {/* Expand Icon */}
-                <div style={{
-                  color: '#999',
-                  flexShrink: 0,
-                  marginTop: '2px',
-                }}>
-                  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
-                    <path d="M9 18l6-6-6-6" />
-                  </svg>
+                <div style={dashStyles.businessImpactCalcLabel}>
+                  Est. Annual Change Spend
                 </div>
               </div>
-            );
-          })}
+              <div style={dashStyles.businessImpactCalcOperator}>&times;</div>
+              <div style={dashStyles.businessImpactCalcItem}>
+                <div style={dashStyles.businessImpactCalcValue}>
+                  {(riskBand.midpoint * 100).toFixed(0)}%
+                </div>
+                <div style={dashStyles.businessImpactCalcLabel}>
+                  Risk Multiplier
+                </div>
+              </div>
+              <div style={dashStyles.businessImpactCalcOperator}>=</div>
+              <div style={dashStyles.businessImpactCalcItem}>
+                <div style={{
+                  ...dashStyles.businessImpactCalcValue,
+                  color: m2Score < 50 ? '#CF222E' : m2Score < 70 ? '#C65D07' : '#1A7F37',
+                }}>
+                  {riskExposureFormatted}
+                </div>
+                <div style={dashStyles.businessImpactCalcLabel}>
+                  At Risk
+                </div>
+              </div>
+            </div>
+
+            {/* Risk band context */}
+            <div style={dashStyles.businessImpactRiskBand}>
+              <div style={{
+                ...dashStyles.businessImpactRiskBandDot,
+                backgroundColor: m2Score < 30 ? '#CF222E' : m2Score < 50 ? '#E16F24' : m2Score < 70 ? '#C65D07' : '#1A7F37',
+              }} />
+              <div>
+                <div style={dashStyles.businessImpactRiskLabel}>
+                  Future Readiness: {m2Score}/100 — {riskBand.label}
+                </div>
+                <div style={dashStyles.businessImpactRiskSource}>
+                  Based on: {riskBand.sources}
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
-        {/* Action Details Side Drawer */}
-        {expandedActionIndex !== null && (() => {
-          const actions = refinedReport?.key_actions?.length ? refinedReport.key_actions : DUMMY_KEY_ACTIONS;
-          const action = actions[expandedActionIndex];
-          const priorityConfig = {
-            critical: { bg: '#FEE2E2', text: '#DC2626', label: 'Critical' },
-            high: { bg: '#FEF3C7', text: '#D97706', label: 'High' },
-            medium: { bg: '#DBEAFE', text: '#2563EB', label: 'Medium' },
-            low: { bg: '#D1FAE5', text: '#059669', label: 'Low' },
-          };
-          const pStyle = priorityConfig[action.priority] || priorityConfig.medium;
+        <div style={dashStyles.businessImpactFooter}>
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868B" strokeWidth="2">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="16" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12.01" y2="8" />
+          </svg>
+          <span>
+            Risk Exposure = Estimated Annual Change Spend &times; Risk Multiplier. M2 (Future Readiness)
+            is the single strongest predictor of transformation success/failure in the research literature.
+            Spend estimates derived from ONS Business Population Estimates 2024 and Prosci benchmarks (~3-5% of revenue on transformation).
+          </span>
+        </div>
+      </div>
 
-          return (
-            <>
-              {/* Backdrop */}
-              <div
-                onClick={() => setExpandedActionIndex(null)}
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  background: 'rgba(0, 0, 0, 0.4)',
-                  zIndex: 1000,
-                  animation: 'fadeIn 0.2s ease',
-                }}
-              />
+      {/* Organizational Health Signals — Client-facing pathology section */}
+      {refinedReport?.pathologies && refinedReport.pathologies.length === 0 && (
+        <div style={{
+          background: '#F0FDF4',
+          border: '1px solid #BBF7D0',
+          borderRadius: '12px',
+          padding: '24px 32px',
+          marginBottom: '24px',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '12px',
+        }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#059669" strokeWidth="2">
+            <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+            <polyline points="22 4 12 14.01 9 11.01" />
+          </svg>
+          <span style={{ color: '#065F46', fontSize: '14px', fontWeight: 500 }}>
+            No organisational pathologies detected. Cross-referencing of interview responses did not surface any systemic dysfunction patterns.
+          </span>
+        </div>
+      )}
+      {refinedReport?.pathologies && refinedReport.pathologies.length > 0 && (
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          border: '1px solid #E0E0E0',
+          marginBottom: '24px',
+          overflow: 'hidden',
+        }}>
+          {/* Section Header */}
+          <div style={{
+            padding: '24px 32px 20px',
+            borderBottom: '1px solid #F0F0F0',
+          }}>
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              color: '#1A1A1A',
+              margin: 0,
+              marginBottom: '4px',
+            }}>Organizational Health Signals</h3>
+            <p style={{
+              fontSize: '14px',
+              color: '#86868B',
+              margin: 0,
+            }}>
+              Patterns detected across interview responses that may affect organizational effectiveness
+            </p>
+          </div>
 
-              {/* Drawer */}
-              <div
-                style={{
-                  position: 'fixed',
-                  top: 0,
-                  right: 0,
-                  width: '440px',
-                  maxWidth: '90vw',
-                  height: '100%',
-                  background: '#FFFFFF',
-                  boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.12)',
-                  zIndex: 1001,
-                  overflow: 'auto',
-                  animation: 'slideInFromRight 0.25s ease',
-                }}
-              >
-                {/* Header */}
-                <div style={{
-                  display: 'flex',
-                  justifyContent: 'space-between',
-                  alignItems: 'center',
-                  padding: '20px 24px',
-                  borderBottom: '1px solid #F0F0F0',
-                }}>
-                  <span style={{
-                    background: pStyle.bg,
-                    color: pStyle.text,
-                    padding: '5px 12px',
-                    borderRadius: '6px',
-                    fontSize: '12px',
-                    fontWeight: 600,
-                    letterSpacing: '0.02em',
+          {/* Pathology Cards */}
+          <div style={{ padding: '16px 32px 8px' }}>
+            {refinedReport.pathologies.map((pathology, idx) => {
+              const isLast = idx === refinedReport.pathologies.length - 1;
+              const severityColor = pathology.severity === 'critical'
+                ? '#CF222E'
+                : pathology.severity === 'moderate'
+                  ? '#9A6700'
+                  : '#0969DA';
+              const severityBg = pathology.severity === 'critical'
+                ? '#FFF0F0'
+                : pathology.severity === 'moderate'
+                  ? '#FFF8E1'
+                  : '#F0F7FF';
+
+              return (
+                <div
+                  key={`pathology-${idx}`}
+                  style={{
+                    padding: '20px 0',
+                    borderBottom: isLast ? 'none' : '1px solid #F0F0F0',
+                  }}
+                >
+                  {/* Header: severity dot + title + badges */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    marginBottom: '12px',
                   }}>
-                    {pStyle.label} Priority
-                  </span>
-                  <button
-                    onClick={() => setExpandedActionIndex(null)}
-                    style={{
-                      background: 'none',
-                      border: 'none',
-                      cursor: 'pointer',
-                      padding: '8px',
-                      color: '#999',
-                      borderRadius: '6px',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.backgroundColor = '#F5F5F5';
-                      e.currentTarget.style.color = '#666';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.backgroundColor = 'transparent';
-                      e.currentTarget.style.color = '#999';
-                    }}
-                  >
-                    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                      <path d="M18 6L6 18M6 6l12 12" />
-                    </svg>
-                  </button>
-                </div>
-
-                {/* Content */}
-                <div style={{ padding: '24px' }}>
-                  {/* Title */}
-                  <h3 style={{
-                    fontSize: '18px',
-                    fontWeight: 600,
-                    color: '#1A1A1A',
-                    margin: '0 0 24px 0',
-                    lineHeight: 1.5,
-                    letterSpacing: '-0.01em',
-                  }}>
-                    {action.title}
-                  </h3>
-
-                  {/* Description */}
-                  {action.description && (
-                    <div style={{ marginBottom: '28px' }}>
-                      <h4 style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#888',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        margin: '0 0 10px 0',
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: severityColor,
+                      marginTop: '7px',
+                      flexShrink: 0,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                        marginBottom: '8px',
                       }}>
-                        Description
-                      </h4>
+                        <h4 style={{
+                          fontSize: '15px',
+                          fontWeight: 600,
+                          color: '#1A1A1A',
+                          margin: 0,
+                        }}>{pathology.client_title}</h4>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          textTransform: 'uppercase' as const,
+                          letterSpacing: '0.5px',
+                          color: severityColor,
+                          backgroundColor: severityBg,
+                        }}>
+                          {pathology.severity}
+                        </span>
+                        {pathology.category && (
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            color: '#57606A',
+                            backgroundColor: '#F6F8FA',
+                          }}>
+                            {pathology.category}
+                          </span>
+                        )}
+                        {pathology.is_core === false && (
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '2px 8px',
+                            borderRadius: '10px',
+                            fontSize: '11px',
+                            fontWeight: 500,
+                            fontStyle: 'italic',
+                            color: '#8250DF',
+                            backgroundColor: '#FBEFFF',
+                          }}>
+                            Extended Signal
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Client description */}
                       <p style={{
                         fontSize: '14px',
-                        color: '#444',
-                        lineHeight: 1.7,
-                        margin: 0,
+                        color: '#4A4A4A',
+                        lineHeight: '1.6',
+                        margin: '0 0 16px 0',
                       }}>
-                        {action.description}
+                        {pathology.client_description}
                       </p>
-                    </div>
-                  )}
 
-                  {/* Details Grid */}
-                  <div style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr 1fr',
-                    gap: '20px',
-                    padding: '20px',
-                    background: '#FAFAFA',
-                    borderRadius: '10px',
-                    marginBottom: '24px',
-                  }}>
-                    {action.owner && (
-                      <div>
-                        <h4 style={{
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: '#888',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          margin: '0 0 6px 0',
-                        }}>
-                          Owner
-                        </h4>
-                        <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500 }}>
-                          {action.owner}
-                        </p>
-                      </div>
-                    )}
-                    {action.timeline && (
-                      <div>
-                        <h4 style={{
-                          fontSize: '11px',
-                          fontWeight: 600,
-                          color: '#888',
-                          textTransform: 'uppercase',
-                          letterSpacing: '0.05em',
-                          margin: '0 0 6px 0',
-                        }}>
-                          Timeline
-                        </h4>
-                        <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500 }}>
-                          {action.timeline}
-                        </p>
-                      </div>
-                    )}
-                    <div>
-                      <h4 style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#888',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        margin: '0 0 6px 0',
+                      {/* Two-column: evidence + coaching question */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: pathology.evidence?.length > 0 ? '1fr 1fr' : '1fr',
+                        gap: '20px',
                       }}>
-                        Impact
-                      </h4>
-                      <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500, textTransform: 'capitalize' }}>
-                        {action.impact}
-                      </p>
-                    </div>
-                    <div>
-                      <h4 style={{
-                        fontSize: '11px',
-                        fontWeight: 600,
-                        color: '#888',
-                        textTransform: 'uppercase',
-                        letterSpacing: '0.05em',
-                        margin: '0 0 6px 0',
-                      }}>
-                        Effort
-                      </h4>
-                      <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500, textTransform: 'capitalize' }}>
-                        {action.effort}
-                      </p>
+                        {/* Evidence quote */}
+                        {pathology.evidence?.length > 0 && (
+                          <div>
+                            <span style={{
+                              display: 'block',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              textTransform: 'uppercase' as const,
+                              letterSpacing: '0.8px',
+                              color: '#86868B',
+                              marginBottom: '8px',
+                            }}>What we heard</span>
+                            <div style={{
+                              padding: '12px 16px',
+                              borderLeft: `3px solid ${severityColor}20`,
+                              backgroundColor: '#FAFAFA',
+                              borderRadius: '0 8px 8px 0',
+                            }}>
+                              <p style={{
+                                fontSize: '13px',
+                                color: '#4A4A4A',
+                                fontStyle: 'italic',
+                                lineHeight: '1.5',
+                                margin: '0 0 4px 0',
+                              }}>"{pathology.evidence[0].quote}"</p>
+                              <span style={{
+                                fontSize: '11px',
+                                color: '#86868B',
+                              }}>— {pathology.evidence[0].role}</span>
+                            </div>
+                          </div>
+                        )}
+
+                        {/* Coaching question */}
+                        <div>
+                          <span style={{
+                            display: 'block',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            textTransform: 'uppercase' as const,
+                            letterSpacing: '0.8px',
+                            color: '#86868B',
+                            marginBottom: '8px',
+                          }}>Question to consider</span>
+                          <div style={{
+                            padding: '12px 16px',
+                            backgroundColor: '#F8F9FF',
+                            borderRadius: '8px',
+                            border: '1px solid #E8EAFF',
+                          }}>
+                            <p style={{
+                              fontSize: '13px',
+                              color: '#1A1A1A',
+                              fontWeight: 500,
+                              lineHeight: '1.5',
+                              margin: 0,
+                            }}>{pathology.coaching_question}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Related metrics tags */}
+                      {pathology.related_metrics?.length > 0 && (
+                        <div style={{
+                          display: 'flex',
+                          gap: '6px',
+                          flexWrap: 'wrap',
+                          marginTop: '12px',
+                        }}>
+                          {pathology.related_metrics.map((metric, mIdx) => (
+                            <span
+                              key={`metric-tag-${mIdx}`}
+                              style={{
+                                padding: '2px 6px',
+                                borderRadius: '4px',
+                                fontSize: '11px',
+                                fontWeight: 500,
+                                color: '#57606A',
+                                backgroundColor: '#F0F0F0',
+                              }}
+                            >{getMetricDisplayName(metric)}</span>
+                          ))}
+                        </div>
+                      )}
                     </div>
                   </div>
                 </div>
+              );
+            })}
+          </div>
 
-                {/* Footer Actions */}
-                <div style={{
-                  position: 'absolute',
-                  bottom: 0,
-                  left: 0,
-                  right: 0,
-                  padding: '20px 24px',
-                  borderTop: '1px solid #F0F0F0',
-                  background: '#FFFFFF',
-                  display: 'flex',
-                  gap: '12px',
-                }}>
-                  <button
-                    style={{
-                      flex: 1,
-                      padding: '12px 20px',
-                      background: '#1A1A1A',
-                      color: '#FFFFFF',
-                      border: 'none',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={(e) => e.currentTarget.style.background = '#333'}
-                    onMouseLeave={(e) => e.currentTarget.style.background = '#1A1A1A'}
-                  >
-                    Mark as Started
-                  </button>
-                  <button
-                    style={{
-                      padding: '12px 20px',
-                      background: '#FFFFFF',
-                      color: '#666',
-                      border: '1px solid #E0E0E0',
-                      borderRadius: '8px',
-                      fontSize: '14px',
-                      fontWeight: 500,
-                      cursor: 'pointer',
-                      transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={(e) => {
-                      e.currentTarget.style.background = '#F5F5F5';
-                      e.currentTarget.style.borderColor = '#CCC';
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = '#FFFFFF';
-                      e.currentTarget.style.borderColor = '#E0E0E0';
-                    }}
-                  >
-                    Dismiss
-                  </button>
+          {/* Footer note */}
+          <div style={{
+            padding: '12px 32px',
+            borderTop: '1px solid #F0F0F0',
+            backgroundColor: '#FAFAFA',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px',
+          }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868B" strokeWidth="2">
+              <circle cx="12" cy="12" r="10" />
+              <line x1="12" y1="16" x2="12" y2="12" />
+              <line x1="12" y1="8" x2="12.01" y2="8" />
+            </svg>
+            <span style={{
+              fontSize: '12px',
+              color: '#86868B',
+              lineHeight: '1.4',
+            }}>
+              These signals are diagnostic patterns detected across interviews — they highlight areas for reflection, not scores.
+              Each pattern is based on converging evidence from multiple questions.
+            </span>
+          </div>
+        </div>
+      )}
+
+      {/* Say-Do Gap Analysis — Client-facing contradiction section */}
+      {refinedReport?.contradictions && refinedReport.contradictions.length > 0 && (
+        <div style={{
+          background: '#FFFFFF',
+          borderRadius: '16px',
+          border: '1px solid #E0E0E0',
+          marginBottom: '24px',
+          overflow: 'hidden',
+        }}>
+          {/* Section Header */}
+          <div style={{
+            padding: '24px 32px 20px',
+            borderBottom: '1px solid #F0F0F0',
+          }}>
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 600,
+              color: '#1A1A1A',
+              margin: 0,
+              marginBottom: '4px',
+            }}>Say-Do Gap Analysis</h3>
+            <p style={{
+              fontSize: '14px',
+              color: '#86868B',
+              margin: 0,
+            }}>
+              Where perceptions and descriptions tell different stories — areas worth investigating
+            </p>
+          </div>
+
+          {/* Contradiction Cards */}
+          <div style={{ padding: '16px 32px 8px' }}>
+            {refinedReport.contradictions.map((contradiction, idx) => {
+              const isLast = idx === refinedReport.contradictions.length - 1;
+              const severityColor = contradiction.severity === 'high' ? '#CF222E' : '#9A6700';
+              const severityBg = contradiction.severity === 'high' ? '#FFF0F0' : '#FFF8E1';
+
+              return (
+                <div
+                  key={`contradiction-${idx}`}
+                  style={{
+                    padding: '20px 0',
+                    borderBottom: isLast ? 'none' : '1px solid #F0F0F0',
+                  }}
+                >
+                  {/* Callout headline */}
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'flex-start',
+                    gap: '12px',
+                    marginBottom: '12px',
+                  }}>
+                    <div style={{
+                      width: '8px',
+                      height: '8px',
+                      borderRadius: '50%',
+                      backgroundColor: severityColor,
+                      marginTop: '7px',
+                      flexShrink: 0,
+                    }} />
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        flexWrap: 'wrap',
+                        marginBottom: '8px',
+                      }}>
+                        <h4 style={{
+                          fontSize: '15px',
+                          fontWeight: 600,
+                          color: '#1A1A1A',
+                          margin: 0,
+                        }}>{contradiction.client_title}</h4>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontSize: '11px',
+                          fontWeight: 600,
+                          textTransform: 'uppercase' as const,
+                          letterSpacing: '0.5px',
+                          color: severityColor,
+                          backgroundColor: severityBg,
+                        }}>
+                          {contradiction.severity}
+                        </span>
+                        <span style={{
+                          display: 'inline-block',
+                          padding: '2px 8px',
+                          borderRadius: '10px',
+                          fontSize: '11px',
+                          fontWeight: 500,
+                          color: '#57606A',
+                          backgroundColor: '#F6F8FA',
+                        }}>
+                          Self-rating vs described experience
+                        </span>
+                      </div>
+
+                      {/* Client callout — the impactful statement */}
+                      <p style={{
+                        fontSize: '14px',
+                        fontWeight: 500,
+                        fontStyle: 'italic',
+                        color: '#1A1A1A',
+                        lineHeight: '1.6',
+                        margin: '0 0 12px 0',
+                        padding: '12px 16px',
+                        background: severityBg,
+                        borderLeft: `3px solid ${severityColor}`,
+                        borderRadius: '0 8px 8px 0',
+                      }}>
+                        {contradiction.client_callout}
+                      </p>
+
+                      {/* Client description */}
+                      <p style={{
+                        fontSize: '14px',
+                        color: '#4A4A4A',
+                        lineHeight: '1.6',
+                        margin: '0 0 16px 0',
+                      }}>
+                        {contradiction.client_description}
+                      </p>
+
+                      {/* Evidence + coaching question grid */}
+                      <div style={{
+                        display: 'grid',
+                        gridTemplateColumns: contradiction.evidence.length > 0 ? '1fr 1fr' : '1fr',
+                        gap: '16px',
+                      }}>
+                        {/* Evidence quote */}
+                        {contradiction.evidence.length > 0 && (
+                          <div>
+                            <span style={{
+                              display: 'block',
+                              fontSize: '11px',
+                              fontWeight: 600,
+                              textTransform: 'uppercase' as const,
+                              letterSpacing: '0.5px',
+                              color: '#8C959F',
+                              marginBottom: '8px',
+                            }}>What we heard</span>
+                            {contradiction.evidence.slice(0, 1).map((ev, evIdx) => (
+                              <div key={evIdx} style={{
+                                padding: '10px 14px',
+                                background: '#FAFAFA',
+                                borderLeft: `3px solid ${severityColor}`,
+                                borderRadius: '0 6px 6px 0',
+                              }}>
+                                <p style={{
+                                  fontSize: '13px',
+                                  color: '#4A4A4A',
+                                  fontStyle: 'italic',
+                                  lineHeight: '1.5',
+                                  margin: '0 0 4px 0',
+                                }}>"{ev.quote}"</p>
+                                <span style={{
+                                  fontSize: '11px',
+                                  color: '#8C959F',
+                                }}>— {ev.role}</span>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+
+                        {/* Coaching question */}
+                        <div>
+                          <span style={{
+                            display: 'block',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            textTransform: 'uppercase' as const,
+                            letterSpacing: '0.5px',
+                            color: '#8C959F',
+                            marginBottom: '8px',
+                          }}>Question to consider</span>
+                          <div style={{
+                            padding: '10px 14px',
+                            background: '#F8F9FF',
+                            border: '1px solid #E8EAFF',
+                            borderRadius: '6px',
+                          }}>
+                            <p style={{
+                              fontSize: '13px',
+                              color: '#3D4752',
+                              lineHeight: '1.5',
+                              margin: 0,
+                            }}>{contradiction.coaching_question}</p>
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Related metric badges */}
+                      {contradiction.related_metrics.length > 0 && (
+                        <div style={{
+                          display: 'flex',
+                          gap: '6px',
+                          marginTop: '12px',
+                          flexWrap: 'wrap',
+                        }}>
+                          {contradiction.related_metrics.map((code, mIdx) => (
+                            <span key={mIdx} style={{
+                              display: 'inline-block',
+                              padding: '2px 8px',
+                              borderRadius: '10px',
+                              fontSize: '11px',
+                              fontWeight: 500,
+                              color: '#57606A',
+                              backgroundColor: '#F0F3F6',
+                            }}>
+                              {getMetricDisplayName(code)}
+                            </span>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Strategic Asset Assessment — Standalone VRIN section */}
+      {vrinAssets.length > 0 && (() => {
+        // Group assets by verdict
+        const verdictConfig: Record<string, { label: string; badgeColor: string; badgeBg: string; dotColor: string; plainLanguage: string; description: string }> = {
+          confirmed_defensible: { label: 'Defensible Strength', badgeColor: '#1A7F37', badgeBg: '#DAFBE1', dotColor: '#1A7F37', plainLanguage: 'This is a real competitive advantage', description: 'This asset meets all four criteria \u2014 competitors struggle to copy it.' },
+          potential_advantage: { label: 'Potential Strength', badgeColor: '#9A6700', badgeBg: '#FFF8C5', dotColor: '#9A6700', plainLanguage: 'This could become an advantage', description: "This asset has some strengths but doesn't fully meet all criteria yet." },
+          competitive_parity: { label: 'Table Stakes', badgeColor: '#656D76', badgeBg: '#F6F8FA', dotColor: '#656D76', plainLanguage: "You're on par with competitors", description: "You need this to compete, but it doesn't differentiate you." },
+          commodity: { label: 'At Risk', badgeColor: '#CF222E', badgeBg: '#FFEBE9', dotColor: '#CF222E', plainLanguage: 'Competitors can easily match this', description: 'This may not provide meaningful differentiation.' },
+        };
+
+        const trajectoryConfig: Record<string, { arrow: string; label: string; color: string }> = {
+          appreciating: { arrow: '\u2191', label: 'Getting Stronger', color: '#1A7F37' },
+          stable: { arrow: '\u2192', label: 'Holding Steady', color: '#656D76' },
+          depreciating: { arrow: '\u2193', label: 'Weakening', color: '#CF222E' },
+        };
+
+        const vrinCriteriaLabels: Record<string, string> = {
+          valuable: 'Valuable',
+          rare: 'Rare',
+          inimitable: 'Hard to Copy',
+          non_substitutable: 'No Substitutes',
+        };
+
+        const groupOrder = ['confirmed_defensible', 'potential_advantage', 'competitive_parity', 'commodity'];
+        // Cross-metric insight card definitions
+        const insightCardDefs: Record<string, { title: string; coachingQuestion: string }> = {
+          part3_defensible_slow_sensing: { title: 'Strong Assets, Slow Detection', coachingQuestion: "How can we improve market sensing to protect what we've built?" },
+          part3_fast_nothing_distinctive: { title: 'Fast Moves, No Moat', coachingQuestion: 'Where should we invest to build defensible advantages?' },
+          part3_depreciating_low_radar: { title: 'Assets Weakening, Radar Off', coachingQuestion: 'What early warning systems can we put in place?' },
+          part4_strengths_low_resilience: { title: 'Strong But Fragile', coachingQuestion: 'How do we protect our strengths during disruption?' },
+          part4_resilient_nothing_distinctive: { title: 'Resilient But Generic', coachingQuestion: 'What unique position should we build toward?' },
+          part5_milking_strengths: { title: 'Harvesting Without Replanting', coachingQuestion: 'Where should we invest to build the next generation of advantages?' },
+          part5_critical_no_replacement: { title: 'Strengths Eroding, Nothing New', coachingQuestion: 'What immediate investments can we make to build new strengths?' },
+          perception_gap_overconfidence: { title: 'Readiness Overconfidence Detected', coachingQuestion: 'What evidence would you need to see to feel confident your teams are truly prepared for major change?' },
+          perception_gap_underconfidence: { title: 'Hidden Readiness Potential', coachingQuestion: 'How might you help teams recognize the capabilities they already have?' },
+        };
+
+        const activeInsights = Object.entries(crossMetricInsights).filter(([key]) => key in insightCardDefs);
+
+        return (
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid #E0E0E0',
+            overflow: 'hidden',
+            marginBottom: '24px',
+          }}>
+            {/* Section header */}
+            <div style={{ padding: '24px 32px 20px' }}>
+              <h3 style={{
+                fontSize: '18px',
+                fontWeight: 600,
+                color: '#1D1D1F',
+                margin: '0 0 4px 0',
+              }}>Strategic Asset Assessment</h3>
+              <p style={{
+                fontSize: '14px',
+                color: '#86868B',
+                margin: 0,
+              }}>Your competitive strengths &mdash; which assets give you an edge and which need attention</p>
+            </div>
+
+            {/* VRIN Asset Table */}
+            <div style={{ padding: '0 32px 24px', overflowX: 'auto' }}>
+              <table style={{
+                width: '100%',
+                borderCollapse: 'collapse',
+                fontSize: '13px',
+              }}>
+                <thead>
+                  <tr style={{ borderBottom: '2px solid #E0E0E0' }}>
+                    <th style={{ textAlign: 'left', padding: '10px 12px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px' }}>Asset</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '70px' }}>Valuable?</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '60px' }}>Rare?</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '90px' }}>Hard to Copy?</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '100px' }}>No Substitute?</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '140px' }}>Verdict</th>
+                    <th style={{ textAlign: 'center', padding: '10px 8px', fontWeight: 600, color: '#1D1D1F', fontSize: '13px', width: '100px' }}>Trend</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {[...vrinAssets].sort((a, b) => groupOrder.indexOf(a.verdict || 'commodity') - groupOrder.indexOf(b.verdict || 'commodity')).map((asset, idx) => {
+                    const vc = verdictConfig[asset.verdict || 'commodity'];
+                    const tc = asset.trajectory ? trajectoryConfig[asset.trajectory] : null;
+
+                    const renderTick = (val: boolean | string | undefined) => {
+                      const isYes = val === true || val === 'yes';
+                      const isPartial = val === 'partial';
+                      if (isYes) return <span style={{ color: '#1A7F37', fontSize: '16px', fontWeight: 700 }}>{'\u2713'}</span>;
+                      if (isPartial) return <span style={{ color: '#9A6700', fontSize: '14px', fontWeight: 600 }}>{'~'}</span>;
+                      return <span style={{ color: '#CF222E', fontSize: '16px', fontWeight: 700 }}>{'\u2717'}</span>;
+                    };
+
+                    return (
+                      <tr key={idx} style={{
+                        borderBottom: '1px solid #F0F0F0',
+                        background: idx % 2 === 0 ? '#FFFFFF' : '#FAFAFA',
+                      }}>
+                        <td style={{ padding: '12px', fontWeight: 500, color: '#1D1D1F', maxWidth: '220px' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '2px' }}>
+                            <span>{asset.asset_name}</span>
+                            {asset.reasoning && (
+                              <span style={{ fontSize: '11px', color: '#86868B', lineHeight: 1.3, fontWeight: 400 }}>
+                                {asset.reasoning.length > 80 ? asset.reasoning.slice(0, 80) + '...' : asset.reasoning}
+                              </span>
+                            )}
+                          </div>
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>{renderTick(asset.valuable)}</td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>{renderTick(asset.rare)}</td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>{renderTick(asset.inimitable)}</td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>{renderTick(asset.non_substitutable)}</td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>
+                          <span style={{
+                            display: 'inline-block',
+                            padding: '3px 10px',
+                            borderRadius: '12px',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            background: vc.badgeBg,
+                            color: vc.badgeColor,
+                            whiteSpace: 'nowrap',
+                          }}>{vc.label}</span>
+                        </td>
+                        <td style={{ textAlign: 'center', padding: '12px 8px' }}>
+                          {tc ? (
+                            <span style={{
+                              display: 'inline-flex',
+                              alignItems: 'center',
+                              gap: '3px',
+                              fontSize: '12px',
+                              fontWeight: 500,
+                              color: tc.color,
+                            }}>
+                              <span style={{ fontSize: '15px', fontWeight: 700 }}>{tc.arrow}</span>
+                              {tc.label}
+                            </span>
+                          ) : (
+                            <span style={{ color: '#86868B', fontSize: '12px' }}>&mdash;</span>
+                          )}
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+
+              {/* Table legend */}
+              <div style={{
+                display: 'flex',
+                flexWrap: 'wrap',
+                gap: '16px',
+                marginTop: '14px',
+                padding: '10px 0',
+                borderTop: '1px solid #F0F0F0',
+              }}>
+                <span style={{ fontSize: '12px', color: '#86868B', fontWeight: 500 }}>Key:</span>
+                <span style={{ fontSize: '12px', color: '#1A7F37', fontWeight: 600 }}>{'\u2713'} Yes</span>
+                <span style={{ fontSize: '12px', color: '#9A6700', fontWeight: 600 }}>~ Partial</span>
+                <span style={{ fontSize: '12px', color: '#CF222E', fontWeight: 600 }}>{'\u2717'} No</span>
+                <span style={{ fontSize: '12px', color: '#86868B' }}>|</span>
+                <span style={{ fontSize: '12px', color: '#1A7F37' }}>{'\u2191'} Appreciating</span>
+                <span style={{ fontSize: '12px', color: '#656D76' }}>{'\u2192'} Stable</span>
+                <span style={{ fontSize: '12px', color: '#CF222E' }}>{'\u2193'} Weakening</span>
+              </div>
+
+
+              {/* VRIN summary narrative */}
+              {vrinSummary && (
+                <p style={{
+                  fontSize: '13px',
+                  color: '#64748B',
+                  fontStyle: 'italic',
+                  lineHeight: 1.6,
+                  margin: '0 0 20px 0',
+                  padding: '0 4px',
+                }}>{vrinSummary}</p>
+              )}
+            </div>
+
+            {/* Strategic Connections — cross-metric insight cards */}
+            {activeInsights.length > 0 && (
+              <div style={{
+                borderTop: '1px solid #F0F0F0',
+                padding: '24px 32px',
+              }}>
+                <h4 style={{
+                  fontSize: '16px',
+                  fontWeight: 600,
+                  color: '#1D1D1F',
+                  margin: '0 0 4px 0',
+                }}>Strategic Connections</h4>
+                <p style={{
+                  fontSize: '13px',
+                  color: '#86868B',
+                  margin: '0 0 16px 0',
+                }}>How your competitive position connects to other organizational capabilities</p>
+
+                <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+                  {activeInsights.map(([key, description]) => {
+                    const def = insightCardDefs[key];
+                    if (!def) return null;
+                    return (
+                      <div key={key} style={{
+                        padding: '16px 20px',
+                        borderRadius: '10px',
+                        border: '1px solid #F0F0F0',
+                        background: '#FAFAFA',
+                      }}>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'flex-start',
+                          gap: '10px',
+                        }}>
+                          <span style={{
+                            width: '8px',
+                            height: '8px',
+                            borderRadius: '50%',
+                            background: '#9A6700',
+                            marginTop: '5px',
+                            flexShrink: 0,
+                          }} />
+                          <div style={{ flex: 1 }}>
+                            <div style={{
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'space-between',
+                              gap: '8px',
+                              marginBottom: '6px',
+                            }}>
+                              <span style={{
+                                fontSize: '14px',
+                                fontWeight: 600,
+                                color: '#1D1D1F',
+                              }}>{def.title}</span>
+                              <span style={{
+                                display: 'inline-block',
+                                padding: '2px 8px',
+                                borderRadius: '10px',
+                                fontSize: '10px',
+                                fontWeight: 600,
+                                textTransform: 'uppercase' as const,
+                                letterSpacing: '0.3px',
+                                background: '#FFF8C5',
+                                color: '#9A6700',
+                              }}>Signal</span>
+                            </div>
+                            <p style={{
+                              fontSize: '13px',
+                              color: '#57606A',
+                              lineHeight: 1.5,
+                              margin: '0 0 10px 0',
+                            }}>{description}</p>
+                            <div style={{
+                              padding: '10px 14px',
+                              borderRadius: '8px',
+                              background: '#F0F3F6',
+                              borderLeft: '3px solid #D0D7DE',
+                            }}>
+                              <span style={{
+                                display: 'block',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                textTransform: 'uppercase' as const,
+                                letterSpacing: '0.3px',
+                                color: '#656D76',
+                                marginBottom: '4px',
+                              }}>Question to consider</span>
+                              <p style={{
+                                fontSize: '13px',
+                                color: '#424A53',
+                                fontStyle: 'italic',
+                                margin: 0,
+                                lineHeight: 1.5,
+                              }}>{def.coachingQuestion}</p>
+                            </div>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
-            </>
-          );
-        })()}
+            )}
 
-        {/* How we reached this conclusion */}
-        <div style={{ ...dashStyles.reasoningToggleSection, marginTop: '16px' }}>
-          <button
-            onClick={() => setShowActionsReasoning(!showActionsReasoning)}
-            style={dashStyles.reasoningToggleBtn}
-          >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="#FCD34D" stroke="#F59E0B" strokeWidth="1.5">
-              <path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
-            </svg>
-            <span>How we reached this conclusion</span>
-            <svg
-              width="10"
-              height="10"
-              viewBox="0 0 24 24"
-              fill="none"
-              stroke="currentColor"
-              strokeWidth="2"
-              style={{
-                marginLeft: '4px',
-                opacity: 0.5,
-                transform: showActionsReasoning ? 'rotate(180deg)' : 'rotate(0deg)',
-                transition: 'transform 0.2s ease',
-              }}
-            >
-              <path d="M6 9l6 6 6-6" />
-            </svg>
-          </button>
-          {showActionsReasoning && (
-            <div style={dashStyles.reasoningContent}>
-              <p style={dashStyles.reasoningText}>
-                Key actions are prioritized using a weighted scoring model that considers: (1) potential business impact based on metric gaps,
-                (2) feasibility given current resource capacity, (3) interdependencies between metrics, and (4) time-to-value.
-                Critical actions address scores below 40% in high-impact areas. High-priority actions target the largest gaps between
-                current state and industry benchmarks.
+            {/* Footer explainer */}
+            <div style={{
+              padding: '16px 32px',
+              background: '#FAFAFA',
+              borderTop: '1px solid #F0F0F0',
+              display: 'flex',
+              alignItems: 'flex-start',
+              gap: '8px',
+            }}>
+              <span style={{ fontSize: '14px', marginTop: '1px', flexShrink: 0 }}>&#x2139;&#xFE0F;</span>
+              <p style={{
+                fontSize: '12px',
+                color: '#86868B',
+                margin: 0,
+                lineHeight: 1.5,
+              }}>
+                The VRIN framework identifies which assets give sustainable advantage. Cross-metric signals show how strategic position connects to capabilities.
               </p>
             </div>
-          )}
-        </div>
-      </div>
+          </div>
+        );
+      })()}
+
+      {/* Composite Scores: D1 (OODA Velocity) + D2 (Resilience Index) */}
+      {(() => {
+        const d1 = metricInsights.find(m => m.metric_code === 'D1');
+        const d2 = metricInsights.find(m => m.metric_code === 'D2');
+        if (!d1 && !d2) return null;
+
+        const getBand = (score: number, type: 'ooda' | 'resilience') => {
+          if (type === 'ooda') {
+            if (score >= 75) return { label: 'Fast', color: '#059669', bg: '#D1FAE5' };
+            if (score >= 50) return { label: 'Moderate', color: '#D97706', bg: '#FEF3C7' };
+            return { label: 'Slow', color: '#DC2626', bg: '#FEE2E2' };
+          }
+          if (score >= 75) return { label: 'High', color: '#059669', bg: '#D1FAE5' };
+          if (score >= 50) return { label: 'Moderate', color: '#D97706', bg: '#FEF3C7' };
+          return { label: 'Low', color: '#DC2626', bg: '#FEE2E2' };
+        };
+
+        const composites = [
+          d1 ? { metric: d1, type: 'ooda' as const, title: 'OODA Velocity', subtitle: 'How fast your organization moves from sensing change to taking action', sources: 'S1, S5, I4, M8' } : null,
+          d2 ? { metric: d2, type: 'resilience' as const, title: 'Resilience Index', subtitle: 'How well your organization absorbs shocks and adapts under pressure', sources: 'C3, P4, R3, M3' } : null,
+        ].filter(Boolean) as Array<{ metric: MetricInsight; type: 'ooda' | 'resilience'; title: string; subtitle: string; sources: string }>;
+
+        return (
+          <div style={{
+            marginBottom: '32px',
+            padding: '28px 32px',
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid #E5E5EA',
+          }}>
+            <h3 style={{
+              fontSize: '18px',
+              fontWeight: 700,
+              color: '#1D1D1F',
+              margin: '0 0 4px 0',
+            }}>Composite Scores</h3>
+            <p style={{
+              fontSize: '13px',
+              color: '#86868B',
+              margin: '0 0 24px 0',
+            }}>Derived indicators calculated from multiple core metrics</p>
+
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: composites.length > 1 ? '1fr 1fr' : '1fr',
+              gap: '20px',
+            }}>
+              {composites.map(({ metric, type, title, subtitle, sources }) => {
+                const band = getBand(metric.score, type);
+                return (
+                  <div key={metric.metric_code} style={{
+                    padding: '24px',
+                    background: '#F8FAFC',
+                    borderRadius: '12px',
+                    border: '1px solid #E2E8F0',
+                  }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '12px' }}>
+                      <div>
+                        <span style={{ fontSize: '11px', fontWeight: 600, color: '#64748B', textTransform: 'uppercase' as const, letterSpacing: '0.5px' }}>{metric.metric_code}</span>
+                        <h4 style={{ fontSize: '16px', fontWeight: 700, color: '#1D1D1F', margin: '2px 0 0 0' }}>{title}</h4>
+                      </div>
+                      <span style={{
+                        padding: '4px 12px',
+                        borderRadius: '20px',
+                        fontSize: '12px',
+                        fontWeight: 600,
+                        color: band.color,
+                        background: band.bg,
+                      }}>{band.label}</span>
+                    </div>
+                    <p style={{ fontSize: '13px', color: '#64748B', margin: '0 0 16px 0', lineHeight: 1.5 }}>{subtitle}</p>
+
+                    {/* Score bar */}
+                    <div style={{ marginBottom: '12px' }}>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '6px' }}>
+                        <span style={{ fontSize: '28px', fontWeight: 700, color: band.color }}>{Math.round(metric.score)}</span>
+                        <span style={{ fontSize: '12px', color: '#94A3B8', alignSelf: 'flex-end' }}>/100</span>
+                      </div>
+                      <div style={{ height: '8px', background: '#E2E8F0', borderRadius: '4px', overflow: 'hidden' }}>
+                        <div style={{ width: `${metric.score}%`, height: '100%', background: band.color, borderRadius: '4px', transition: 'width 0.5s ease' }} />
+                      </div>
+                    </div>
+
+                    {/* Source metrics */}
+                    <p style={{ fontSize: '11px', color: '#94A3B8', margin: 0 }}>
+                      Derived from: {sources}
+                    </p>
+
+                    {/* Narrative if available */}
+                    {metric.narrative && (
+                      <p style={{ fontSize: '13px', color: '#475569', margin: '12px 0 0 0', lineHeight: 1.6, borderTop: '1px solid #E2E8F0', paddingTop: '12px' }}>
+                        {metric.narrative}
+                      </p>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Cross-Level Analysis (Multi-Respondent only) */}
+      {(() => {
+        const levelComparison = refinedReport?.level_comparison;
+        if (!levelComparison || levelComparison.source_count < 3) return null;
+
+        const LEVEL_COLORS: Record<string, string> = {
+          senior: '#3B82F6',
+          middle: '#8B5CF6',
+          frontline: '#F59E0B',
+          unspecified: '#94A3B8',
+        };
+        const LEVEL_LABELS: Record<string, string> = {
+          senior: 'Senior Leadership',
+          middle: 'Middle Management',
+          frontline: 'Frontline Teams',
+          unspecified: 'Unspecified',
+        };
+
+        const gaps = levelComparison.implementation_gaps || [];
+        const metricsWithLevels = Object.entries(levelComparison.level_scores || {})
+          .filter(([code]) => code.startsWith('M'))
+          .sort(([a], [b]) => {
+            const numA = parseInt(a.replace('M', ''));
+            const numB = parseInt(b.replace('M', ''));
+            return numA - numB;
+          });
+
+        return (
+          <div style={{
+            marginBottom: '32px',
+            padding: '28px 32px',
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid #E5E5EA',
+          }}>
+            <h3 style={{ fontSize: '18px', fontWeight: 700, color: '#1D1D1F', margin: '0 0 4px 0' }}>
+              Cross-Level Analysis
+            </h3>
+            <p style={{ fontSize: '13px', color: '#86868B', margin: '0 0 8px 0' }}>
+              Comparing perceptions across {levelComparison.levels_present?.join(', ')} levels ({levelComparison.source_count} respondents)
+            </p>
+
+            {/* Implementation Gaps */}
+            {gaps.length > 0 && (
+              <div style={{
+                margin: '16px 0 24px 0',
+                padding: '16px 20px',
+                background: 'linear-gradient(90deg, #FEF3C7 0%, #FFFBEB 100%)',
+                borderRadius: '10px',
+                border: '1px solid #F59E0B',
+              }}>
+                <p style={{ margin: '0 0 8px 0', fontWeight: 600, fontSize: '14px', color: '#92400E' }}>
+                  {gaps.length} Implementation Gap{gaps.length !== 1 ? 's' : ''} Detected
+                </p>
+                {gaps.slice(0, 5).map((gap: any) => (
+                  <div key={gap.metric_code} style={{
+                    display: 'flex',
+                    justifyContent: 'space-between',
+                    alignItems: 'center',
+                    padding: '8px 0',
+                    borderBottom: '1px solid rgba(245, 158, 11, 0.2)',
+                  }}>
+                    <span style={{ fontSize: '13px', color: '#92400E' }}>
+                      <strong>{gap.metric_code}</strong> {gap.metric_name}
+                    </span>
+                    <span style={{
+                      fontSize: '12px',
+                      fontWeight: 600,
+                      color: gap.gap >= 25 ? '#DC2626' : '#D97706',
+                      padding: '2px 10px',
+                      borderRadius: '12px',
+                      background: gap.gap >= 25 ? '#FEE2E2' : '#FEF3C7',
+                    }}>
+                      {gap.gap.toFixed(0)}pt gap ({gap.direction === 'leadership_higher' ? 'leadership higher' : 'frontline higher'})
+                    </span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Per-metric level bars */}
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
+              {metricsWithLevels.slice(0, 14).map(([code, byLevel]: [string, any]) => {
+                const hasGap = gaps.some((g: any) => g.metric_code === code);
+                return (
+                  <div key={code} style={{
+                    padding: '14px 16px',
+                    background: hasGap ? '#FFFBEB' : '#F8FAFC',
+                    borderRadius: '8px',
+                    border: `1px solid ${hasGap ? '#F59E0B' : '#E2E8F0'}`,
+                  }}>
+                    <span style={{ fontSize: '12px', fontWeight: 700, color: '#1D1D1F' }}>{code}</span>
+                    <div style={{ marginTop: '8px' }}>
+                      {Object.entries(byLevel).map(([level, detail]: [string, any]) => (
+                        <div key={level} style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '4px' }}>
+                          <span style={{ fontSize: '10px', width: '60px', color: '#64748B', flexShrink: 0 }}>
+                            {LEVEL_LABELS[level]?.split(' ')[0] || level}
+                          </span>
+                          <div style={{ flex: 1, height: '6px', background: '#E2E8F0', borderRadius: '3px', overflow: 'hidden' }}>
+                            <div style={{ width: `${detail.score}%`, height: '100%', background: LEVEL_COLORS[level] || '#94A3B8', borderRadius: '3px' }} />
+                          </div>
+                          <span style={{ fontSize: '11px', fontWeight: 600, color: '#475569', width: '28px', textAlign: 'right' as const }}>
+                            {Math.round(detail.score)}
+                          </span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Narrative */}
+            {levelComparison.narrative && (
+              <p style={{ fontSize: '13px', color: '#64748B', margin: '20px 0 0 0', lineHeight: 1.6, fontStyle: 'italic' }}>
+                {levelComparison.narrative}
+              </p>
+            )}
+
+            {/* Legend */}
+            <div style={{ display: 'flex', gap: '16px', marginTop: '16px', flexWrap: 'wrap' as const }}>
+              {(levelComparison.levels_present || []).map((level: string) => (
+                <span key={level} style={{ display: 'flex', alignItems: 'center', gap: '6px', fontSize: '11px', color: '#64748B' }}>
+                  <span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '2px', background: LEVEL_COLORS[level] || '#94A3B8' }} />
+                  {LEVEL_LABELS[level] || level}
+                </span>
+              ))}
+            </div>
+          </div>
+        );
+      })()}
 
       {/* Metric Insights Section - McKinsey "Insight Headlines" Style */}
       <div style={dashStyles.metricInsightsSection}>
         <div style={dashStyles.metricInsightsHeader}>
           <h3 style={dashStyles.metricInsightsTitle}>Where You Stand</h3>
           <p style={dashStyles.metricInsightsSubtitle}>
-            14 dimensions analyzed • Benchmarked against 2,600+ organizations
+            14 dimensions analyzed • Research-grounded scoring framework
           </p>
         </div>
 
@@ -3366,8 +4409,8 @@ function RunSummaryView({
             Loading refined insights...
           </div>
         ) : [
-          { name: 'Technical Fitness', subtitle: 'How well you execute today', codes: ['M1', 'M4', 'M7', 'M10'] },
-          { name: 'Evolutionary Fitness', subtitle: 'How ready you are for tomorrow', codes: ['M2', 'M5', 'M8', 'M11'] },
+          { name: 'Operational Strength', subtitle: 'How well you execute today', codes: ['M1', 'M4', 'M7', 'M10'] },
+          { name: 'Future Readiness', subtitle: 'How ready you are for tomorrow', codes: ['M2', 'M5', 'M8', 'M11'] },
           { name: 'Cultural Health', subtitle: 'How your people enable change', codes: ['M3', 'M6', 'M9', 'M12'] },
           { name: 'Resource Capability', subtitle: 'Whether you have what you need', codes: ['M13', 'M14'] },
         ].map((category) => {
@@ -3377,7 +4420,7 @@ function RunSummaryView({
           // Calculate category average
           const categoryAvg = Math.round(categoryMetrics.reduce((sum, m) => sum + m.score, 0) / categoryMetrics.length);
           const categoryHealth = getHealthStatus(
-            categoryAvg >= 70 ? 'strong' : categoryAvg >= 50 ? 'developing' : categoryAvg >= 30 ? 'attention' : 'critical'
+            categoryAvg >= 70 ? 'excellent' : categoryAvg >= 50 ? 'good' : categoryAvg >= 40 ? 'at_risk' : 'critical'
           );
 
           return (
@@ -3466,6 +4509,334 @@ function RunSummaryView({
                       {isExpanded && (
                         <div style={dashStyles.metricInsightExpandedContent} onClick={(e) => e.stopPropagation()}>
 
+                          {/* Our Assessment + Benchmark Gauge */}
+                          {(() => {
+                            const bm = RESEARCH_BENCHMARKS[insight.metric_code];
+                            const aboveTarget = bm ? insight.score >= bm.target : false;
+                            const belowCritical = bm ? insight.score < bm.critical : false;
+                            const scoreColor = belowCritical ? '#CF222E' : aboveTarget ? '#1A7F37' : '#C65D07';
+                            const scorePos = Math.min(Math.max(insight.score, 3), 97);
+
+                            return (
+                              <div style={dashStyles.benchmarkSection}>
+                                {/* Our Assessment — LLM interpretation first */}
+                                {insight.executive_insight && (
+                                  <div style={{ marginBottom: bm ? 28 : 0 }}>
+                                    <p style={dashStyles.benchmarkLLMLabel}>Our Assessment</p>
+                                    <p style={dashStyles.benchmarkLLMInsight}>{insight.executive_insight}</p>
+                                  </div>
+                                )}
+
+                                {/* Premium bullet-graph gauge */}
+                                {bm && (
+                                  <div style={dashStyles.gaugeContainer}>
+                                    {/* Gauge bar with zones */}
+                                    <div style={dashStyles.gaugeTrack}>
+                                      {/* Zone: Critical — red */}
+                                      <div style={{
+                                        position: 'absolute' as const, left: 0, top: 0, bottom: 0,
+                                        width: `${bm.critical}%`,
+                                        borderRadius: '6px 0 0 6px',
+                                        background: 'rgba(220, 38, 38, 0.10)',
+                                      }} />
+                                      {/* Zone: Mean across businesses — gray */}
+                                      <div style={{
+                                        position: 'absolute' as const, top: 0, bottom: 0,
+                                        left: `${bm.critical}%`,
+                                        width: `${bm.target - bm.critical}%`,
+                                        background: 'rgba(15, 23, 42, 0.06)',
+                                      }} />
+                                      {/* Zone: Beyond the mean — green */}
+                                      <div style={{
+                                        position: 'absolute' as const, top: 0, bottom: 0,
+                                        left: `${bm.target}%`,
+                                        width: `${100 - bm.target}%`,
+                                        borderRadius: '0 6px 6px 0',
+                                        background: 'rgba(22, 163, 74, 0.08)',
+                                      }} />
+
+                                      {/* Critical threshold marker line */}
+                                      <div style={{
+                                        position: 'absolute' as const,
+                                        left: `${bm.critical}%`,
+                                        top: '-4px', bottom: '-4px',
+                                        width: '1.5px',
+                                        background: 'rgba(220, 38, 38, 0.35)',
+                                        transform: 'translateX(-0.75px)',
+                                        zIndex: 2,
+                                      }} />
+
+                                      {/* Benchmark marker line */}
+                                      <div style={{
+                                        position: 'absolute' as const,
+                                        left: `${bm.target}%`,
+                                        top: '-5px', bottom: '-5px',
+                                        width: '2px',
+                                        background: '#64748B',
+                                        transform: 'translateX(-1px)',
+                                        borderRadius: '1px',
+                                        zIndex: 2,
+                                      }} />
+
+                                      {/* "You" label ABOVE the bar */}
+                                      <span style={{
+                                        position: 'absolute' as const,
+                                        left: `${scorePos}%`,
+                                        top: '-18px',
+                                        transform: 'translateX(-50%)',
+                                        fontSize: '10px',
+                                        fontWeight: 600,
+                                        color: scoreColor,
+                                        opacity: 0.85,
+                                        lineHeight: 1,
+                                        zIndex: 3,
+                                      }}>
+                                        You
+                                      </span>
+
+                                      {/* Score dot */}
+                                      <div style={{
+                                        position: 'absolute' as const,
+                                        left: `${scorePos}%`,
+                                        top: '50%',
+                                        transform: 'translate(-50%, -50%)',
+                                        width: '16px', height: '16px',
+                                        borderRadius: '50%',
+                                        background: scoreColor,
+                                        border: '2.5px solid white',
+                                        boxShadow: `0 0 0 2px ${scoreColor}20, 0 1px 3px rgba(0,0,0,0.1)`,
+                                        zIndex: 3,
+                                      }} />
+                                    </div>
+
+                                    {/* Labels below bar: You score, Critical, Benchmark */}
+                                    <div style={{ position: 'relative' as const, height: '48px', marginTop: '8px' }}>
+                                      {/* "You" score number below bar */}
+                                      <div style={{
+                                        position: 'absolute' as const,
+                                        left: `${scorePos}%`,
+                                        transform: 'translateX(-50%)',
+                                        textAlign: 'center' as const,
+                                      }}>
+                                        <span style={{
+                                          fontSize: '12px',
+                                          fontWeight: 700,
+                                          color: scoreColor,
+                                          lineHeight: 1,
+                                        }}>
+                                          {insight.score}
+                                        </span>
+                                      </div>
+
+                                      {/* Critical threshold label */}
+                                      <div style={{
+                                        position: 'absolute' as const,
+                                        left: `${bm.critical}%`,
+                                        transform: 'translateX(-50%)',
+                                        display: 'flex',
+                                        flexDirection: 'column' as const,
+                                        alignItems: 'center',
+                                      }}>
+                                        <span style={{
+                                          fontSize: '11px',
+                                          fontWeight: 600,
+                                          color: 'rgba(220, 38, 38, 0.55)',
+                                          lineHeight: 1,
+                                        }}>
+                                          {bm.critical}
+                                        </span>
+                                        <span style={{
+                                          fontSize: '9px',
+                                          fontWeight: 500,
+                                          color: 'rgba(220, 38, 38, 0.4)',
+                                          marginTop: '3px',
+                                        }}>
+                                          Critical
+                                        </span>
+                                      </div>
+
+                                      {/* Benchmark threshold label */}
+                                      <div style={{
+                                        position: 'absolute' as const,
+                                        left: `${bm.target}%`,
+                                        transform: 'translateX(-50%)',
+                                        display: 'flex',
+                                        flexDirection: 'column' as const,
+                                        alignItems: 'center',
+                                      }}>
+                                        <span style={{
+                                          fontSize: '11px',
+                                          fontWeight: 600,
+                                          color: '#64748B',
+                                          lineHeight: 1,
+                                        }}>
+                                          {bm.target}
+                                        </span>
+                                        <span style={{
+                                          fontSize: '9px',
+                                          fontWeight: 500,
+                                          color: '#94A3B8',
+                                          marginTop: '3px',
+                                        }}>
+                                          Benchmark
+                                        </span>
+                                        <span style={{
+                                          fontSize: '8.5px',
+                                          fontWeight: 500,
+                                          color: '#64748B',
+                                          opacity: 0.65,
+                                          marginTop: '4px',
+                                          textAlign: 'center' as const,
+                                          lineHeight: 1.3,
+                                        }}>
+                                          [mean across<br />businesses]
+                                        </span>
+                                      </div>
+                                    </div>
+
+                                    {/* Legend */}
+                                    <div style={{
+                                      display: 'flex',
+                                      alignItems: 'center',
+                                      gap: '16px',
+                                      marginTop: '8px',
+                                    }}>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: 'rgba(220, 38, 38, 0.14)' }} />
+                                        <span style={{ fontSize: '10px', fontWeight: 500, color: '#94A3B8' }}>Critical</span>
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: 'rgba(15, 23, 42, 0.08)' }} />
+                                        <span style={{ fontSize: '10px', fontWeight: 500, color: '#94A3B8' }}>Mean across businesses</span>
+                                      </div>
+                                      <div style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                                        <div style={{ width: '10px', height: '10px', borderRadius: '2px', background: 'rgba(22, 163, 74, 0.12)' }} />
+                                        <span style={{ fontSize: '10px', fontWeight: 500, color: '#94A3B8' }}>Beyond the mean</span>
+                                      </div>
+                                    </div>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })()}
+
+                          {/* M9 Exploitation/Exploration Split Bar */}
+                          {insight.metric_code === 'M9' && insight.context_data?.exploitation_pct != null && insight.context_data?.exploration_pct != null && (
+                            <div style={{
+                              margin: '0 0 24px 0',
+                              padding: '16px 20px',
+                              background: '#F8FAFC',
+                              borderRadius: '10px',
+                              border: '1px solid #E2E8F0',
+                            }}>
+                              <span style={{
+                                display: 'block',
+                                fontSize: '11px',
+                                fontWeight: 600,
+                                textTransform: 'uppercase' as const,
+                                letterSpacing: '0.5px',
+                                color: '#64748B',
+                                marginBottom: '10px',
+                              }}>Current Allocation</span>
+                              <div style={{
+                                display: 'flex',
+                                height: '28px',
+                                borderRadius: '6px',
+                                overflow: 'hidden',
+                                marginBottom: '8px',
+                              }}>
+                                <div style={{
+                                  width: `${insight.context_data.exploitation_pct}%`,
+                                  background: '#3B82F6',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'white',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  minWidth: '40px',
+                                }}>
+                                  {insight.context_data.exploitation_pct}%
+                                </div>
+                                <div style={{
+                                  width: `${insight.context_data.exploration_pct}%`,
+                                  background: '#8B5CF6',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  justifyContent: 'center',
+                                  color: 'white',
+                                  fontSize: '12px',
+                                  fontWeight: 600,
+                                  minWidth: '40px',
+                                }}>
+                                  {insight.context_data.exploration_pct}%
+                                </div>
+                              </div>
+                              <div style={{
+                                display: 'flex',
+                                justifyContent: 'space-between',
+                                fontSize: '12px',
+                                color: '#475569',
+                              }}>
+                                <span><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '2px', background: '#3B82F6', marginRight: '6px' }} />Running today's business</span>
+                                <span><span style={{ display: 'inline-block', width: '8px', height: '8px', borderRadius: '2px', background: '#8B5CF6', marginRight: '6px' }} />Building for tomorrow</span>
+                              </div>
+                              {/* Explicit text line */}
+                              <p style={{
+                                fontSize: '13px',
+                                fontWeight: 600,
+                                color: '#1E293B',
+                                margin: '10px 0 0 0',
+                                textAlign: 'center',
+                              }}>
+                                {insight.context_data.exploitation_pct}% running the business | {insight.context_data.exploration_pct}% building the future
+                              </p>
+                              {/* Amber warning if sum != 100% */}
+                              {insight.context_data.sum_total != null && insight.context_data.sum_total !== 100 && (
+                                <div style={{
+                                  marginTop: '8px',
+                                  padding: '8px 12px',
+                                  background: 'rgba(217, 119, 6, 0.08)',
+                                  borderRadius: '6px',
+                                  border: '1px solid rgba(217, 119, 6, 0.2)',
+                                  display: 'flex',
+                                  alignItems: 'center',
+                                  gap: '6px',
+                                }}>
+                                  <span style={{ fontSize: '12px' }}>&#x26A0;&#xFE0F;</span>
+                                  <span style={{
+                                    fontSize: '11px',
+                                    color: '#92400E',
+                                  }}>
+                                    Reported allocation sums to {insight.context_data.sum_total}%, not 100%. This may indicate rounding or incomplete data.
+                                  </span>
+                                </div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* M13 VRIN — Brief reference to standalone section */}
+                          {insight.metric_code === 'M13' && insight.context_data?.vrin_assets && insight.context_data.vrin_assets.length > 0 && (
+                            <div style={{
+                              margin: '0 0 24px 0',
+                              padding: '14px 20px',
+                              background: '#F6F8FA',
+                              borderRadius: '10px',
+                              border: '1px solid #E2E8F0',
+                              display: 'flex',
+                              alignItems: 'center',
+                              gap: '8px',
+                            }}>
+                              <span style={{ fontSize: '14px' }}>&#x1F6E1;&#xFE0F;</span>
+                              <span style={{
+                                fontSize: '13px',
+                                color: '#57606A',
+                              }}>
+                                {insight.context_data.vrin_assets.length} strategic assets assessed &mdash; see <strong>Strategic Asset Assessment</strong> section above for full analysis.
+                              </span>
+                            </div>
+                          )}
+
                           {/* Two Column Layout */}
                           <div style={dashStyles.metricExpandedGrid}>
                             {/* Left Column - What We Found */}
@@ -3498,8 +4869,19 @@ function RunSummaryView({
                                 ))}
                               </div>
 
-                              {/* Benchmark - subtle inline */}
-                              {insight.benchmark_narrative && (
+                              {/* Research Benchmark Statement - pre-computed factual */}
+                              {insight.benchmark_statement && (
+                                <p style={{
+                                  ...dashStyles.metricExpandedBenchmark,
+                                  fontWeight: 500,
+                                  color: '#1A1A1A',
+                                  marginBottom: '4px',
+                                }}>
+                                  {insight.benchmark_statement}
+                                </p>
+                              )}
+                              {/* Benchmark narrative - contextual */}
+                              {insight.benchmark_narrative && !insight.benchmark_statement && (
                                 <p style={dashStyles.metricExpandedBenchmark}>
                                   {insight.benchmark_narrative}
                                 </p>
@@ -3609,12 +4991,23 @@ function RunSummaryView({
         })}
       </div>
 
-      {/* Tabbed Content */}
+      {/* In General — Strengths, Critical Issues, Data Sources */}
       <div style={dashStyles.tabbedSection}>
+        <div style={{
+          padding: '24px 32px 16px',
+          borderBottom: 'none',
+        }}>
+          <h3 style={{
+            fontSize: '18px',
+            fontWeight: 600,
+            color: '#1A1A1A',
+            margin: 0,
+          }}>In General</h3>
+        </div>
         <div style={dashStyles.tabsHeader}>
           {[
-            { id: 'issues', label: 'Critical Issues', count: refinedReport?.critical_issues?.length || DUMMY_CRITICAL_ISSUES.length },
             { id: 'strengths', label: 'Strengths', count: refinedReport?.strengths?.length || DUMMY_STRENGTHS.length },
+            { id: 'issues', label: 'Critical Issues', count: refinedReport?.critical_issues?.length || DUMMY_CRITICAL_ISSUES.length },
             { id: 'sources', label: 'Data Sources', count: run.sources?.length || 0 },
           ].map((tab) => (
             <button
@@ -3671,7 +5064,7 @@ function RunSummaryView({
                         {/* Metrics badge */}
                         <div style={dashStyles.premiumCardMeta}>
                           <span style={dashStyles.premiumMetricsBadge}>
-                            {issue.metrics.join(' · ')}
+                            {issue.metrics.map(m => getMetricDisplayName(m)).join(' · ')}
                           </span>
                           {issue.avg_score !== undefined && (
                             <span style={{ ...dashStyles.premiumScoreBadge, color: severityColor }}>
@@ -3738,7 +5131,7 @@ function RunSummaryView({
                         {/* Metrics badge */}
                         <div style={dashStyles.premiumCardMeta}>
                           <span style={dashStyles.premiumMetricsBadge}>
-                            {issue.metrics.join(' · ')}
+                            {issue.metrics.map(m => getMetricDisplayName(m)).join(' · ')}
                           </span>
                           <span style={{ ...dashStyles.premiumScoreBadge, color: severityColor }}>
                             {issue.avgScore}
@@ -3809,7 +5202,7 @@ function RunSummaryView({
                         {/* Metrics badge */}
                         <div style={dashStyles.premiumCardMeta}>
                           <span style={dashStyles.premiumMetricsBadge}>
-                            {strength.metrics.join(' · ')}
+                            {strength.metrics.map(m => getMetricDisplayName(m)).join(' · ')}
                           </span>
                           {strength.avg_score !== undefined && (
                             <span style={{ ...dashStyles.premiumScoreBadge, color: '#1A7F37' }}>
@@ -3869,7 +5262,7 @@ function RunSummaryView({
                         {/* Metrics badge */}
                         <div style={dashStyles.premiumCardMeta}>
                           <span style={dashStyles.premiumMetricsBadge}>
-                            {strength.metrics.join(' · ')}
+                            {strength.metrics.map(m => getMetricDisplayName(m)).join(' · ')}
                           </span>
                           <span style={{ ...dashStyles.premiumScoreBadge, color: '#1A7F37' }}>
                             {strength.avgScore}
@@ -3973,6 +5366,609 @@ function RunSummaryView({
           )}
         </div>
       </div>
+
+      {/* Recommendations & Roadmap — Gantt-style 90-day action plan */}
+      {(() => {
+        const actions = refinedReport?.key_actions?.length ? refinedReport.key_actions : DUMMY_KEY_ACTIONS;
+
+        // Parse timeline to number of days (duration from day 0)
+        const parseDays = (timeline: string): number => {
+          const t = (timeline || '').toLowerCase().replace(/\s+/g, '');
+          const num = parseInt(t.replace(/[^0-9]/g, ''), 10);
+          if (!isNaN(num) && num > 0) return Math.min(num, 120);
+          if (t.includes('immediate') || t.includes('week')) return 14;
+          return 90;
+        };
+
+        // Sort actions by priority weight then duration
+        const priorityWeight: Record<string, number> = { critical: 0, high: 1, medium: 2, low: 3 };
+        const sortedActions = [...actions].sort((a, b) => {
+          const pw = (priorityWeight[a.priority] ?? 2) - (priorityWeight[b.priority] ?? 2);
+          if (pw !== 0) return pw;
+          return parseDays(a.timeline) - parseDays(b.timeline);
+        });
+
+        const maxDays = 90;
+        const milestones = [0, 30, 60, 90];
+
+        // Convert hex to rgba for cross-browser gradient support
+        const hexToRgba = (hex: string, alpha: number) => {
+          const r = parseInt(hex.slice(1, 3), 16);
+          const g = parseInt(hex.slice(3, 5), 16);
+          const b = parseInt(hex.slice(5, 7), 16);
+          return `rgba(${r},${g},${b},${alpha})`;
+        };
+
+        const priorityColors: Record<string, { bar: string; barBg: string; text: string; badge: string; badgeBg: string }> = {
+          critical: { bar: '#DC2626', barBg: '#FEE2E2', text: '#DC2626', badge: '#DC2626', badgeBg: '#FEE2E2' },
+          high: { bar: '#D97706', barBg: '#FEF3C7', text: '#D97706', badge: '#D97706', badgeBg: '#FEF3C7' },
+          medium: { bar: '#2563EB', barBg: '#DBEAFE', text: '#2563EB', badge: '#2563EB', badgeBg: '#DBEAFE' },
+          low: { bar: '#059669', barBg: '#D1FAE5', text: '#059669', badge: '#059669', badgeBg: '#D1FAE5' },
+        };
+
+        return (
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '16px',
+            border: '1px solid #E0E0E0',
+            marginTop: '32px',
+            marginBottom: '24px',
+          }}>
+            {/* Section Header */}
+            <div style={{
+              padding: '28px 32px 22px',
+              borderBottom: '1px solid #F0F0F0',
+              display: 'flex',
+              alignItems: 'flex-start',
+              justifyContent: 'space-between',
+            }}>
+              <div>
+                <h3 style={{
+                  fontSize: '18px',
+                  fontWeight: 600,
+                  color: '#1A1A1A',
+                  margin: 0,
+                  marginBottom: '4px',
+                }}>Recommendations & Roadmap</h3>
+                <p style={{
+                  fontSize: '14px',
+                  color: '#86868B',
+                  margin: 0,
+                }}>
+                  Prioritised 90-day action plan — all actions begin immediately with different delivery horizons
+                </p>
+              </div>
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '12px',
+                flexShrink: 0,
+              }}>
+                {['critical', 'high', 'medium'].map(p => (
+                  <div key={p} style={{ display: 'flex', alignItems: 'center', gap: '5px' }}>
+                    <div style={{ width: '8px', height: '8px', borderRadius: '2px', backgroundColor: priorityColors[p].bar }} />
+                    <span style={{ fontSize: '11px', color: '#86868B', textTransform: 'capitalize' as const }}>{p}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+
+            {/* Gantt Chart */}
+            <div style={{ padding: '0' }}>
+              {/* Timeline Header Row */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: '320px 1fr',
+                borderBottom: '1px solid #F0F0F0',
+              }}>
+                <div style={{
+                  padding: '12px 24px',
+                  fontSize: '11px',
+                  fontWeight: 600,
+                  color: '#86868B',
+                  textTransform: 'uppercase' as const,
+                  letterSpacing: '0.8px',
+                  borderRight: '1px solid #F0F0F0',
+                }}>Action</div>
+                <div style={{ padding: '12px 40px 12px 0' }}>
+                  <div style={{ position: 'relative', height: '16px' }}>
+                    {milestones.map(day => {
+                      const posStyle: React.CSSProperties = day === 0
+                        ? { left: '0%', transform: 'none' }
+                        : day === maxDays
+                          ? { left: '100%', transform: 'translateX(-100%)' }
+                          : { left: `${(day / maxDays) * 100}%`, transform: 'translateX(-50%)' };
+                      return (
+                        <span
+                          key={day}
+                          style={{
+                            position: 'absolute',
+                            top: 0,
+                            ...posStyle,
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            color: '#86868B',
+                            letterSpacing: '0.5px',
+                            whiteSpace: 'nowrap',
+                          }}
+                        >
+                          {day === 0 ? 'Now' : `Day ${day}`}
+                        </span>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+
+              {/* Action Rows */}
+              {sortedActions.map((action, idx) => {
+                const days = parseDays(action.timeline);
+                const barWidth = Math.max((days / maxDays) * 100, 10); // min 10%, no cap — bars beyond 90 days extend past the gridline
+                const pStyle = priorityColors[action.priority] || priorityColors.medium;
+                const globalIdx = actions.indexOf(action);
+                const isLast = idx === sortedActions.length - 1;
+
+                return (
+                  <div
+                    key={`gantt-${idx}`}
+                    onClick={() => setExpandedActionIndex(globalIdx)}
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: '320px 1fr',
+                      borderBottom: isLast ? 'none' : '1px solid #F5F5F5',
+                      cursor: 'pointer',
+                      transition: 'background 0.12s ease',
+                    }}
+                    onMouseEnter={(e) => e.currentTarget.style.backgroundColor = '#FAFBFC'}
+                    onMouseLeave={(e) => e.currentTarget.style.backgroundColor = 'transparent'}
+                  >
+                    {/* Left: Action info */}
+                    <div style={{
+                      padding: '16px 24px',
+                      borderRight: '1px solid #F0F0F0',
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '6px',
+                    }}>
+                      <div style={{ display: 'flex', alignItems: 'flex-start', gap: '8px' }}>
+                        <div style={{
+                          width: '7px',
+                          height: '7px',
+                          borderRadius: '50%',
+                          backgroundColor: pStyle.bar,
+                          marginTop: '6px',
+                          flexShrink: 0,
+                        }} />
+                        <span style={{
+                          fontSize: '13px',
+                          fontWeight: 600,
+                          color: '#1A1A1A',
+                          lineHeight: 1.4,
+                        }}>{action.title}</span>
+                      </div>
+                      <div style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '6px',
+                        paddingLeft: '15px',
+                      }}>
+                        <span style={{
+                          padding: '1px 7px',
+                          borderRadius: '8px',
+                          fontSize: '10px',
+                          fontWeight: 600,
+                          textTransform: 'uppercase' as const,
+                          color: pStyle.badge,
+                          backgroundColor: pStyle.badgeBg,
+                          letterSpacing: '0.3px',
+                        }}>{action.priority}</span>
+                        {action.owner && (
+                          <span style={{
+                            fontSize: '11px',
+                            color: '#86868B',
+                          }}>{action.owner}</span>
+                        )}
+                        <span style={{
+                          marginLeft: 'auto',
+                          flexShrink: 0,
+                          fontSize: '11px',
+                          color: '#AAAAAA',
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '3px',
+                          transition: 'color 0.12s ease',
+                        }}>
+                          View details
+                          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                            <path d="M9 18l6-6-6-6" />
+                          </svg>
+                        </span>
+                      </div>
+                    </div>
+
+                    {/* Right: Gantt bar */}
+                    <div style={{
+                      padding: '16px 40px 16px 0',
+                      display: 'flex',
+                      alignItems: 'center',
+                      overflow: 'hidden',
+                    }}>
+                      <div style={{
+                        position: 'relative',
+                        flex: 1,
+                        height: '30px',
+                        overflow: 'visible',
+                      }}>
+                        {/* Vertical gridlines */}
+                        {milestones.map(day => (
+                          <div
+                            key={`grid-${day}`}
+                            style={{
+                              position: 'absolute',
+                              left: `${(day / maxDays) * 100}%`,
+                              top: '-16px',
+                              bottom: '-16px',
+                              width: '1px',
+                              backgroundColor: day === 0 ? '#E0E0E0' : '#F0F0F0',
+                              zIndex: 0,
+                            }}
+                          />
+                        ))}
+
+                        {/* The bar */}
+                        <div style={{
+                          position: 'absolute',
+                          left: '0%',
+                          top: 0,
+                          width: `${barWidth}%`,
+                          height: '30px',
+                          borderRadius: days > maxDays ? '6px 0 0 6px' : '6px',
+                          background: `linear-gradient(90deg, ${hexToRgba(pStyle.bar, 0.1)} 0%, ${hexToRgba(pStyle.bar, 0.22)} 100%)`,
+                          border: `1px solid ${hexToRgba(pStyle.bar, 0.25)}`,
+                          borderRight: days > maxDays ? 'none' : `1px solid ${hexToRgba(pStyle.bar, 0.25)}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          paddingLeft: '12px',
+                          paddingRight: '12px',
+                          minWidth: '70px',
+                          boxSizing: 'border-box',
+                          zIndex: 1,
+                        }}>
+                          <span style={{
+                            fontSize: '12px',
+                            fontWeight: 700,
+                            color: pStyle.bar,
+                            whiteSpace: 'nowrap',
+                          }}>
+                            {days} days {days > maxDays ? '+' : ''}
+                          </span>
+                          {action.impact === 'high' && barWidth > 30 && (
+                            <span style={{
+                              fontSize: '10px',
+                              fontWeight: 500,
+                              color: pStyle.bar,
+                              opacity: 0.55,
+                              whiteSpace: 'nowrap',
+                            }}>High impact</span>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Footer */}
+            <div style={{
+              padding: '14px 32px',
+              borderTop: '1px solid #F0F0F0',
+              backgroundColor: '#FAFAFA',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '8px',
+            }}>
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#86868B" strokeWidth="2">
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="16" x2="12" y2="12" />
+                <line x1="12" y1="8" x2="12.01" y2="8" />
+              </svg>
+              <span style={{
+                fontSize: '12px',
+                color: '#86868B',
+                lineHeight: '1.4',
+              }}>
+                All actions begin immediately. Bars show expected delivery horizon, not start date.
+                Click any action for full details, evidence, and related metrics.
+              </span>
+            </div>
+          </div>
+        );
+      })()}
+
+      {/* Action Details Side Drawer */}
+      <style>{`
+        @keyframes slideInFromRight {
+          from { transform: translateX(100%); opacity: 0; }
+          to { transform: translateX(0); opacity: 1; }
+        }
+        @keyframes fadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+      `}</style>
+      {expandedActionIndex !== null && (() => {
+        const actions = refinedReport?.key_actions?.length ? refinedReport.key_actions : DUMMY_KEY_ACTIONS;
+        const action = actions[expandedActionIndex];
+        const priorityConfig: Record<string, { bg: string; text: string; label: string }> = {
+          critical: { bg: '#FEE2E2', text: '#DC2626', label: 'Critical' },
+          high: { bg: '#FEF3C7', text: '#D97706', label: 'High' },
+          medium: { bg: '#DBEAFE', text: '#2563EB', label: 'Medium' },
+          low: { bg: '#D1FAE5', text: '#059669', label: 'Low' },
+        };
+        const pStyle = priorityConfig[action.priority] || priorityConfig.medium;
+
+        return (
+          <>
+            {/* Backdrop */}
+            <div
+              onClick={() => setExpandedActionIndex(null)}
+              style={{
+                position: 'fixed',
+                top: 0,
+                left: 0,
+                right: 0,
+                bottom: 0,
+                background: 'rgba(0, 0, 0, 0.4)',
+                zIndex: 1000,
+                animation: 'fadeIn 0.2s ease',
+              }}
+            />
+
+            {/* Drawer */}
+            <div
+              style={{
+                position: 'fixed',
+                top: 0,
+                right: 0,
+                width: '480px',
+                maxWidth: '90vw',
+                height: '100%',
+                background: '#FFFFFF',
+                boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.12)',
+                zIndex: 1001,
+                overflow: 'auto',
+                animation: 'slideInFromRight 0.25s ease',
+              }}
+            >
+              {/* Header */}
+              <div style={{
+                display: 'flex',
+                justifyContent: 'space-between',
+                alignItems: 'center',
+                padding: '20px 24px',
+                borderBottom: '1px solid #F0F0F0',
+              }}>
+                <span style={{
+                  background: pStyle.bg,
+                  color: pStyle.text,
+                  padding: '5px 12px',
+                  borderRadius: '6px',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  letterSpacing: '0.02em',
+                }}>
+                  {pStyle.label} Priority
+                </span>
+                <button
+                  onClick={() => setExpandedActionIndex(null)}
+                  style={{
+                    background: 'none',
+                    border: 'none',
+                    cursor: 'pointer',
+                    padding: '8px',
+                    color: '#999',
+                    borderRadius: '6px',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.backgroundColor = '#F5F5F5';
+                    e.currentTarget.style.color = '#666';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.backgroundColor = 'transparent';
+                    e.currentTarget.style.color = '#999';
+                  }}
+                >
+                  <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                    <path d="M18 6L6 18M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+
+              {/* Content */}
+              <div style={{ padding: '24px', paddingBottom: '100px' }}>
+                {/* Title */}
+                <h3 style={{
+                  fontSize: '18px',
+                  fontWeight: 600,
+                  color: '#1A1A1A',
+                  margin: '0 0 20px 0',
+                  lineHeight: 1.5,
+                  letterSpacing: '-0.01em',
+                }}>
+                  {action.title}
+                </h3>
+
+                {/* Description */}
+                {action.description && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <h4 style={{
+                      fontSize: '11px',
+                      fontWeight: 600,
+                      color: '#888',
+                      textTransform: 'uppercase',
+                      letterSpacing: '0.05em',
+                      margin: '0 0 10px 0',
+                    }}>Strategic Rationale</h4>
+                    <p style={{
+                      fontSize: '14px',
+                      color: '#444',
+                      lineHeight: 1.7,
+                      margin: 0,
+                    }}>{action.description}</p>
+                  </div>
+                )}
+
+                {/* Details Grid */}
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: '1fr 1fr',
+                  gap: '16px',
+                  padding: '20px',
+                  background: '#FAFAFA',
+                  borderRadius: '10px',
+                  marginBottom: '24px',
+                }}>
+                  {action.owner && (
+                    <div>
+                      <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px 0' }}>Owner</h4>
+                      <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500 }}>{action.owner}</p>
+                    </div>
+                  )}
+                  {action.timeline && (
+                    <div>
+                      <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px 0' }}>Timeline</h4>
+                      <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500 }}>{action.timeline}</p>
+                    </div>
+                  )}
+                  <div>
+                    <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px 0' }}>Impact</h4>
+                    <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500, textTransform: 'capitalize' }}>{action.impact}</p>
+                  </div>
+                  <div>
+                    <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 6px 0' }}>Effort</h4>
+                    <p style={{ fontSize: '14px', color: '#1A1A1A', margin: 0, fontWeight: 500, textTransform: 'capitalize' }}>{action.effort}</p>
+                  </div>
+                </div>
+
+                {/* Evidence */}
+                {action.evidence?.length > 0 && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 10px 0' }}>Supporting Evidence</h4>
+                    {action.evidence.map((ev, evIdx) => (
+                      <div key={evIdx} style={{
+                        padding: '12px 16px',
+                        borderLeft: `3px solid ${pStyle.text}30`,
+                        backgroundColor: '#FAFAFA',
+                        borderRadius: '0 8px 8px 0',
+                        marginBottom: evIdx < action.evidence.length - 1 ? '8px' : '0',
+                      }}>
+                        <p style={{ fontSize: '13px', color: '#4A4A4A', fontStyle: 'italic', lineHeight: 1.5, margin: '0 0 4px 0' }}>"{ev.quote}"</p>
+                        <span style={{ fontSize: '11px', color: '#86868B' }}>— {ev.role}</span>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Related Issues */}
+                {action.related_issues?.length > 0 && (
+                  <div style={{ marginBottom: '24px' }}>
+                    <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 10px 0' }}>Addresses</h4>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {action.related_issues.map((issue, iIdx) => (
+                        <span key={iIdx} style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 500,
+                          color: '#CF222E',
+                          backgroundColor: '#FFF0F0',
+                        }}>{issue}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+
+                {/* Related Metrics */}
+                {action.metrics?.length > 0 && (
+                  <div>
+                    <h4 style={{ fontSize: '11px', fontWeight: 600, color: '#888', textTransform: 'uppercase', letterSpacing: '0.05em', margin: '0 0 10px 0' }}>Related Metrics</h4>
+                    <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
+                      {action.metrics.map((m, mIdx) => (
+                        <span key={mIdx} style={{
+                          padding: '4px 10px',
+                          borderRadius: '6px',
+                          fontSize: '12px',
+                          fontWeight: 600,
+                          color: '#0969DA',
+                          backgroundColor: '#F0F7FF',
+                        }}>{getMetricDisplayName(m)}</span>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              {/* Footer Actions */}
+              <div style={{
+                position: 'absolute',
+                bottom: 0,
+                left: 0,
+                right: 0,
+                padding: '20px 24px',
+                borderTop: '1px solid #F0F0F0',
+                background: '#FFFFFF',
+                display: 'flex',
+                gap: '12px',
+              }}>
+                <button
+                  style={{
+                    flex: 1,
+                    padding: '12px 20px',
+                    background: '#1A1A1A',
+                    color: '#FFFFFF',
+                    border: 'none',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = '#333'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = '#1A1A1A'}
+                >
+                  Mark as Started
+                </button>
+                <button
+                  style={{
+                    padding: '12px 20px',
+                    background: '#FFFFFF',
+                    color: '#666',
+                    border: '1px solid #E0E0E0',
+                    borderRadius: '8px',
+                    fontSize: '14px',
+                    fontWeight: 500,
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                  }}
+                  onMouseEnter={(e) => {
+                    e.currentTarget.style.background = '#F5F5F5';
+                    e.currentTarget.style.borderColor = '#CCC';
+                  }}
+                  onMouseLeave={(e) => {
+                    e.currentTarget.style.background = '#FFFFFF';
+                    e.currentTarget.style.borderColor = '#E0E0E0';
+                  }}
+                >
+                  Dismiss
+                </button>
+              </div>
+            </div>
+          </>
+        );
+      })()}
     </div>
   );
 }
@@ -4271,7 +6267,7 @@ function InterviewDetailView({
                     }}
                     title={`${metricDef?.clientName || metric.metric_code}: ${Math.round(score)}`}
                   >
-                    <span style={dashboardStyles.metricBlockCode}>{metric.metric_code}</span>
+                    <span style={dashboardStyles.metricBlockCode}>{(metricDef?.clientName || metric.metric_code).split(' ').map(w => w[0]).join('')}</span>
                   </div>
                 );
               })}
@@ -4312,7 +6308,6 @@ function InterviewDetailView({
                 return (
                   <div key={idx} style={dashboardStyles.performerBar}>
                     <div style={dashboardStyles.performerInfo}>
-                      <span style={dashboardStyles.performerCode}>{metric.metric_code}</span>
                       <span style={dashboardStyles.performerName}>{metricDef?.clientName || metric.metric_name}</span>
                     </div>
                     <div style={dashboardStyles.performerBarContainer}>
@@ -4344,7 +6339,6 @@ function InterviewDetailView({
                 return (
                   <div key={idx} style={dashboardStyles.performerBar}>
                     <div style={dashboardStyles.performerInfo}>
-                      <span style={dashboardStyles.performerCode}>{metric.metric_code}</span>
                       <span style={dashboardStyles.performerName}>{metricDef?.clientName || metric.metric_name}</span>
                     </div>
                     <div style={dashboardStyles.performerBarContainer}>
@@ -4985,20 +6979,22 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
   },
   quadrantGrid: {
     display: 'flex',
-    flexDirection: 'column' as const,
+    flexDirection: 'row' as const,
     alignItems: 'center',
+    gap: '8px',
   },
   yAxisLabel: {
     writingMode: 'vertical-lr' as const,
     transform: 'rotate(180deg)',
-    position: 'absolute' as const,
-    left: '-28px',
-    top: '50%',
-    marginTop: '-50px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    flexShrink: 0,
+    marginRight: '4px',
   },
   axisText: {
     fontSize: '10px',
-    fontWeight: 500,
+    fontWeight: 600,
     color: '#86868B',
     textTransform: 'uppercase' as const,
     letterSpacing: '0.5px',
@@ -5010,9 +7006,8 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
     width: '220px',
     height: '220px',
     position: 'relative' as const,
-    borderRadius: '12px',
+    borderRadius: '0 12px 12px 0',
     overflow: 'hidden',
-    boxShadow: 'inset 0 0 0 1px rgba(0, 0, 0, 0.06)',
   },
   quadrantBox: {
     display: 'flex',
@@ -5021,10 +7016,10 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
     padding: '12px',
     transition: 'opacity 0.2s',
   },
-  quadrantTL: { backgroundColor: 'rgba(255, 204, 0, 0.12)' },
-  quadrantTR: { backgroundColor: 'rgba(52, 199, 89, 0.12)' },
-  quadrantBL: { backgroundColor: 'rgba(255, 59, 48, 0.08)' },
-  quadrantBR: { backgroundColor: 'rgba(0, 122, 255, 0.10)' },
+  quadrantTL: { backgroundColor: 'rgba(214, 234, 248, 0.5)' },  // Scattered Experimenter - blue
+  quadrantTR: { backgroundColor: 'rgba(212, 237, 218, 0.5)' },  // Adaptive Leader - green
+  quadrantBL: { backgroundColor: 'rgba(248, 215, 218, 0.5)' },  // At-Risk - red
+  quadrantBR: { backgroundColor: 'rgba(252, 228, 214, 0.5)' },  // Solid Performer - orange
   quadrantLabel: {
     fontSize: '9px',
     fontWeight: 600,
@@ -5045,6 +7040,10 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
   },
   xAxisLabel: {
     marginTop: '12px',
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    gap: '2px',
   },
   quadrantResult: {
     textAlign: 'center' as const,
@@ -6029,6 +8028,86 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
     borderTop: '1px solid #EEEEEE',
   },
 
+  // Research Benchmark Section (expanded metric)
+  benchmarkSection: {
+    marginBottom: '28px',
+    paddingBottom: '24px',
+    borderBottom: '1px solid #EEEEEE',
+  },
+  benchmarkLLMLabel: {
+    fontSize: '10px',
+    fontWeight: 600,
+    color: '#86868B',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.06em',
+    margin: '0 0 8px 0',
+  },
+  benchmarkLLMInsight: {
+    fontSize: '14px',
+    lineHeight: 1.7,
+    color: '#1D1D1F',
+    fontWeight: 450,
+    letterSpacing: '-0.01em',
+    margin: 0,
+  },
+
+  // Premium bullet-graph gauge
+  gaugeContainer: {
+    position: 'relative' as const,
+    padding: '20px 0 0',
+  },
+  gaugeTrack: {
+    position: 'relative' as const,
+    height: '10px',
+    borderRadius: '6px',
+    background: '#F1F5F9',
+    overflow: 'visible',
+  },
+  gaugeLabelsRow: {
+    position: 'relative' as const,
+    marginTop: '6px',
+    height: '30px',
+  },
+  gaugeLabel: {
+    position: 'absolute' as const,
+    top: 0,
+    transform: 'translateX(-50%)',
+    fontSize: '11px',
+    fontWeight: 500,
+    letterSpacing: '0.01em',
+    whiteSpace: 'nowrap' as const,
+  },
+
+  // Legacy — kept for compatibility
+  executiveInsightSection: {
+    marginBottom: '24px',
+    paddingBottom: '20px',
+    borderBottom: '1px solid #E8E8E8',
+  },
+  executiveInsightBar: {
+    marginBottom: '12px',
+  },
+  executiveInsightBarTrack: {
+    position: 'relative' as const,
+    height: '6px',
+    backgroundColor: '#F0F0F0',
+    borderRadius: '4px',
+    overflow: 'visible',
+  },
+  executiveInsightBarLabels: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    marginTop: '6px',
+  },
+  executiveInsightText: {
+    fontSize: '14px',
+    lineHeight: '1.6',
+    color: '#1D1D1F',
+    fontWeight: 450,
+    letterSpacing: '-0.01em',
+    margin: 0,
+  },
+
   // Two column grid
   metricExpandedGrid: {
     display: 'grid',
@@ -6259,6 +8338,160 @@ const dashboardStyles: Record<string, React.CSSProperties> = {
     display: 'flex',
     alignItems: 'center',
     gap: '5px',
+  },
+
+  // Business Impact Translation — P1.1
+  businessImpactSection: {
+    backgroundColor: '#FFFFFF',
+    borderRadius: '16px',
+    border: '1px solid #E5E5E5',
+    padding: '32px',
+    marginBottom: '32px',
+  },
+  businessImpactHeader: {
+    display: 'flex',
+    justifyContent: 'space-between',
+    alignItems: 'flex-start',
+    marginBottom: '28px',
+    flexWrap: 'wrap' as const,
+    gap: '16px',
+  },
+  businessImpactTitle: {
+    fontSize: '20px',
+    fontWeight: 650,
+    color: '#1D1D1F',
+    letterSpacing: '-0.02em',
+    margin: 0,
+  },
+  businessImpactSubtitle: {
+    fontSize: '14px',
+    color: '#86868B',
+    fontWeight: 400,
+    marginTop: '4px',
+    margin: '4px 0 0 0',
+  },
+  businessImpactSizeToggle: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '10px',
+  },
+  businessImpactSizeButtons: {
+    display: 'flex',
+    gap: '0px',
+    borderRadius: '8px',
+    border: '1px solid #E5E5E5',
+    overflow: 'hidden' as const,
+  },
+  businessImpactSizeBtn: {
+    padding: '6px 14px',
+    fontSize: '12px',
+    fontWeight: 500,
+    color: '#666666',
+    backgroundColor: '#FAFAFA',
+    border: 'none',
+    cursor: 'pointer',
+    transition: 'all 0.15s ease',
+    borderRight: '1px solid #E5E5E5',
+  },
+  businessImpactSizeBtnActive: {
+    backgroundColor: '#1D1D1F',
+    color: '#FFFFFF',
+    fontWeight: 600,
+  },
+  businessImpactBody: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '48px',
+    marginBottom: '24px',
+    flexWrap: 'wrap' as const,
+  },
+  businessImpactHero: {
+    textAlign: 'center' as const,
+    minWidth: '180px',
+  },
+  businessImpactAmount: {
+    fontSize: '48px',
+    fontWeight: 700,
+    color: '#1D1D1F',
+    letterSpacing: '-0.03em',
+    lineHeight: 1,
+    marginBottom: '6px',
+  },
+  businessImpactAmountLabel: {
+    fontSize: '13px',
+    color: '#86868B',
+    fontWeight: 500,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+  },
+  businessImpactBreakdown: {
+    flex: 1,
+    minWidth: '300px',
+  },
+  businessImpactCalcRow: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: '16px',
+    marginBottom: '20px',
+  },
+  businessImpactCalcItem: {
+    textAlign: 'center' as const,
+  },
+  businessImpactCalcValue: {
+    fontSize: '22px',
+    fontWeight: 650,
+    color: '#1D1D1F',
+    letterSpacing: '-0.02em',
+  },
+  businessImpactCalcLabel: {
+    fontSize: '11px',
+    color: '#86868B',
+    fontWeight: 500,
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.04em',
+    marginTop: '4px',
+  },
+  businessImpactCalcOperator: {
+    fontSize: '20px',
+    fontWeight: 300,
+    color: '#CCCCCC',
+  },
+  businessImpactRiskBand: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '10px',
+    padding: '12px 16px',
+    backgroundColor: '#FAFAFA',
+    borderRadius: '8px',
+    border: '1px solid #EEEEEE',
+  },
+  businessImpactRiskBandDot: {
+    width: '10px',
+    height: '10px',
+    borderRadius: '50%',
+    marginTop: '4px',
+    flexShrink: 0,
+  },
+  businessImpactRiskLabel: {
+    fontSize: '14px',
+    fontWeight: 550,
+    color: '#1D1D1F',
+    lineHeight: 1.4,
+  },
+  businessImpactRiskSource: {
+    fontSize: '12px',
+    color: '#86868B',
+    marginTop: '2px',
+  },
+  businessImpactFooter: {
+    display: 'flex',
+    alignItems: 'flex-start',
+    gap: '8px',
+    paddingTop: '16px',
+    borderTop: '1px solid #EEEEEE',
+    fontSize: '12px',
+    color: '#86868B',
+    lineHeight: 1.5,
   },
 
   // Deprecated - keeping for compatibility
@@ -6864,7 +9097,6 @@ function InterviewMetricsTab({
                 >
                   <path d="M4.427 5.427l3.396 3.396a.25.25 0 00.354 0l3.396-3.396A.25.25 0 0011.396 5H4.604a.25.25 0 00-.177.427z" />
                 </svg>
-                <span style={styles.expandableMetricCode}>{metric.metric_code}</span>
                 <span style={styles.expandableMetricName}>{displayName}</span>
               </div>
               <div style={styles.expandableMetricRight}>
@@ -6903,7 +9135,7 @@ function InterviewMetricsTab({
                         <span style={styles.contributionsTableHeaderCellRight}>Weight</span>
                         <span style={styles.contributionsTableHeaderCellRight}>Contribution</span>
                       </div>
-                      {contributions.map((qc) => {
+                      {contributions.map((qc, qcIndex) => {
                         const questionDetail = questionMap.get(qc.question_id) || questionMap.get(qc.question_code);
                         const isQuestionExpanded = expandedQuestion === qc.question_id;
                         const qScoreColor = getScoreColor(qc.score || 0);
@@ -6928,7 +9160,7 @@ function InterviewMetricsTab({
                                 >
                                   <path d="M9 18l6-6-6-6" />
                                 </svg>
-                                {qc.question_code}
+                                Question {qcIndex + 1}
                               </span>
                               <span style={{ ...styles.contributionsTableCellRight, color: qScoreColor }}>
                                 {Math.round(qc.score || 0)}
@@ -7042,7 +9274,7 @@ function InterviewMetricsTab({
                                             {/* Check header */}
                                             <div style={premiumStyles.checkHeader}>
                                               <div style={premiumStyles.checkCodes}>
-                                                <span style={premiumStyles.checkCodePrimary}>{questionDetail.question_code}</span>
+                                                <span style={premiumStyles.checkCodePrimary}>{questionDetail.question_text ? questionDetail.question_text.substring(0, 25) + '...' : `Question ${questionDetail.question_code}`}</span>
                                                 <svg width="12" height="12" viewBox="0 0 12 12" fill="#8C959F">
                                                   <path d="M4 2.5L7.5 6 4 9.5" stroke="#8C959F" strokeWidth="1.5" fill="none"/>
                                                 </svg>
@@ -7067,13 +9299,13 @@ function InterviewMetricsTab({
                                             {(cr.primary_score !== null || cr.linked_score !== null) && (
                                               <div style={premiumStyles.checkScores}>
                                                 <span style={premiumStyles.checkScoreChip}>
-                                                  {cr.primary_question_code}
+                                                  Primary
                                                   <strong style={{ marginLeft: '4px', color: getScoreColor(cr.primary_score || 0) }}>
                                                     {cr.primary_score?.toFixed(0) ?? '—'}
                                                   </strong>
                                                 </span>
                                                 <span style={premiumStyles.checkScoreChip}>
-                                                  {cr.linked_question_code}
+                                                  Linked
                                                   <strong style={{ marginLeft: '4px', color: getScoreColor(cr.linked_score || 0) }}>
                                                     {cr.linked_score?.toFixed(0) ?? '—'}
                                                   </strong>
@@ -7108,7 +9340,7 @@ function InterviewMetricsTab({
                                       {questionDetail.interdependencies.map((dep, idx) => (
                                         <div key={idx} style={premiumStyles.checkCard}>
                                           <div style={premiumStyles.checkHeader}>
-                                            <span style={premiumStyles.checkCodeLinked}>{dep.linked_question_code}</span>
+                                            <span style={premiumStyles.checkCodeLinked}>Linked dependency</span>
                                             {dep.type && <span style={premiumStyles.checkType}>{dep.type}</span>}
                                           </div>
                                           <p style={premiumStyles.checkDescription}>{dep.description}</p>
@@ -7207,8 +9439,7 @@ function _MetricsTab({ metrics }: { metrics: MetricScoreDetail[] }) {
               style={styles.metricHeader}
             >
               <div style={styles.metricInfo}>
-                <span style={styles.metricCode}>{metric.metric_code}</span>
-                <span style={styles.metricName}>{metric.metric_name || metric.metric_id}</span>
+                <span style={styles.metricName}>{getMetricDisplayName(metric.metric_code, metric.metric_name)}</span>
               </div>
               <div style={styles.metricScoreContainer}>
                 <div style={{ ...styles.metricScoreCircle, borderColor: scoreColor }}>
@@ -7241,7 +9472,7 @@ function _MetricsTab({ metrics }: { metrics: MetricScoreDetail[] }) {
                     <div style={styles.contributionsList}>
                       {metric.question_contributions.map((qc, i) => (
                         <div key={i} style={styles.contributionItem}>
-                          <span style={styles.contributionCode}>{qc.question_code}</span>
+                          <span style={styles.contributionCode}>Question {i + 1}</span>
                           <div style={styles.contributionBar}>
                             <div style={{ ...styles.contributionBarFill, width: `${qc.score || 0}%` }} />
                           </div>
@@ -7336,7 +9567,6 @@ function QuestionsTab({
               </div>
               {/* Question Info Column */}
               <div style={questionsTabStyles.questionLeft}>
-                <span style={questionsTabStyles.questionCode}>{q.question_code}</span>
                 <span style={questionsTabStyles.questionPreview}>{truncatedText}</span>
               </div>
               <div style={questionsTabStyles.questionRight}>
@@ -7454,11 +9684,11 @@ function QuestionsTab({
                             {/* Header: Codes + Status */}
                             <div style={premiumStyles.checkHeader}>
                               <div style={premiumStyles.checkCodes}>
-                                <span style={premiumStyles.checkCodePrimary}>{q.question_code}</span>
+                                <span style={premiumStyles.checkCodePrimary}>{q.question_text ? q.question_text.substring(0, 25) + '...' : `Question ${q.question_code}`}</span>
                                 {linkedCode && (
                                   <>
                                     <span style={{ color: '#8C959F' }}>↔</span>
-                                    <span style={premiumStyles.checkCodeLinked}>{linkedCode}</span>
+                                    <span style={premiumStyles.checkCodeLinked}>Linked check</span>
                                   </>
                                 )}
                               </div>
@@ -7512,7 +9742,7 @@ function QuestionsTab({
                       {q.interdependencies.map((dep, idx) => (
                         <div key={idx} style={premiumStyles.checkCard}>
                           <div style={premiumStyles.checkHeader}>
-                            <span style={premiumStyles.checkCodeLinked}>{dep.linked_question_code}</span>
+                            <span style={premiumStyles.checkCodeLinked}>Linked dependency</span>
                             {dep.type && <span style={premiumStyles.checkType}>{dep.type}</span>}
                           </div>
                           <p style={premiumStyles.checkDescription}>{dep.description}</p>
@@ -7728,7 +9958,7 @@ function FlagsTab({
                     <div style={flagsTabStyles.relatedRow}>
                       <span style={flagsTabStyles.relatedLabel}>Related:</span>
                       {flag.question_ids.map((qid, idx) => (
-                        <span key={idx} style={flagsTabStyles.relatedCode}>{qid}</span>
+                        <span key={idx} style={flagsTabStyles.relatedCode}>Related evidence {idx + 1}</span>
                       ))}
                     </div>
                   )}
