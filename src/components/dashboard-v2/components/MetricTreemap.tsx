@@ -160,6 +160,7 @@ export function MetricTreemap({ metricInsights, sortedMetrics, onBack }: MetricT
                 top: `${gr.y}%`,
                 width: `${gr.w}%`,
                 height: `${gr.h}%`,
+                borderColor: colors.base,
               }}
             >
               <div
@@ -182,9 +183,8 @@ export function MetricTreemap({ metricInsights, sortedMetrics, onBack }: MetricT
                 style={!hideLabel ? { top: labelH + 1 } : undefined}
               >
                 {gr.childRects.map(rect => {
-                  const sentimentColor = rect.item.sentiment === 'positive'
-                    ? 'rgba(34,197,94,0.45)'
-                    : 'rgba(239,68,68,0.45)';
+                  const isPositive = rect.item.sentiment === 'positive';
+                  const sentimentBg = isPositive ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)';
                   const sev = severityLabel(rect.item.severity);
 
                   // Effective area combines child size with parent group size.
@@ -205,13 +205,11 @@ export function MetricTreemap({ metricInsights, sortedMetrics, onBack }: MetricT
                       key={rect.item.id}
                       className="tm-obs"
                       style={{
-                        left: `${rect.x}%`,
-                        top: `${rect.y}%`,
-                        width: `${rect.w}%`,
-                        height: `${rect.h}%`,
-                        borderLeftColor: sentimentColor,
-                        borderLeftWidth: ea >= 60 ? 4 : 2,
-                        background: colors.bg06,
+                        left: `calc(${rect.x}% + 1px)`,
+                        top: `calc(${rect.y}% + 1px)`,
+                        width: `calc(${rect.w}% - 2px)`,
+                        height: `calc(${rect.h}% - 2px)`,
+                        background: sentimentBg,
                         padding: obsPad,
                       }}
                       onClick={() => handleBlockClick(rect.item.metricCode, rect.item.id)}

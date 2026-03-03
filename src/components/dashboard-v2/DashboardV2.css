@@ -2017,7 +2017,7 @@
   position: absolute;
   border-radius: var(--rad);
   background: var(--bg-2);
-  border: 1px solid var(--border);
+  border: 2px solid var(--border); /* color set inline per metric */
   overflow: hidden;
 }
 .tm-group-label {
@@ -2082,7 +2082,7 @@
   box-sizing: border-box;
   padding: 2px 3px;
   border: none;
-  border-left: 2px solid transparent;
+  border-radius: 2px;
   cursor: pointer;
   overflow: hidden;
   text-align: left;
