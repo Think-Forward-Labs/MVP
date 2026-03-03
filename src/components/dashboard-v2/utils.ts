@@ -49,6 +49,24 @@ export function getAggregatedMetrics(metrics: MetricScoreDetail[]): MetricScoreD
   return metrics.filter(m => !m.source_id);
 }
 
+// 14-Metric color palette for treemap visualization
+export const METRIC_COLORS: Record<string, { base: string; bg10: string; bg06: string }> = {
+  M1:  { base: '#3B82F6', bg10: 'rgba(59,130,246,0.10)', bg06: 'rgba(59,130,246,0.06)' },
+  M2:  { base: '#8B5CF6', bg10: 'rgba(139,92,246,0.10)',  bg06: 'rgba(139,92,246,0.06)' },
+  M3:  { base: '#06B6D4', bg10: 'rgba(6,182,212,0.10)',   bg06: 'rgba(6,182,212,0.06)' },
+  M4:  { base: '#F59E0B', bg10: 'rgba(245,158,11,0.10)',  bg06: 'rgba(245,158,11,0.06)' },
+  M5:  { base: '#10B981', bg10: 'rgba(16,185,129,0.10)',  bg06: 'rgba(16,185,129,0.06)' },
+  M6:  { base: '#F43F5E', bg10: 'rgba(244,63,94,0.10)',   bg06: 'rgba(244,63,94,0.06)' },
+  M7:  { base: '#6366F1', bg10: 'rgba(99,102,241,0.10)',  bg06: 'rgba(99,102,241,0.06)' },
+  M8:  { base: '#EC4899', bg10: 'rgba(236,72,153,0.10)',  bg06: 'rgba(236,72,153,0.06)' },
+  M9:  { base: '#14B8A6', bg10: 'rgba(20,184,166,0.10)',  bg06: 'rgba(20,184,166,0.06)' },
+  M10: { base: '#F97316', bg10: 'rgba(249,115,22,0.10)',  bg06: 'rgba(249,115,22,0.06)' },
+  M11: { base: '#84CC16', bg10: 'rgba(132,204,22,0.10)',  bg06: 'rgba(132,204,22,0.06)' },
+  M12: { base: '#A855F7', bg10: 'rgba(168,85,247,0.10)',  bg06: 'rgba(168,85,247,0.06)' },
+  M13: { base: '#22D3EE', bg10: 'rgba(34,211,238,0.10)',  bg06: 'rgba(34,211,238,0.06)' },
+  M14: { base: '#EF4444', bg10: 'rgba(239,68,68,0.10)',   bg06: 'rgba(239,68,68,0.06)' },
+};
+
 // Score → color — muted institutional palette (not neon)
 export function scoreColor(score: number): string {
   if (score >= 70) return '#22C55E'; // muted green

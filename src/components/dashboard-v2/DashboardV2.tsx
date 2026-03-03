@@ -38,6 +38,8 @@ import { MetricsGrid } from './components/MetricsGrid';
 import { ActionsPanel } from './components/ActionsPanel';
 import { CEOMirrorTab } from './components/CEOMirrorTab';
 import { PremiumLock } from './components/PremiumLock';
+import { ContradictionDetail } from './components/ContradictionDetail';
+import { MetricTreemap } from './components/MetricTreemap';
 import './DashboardV2.css';
 
 type TabId = 'eval' | 'ceo';
@@ -72,6 +74,8 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
   const [error, setError] = useState<string | null>(null);
   const [activeTab, setActiveTab] = useState<TabId>('eval');
   const [selectedCompanySize, setSelectedCompanySize] = useState<CompanySize>('medium');
+  const [showGapStory, setShowGapStory] = useState(false);
+  const [showMetricTreemap, setShowMetricTreemap] = useState(false);
 
   // Fetch all data
   useEffect(() => {
@@ -171,6 +175,34 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
     );
   }
 
+  // Full gap analysis story view
+  const contradictions = refinedReport?.contradictions || [];
+  if (showGapStory && contradictions.length > 0) {
+    return (
+      <div className="dashboard-v2" data-theme={theme}>
+        <ContradictionDetail
+          contradictions={contradictions}
+          metricInsights={metricInsights}
+          sortedMetrics={sortedMetrics}
+          onBack={() => setShowGapStory(false)}
+        />
+      </div>
+    );
+  }
+
+  // Full metric intelligence treemap view
+  if (showMetricTreemap && metricInsights.length > 0) {
+    return (
+      <div className="dashboard-v2" data-theme={theme}>
+        <MetricTreemap
+          metricInsights={metricInsights}
+          sortedMetrics={sortedMetrics}
+          onBack={() => setShowMetricTreemap(false)}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="dashboard-v2" data-theme={theme}>
       {/* Header */}
@@ -220,6 +252,7 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
               crossMetricInsights={refinedReport?.cross_metric_insights}
               metricInsights={metricInsights}
               sortedMetrics={sortedMetrics}
+              onViewFullAnalysis={() => setShowGapStory(true)}
             />
 
             {/* Column 3: Risk + Issues */}
@@ -264,7 +297,7 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
           <VRINCard metricInsights={metricInsights} />
 
           {/* 14 Metrics Grid */}
-          <MetricsGrid sortedMetrics={sortedMetrics} metricInsights={metricInsights} />
+          <MetricsGrid sortedMetrics={sortedMetrics} metricInsights={metricInsights} onViewTreemap={() => setShowMetricTreemap(true)} />
 
           {/* Actions */}
           <ActionsPanel actions={refinedReport?.key_actions || []} />

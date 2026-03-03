@@ -7,6 +7,7 @@ interface OrgMirrorProps {
   crossMetricInsights?: Record<string, string>;
   metricInsights: MetricInsight[];
   sortedMetrics: MetricScoreDetail[];
+  onViewFullAnalysis?: () => void;
 }
 
 const INITIAL_SHOW = 5;
@@ -25,8 +26,7 @@ function getContradictionScore(
   return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
 }
 
-export function OrgMirror({ contradictions, crossMetricInsights, metricInsights, sortedMetrics }: OrgMirrorProps) {
-  const [expandedBar, setExpandedBar] = useState<number | null>(null);
+export function OrgMirror({ contradictions, crossMetricInsights, metricInsights, sortedMetrics, onViewFullAnalysis }: OrgMirrorProps) {
   const [showAll, setShowAll] = useState(false);
   const [percGapExpanded, setPercGapExpanded] = useState(false);
 
@@ -86,11 +86,22 @@ export function OrgMirror({ contradictions, crossMetricInsights, metricInsights,
             Perception gaps &amp; contradictions
           </div>
         </div>
-        {(gapCount > 0 || (perceptionGap && perceptionGap.isOver)) && (
-          <div className="dv2-mirror-badge">
-            {gapCount + (perceptionGap ? 1 : 0)} GAP{(gapCount + (perceptionGap ? 1 : 0)) !== 1 ? 'S' : ''}
-          </div>
-        )}
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          {(gapCount > 0 || (perceptionGap && perceptionGap.isOver)) && (
+            <div className="dv2-mirror-badge">
+              {gapCount + (perceptionGap ? 1 : 0)} GAP{(gapCount + (perceptionGap ? 1 : 0)) !== 1 ? 'S' : ''}
+            </div>
+          )}
+          {onViewFullAnalysis && hasContent && (
+            <button className="dv2-view-analysis-btn dv2-view-analysis-btn--compact" onClick={onViewFullAnalysis}>
+              <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
+                <circle cx="12" cy="12" r="3" />
+              </svg>
+              SEE DETAILS
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Legend */}
@@ -154,8 +165,6 @@ export function OrgMirror({ contradictions, crossMetricInsights, metricInsights,
 
       {/* ── Section B: Say-Do Gaps — as bar rows ── */}
       {visibleBars.map((c, i) => {
-        const isOpen = expandedBar === i;
-        const accentColor = c.severity === 'high' ? 'var(--r)' : 'var(--a)';
         const barColor = c.severity === 'high' ? 'var(--r)' : 'var(--a)';
 
         return (
@@ -170,12 +179,6 @@ export function OrgMirror({ contradictions, crossMetricInsights, metricInsights,
                   {c.severity.toUpperCase()}
                 </span>
               </div>
-              <button className="dv2-dbar-gap-btn" onClick={() => setExpandedBar(isOpen ? null : i)}>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="var(--tm)" strokeWidth="2"
-                  style={{ transform: isOpen ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }}>
-                  <polyline points="6 9 12 15 18 9" />
-                </svg>
-              </button>
             </div>
 
             <div className="dv2-bar-row">
@@ -185,43 +188,6 @@ export function OrgMirror({ contradictions, crossMetricInsights, metricInsights,
               </div>
               <span className="dv2-bar-val" style={{ color: barColor }}>{c.score}</span>
             </div>
-
-            {isOpen && (
-              <div className="dv2-dbar-detail" style={{ borderLeftColor: accentColor }}>
-                <div className="dv2-dbar-detail-qt" style={{ marginBottom: 6 }}>"{c.client_callout}"</div>
-                <div className="dv2-dbar-detail-txt">{c.client_description}</div>
-
-                {c.evidence?.[0]?.quote && (
-                  <div style={{
-                    fontSize: '13px', color: 'var(--tm)', fontStyle: 'italic', lineHeight: 1.55,
-                    borderLeft: '2px solid var(--bg4)', paddingLeft: 10, margin: '8px 0',
-                  }}>
-                    "{c.evidence[0].quote}"
-                  </div>
-                )}
-
-                {c.coaching_question && (
-                  <div style={{
-                    fontSize: '13px', color: 'var(--accent)', lineHeight: 1.55,
-                    background: 'var(--accent-06)', padding: '6px 10px', borderRadius: 'var(--rad)',
-                    margin: '8px 0',
-                  }}>
-                    <span style={{ fontFamily: 'var(--mono)', fontSize: '13px', letterSpacing: '0.1em', display: 'block', marginBottom: 3, opacity: 0.7 }}>
-                      COACHING QUESTION
-                    </span>
-                    {c.coaching_question}
-                  </div>
-                )}
-
-                {c.related_metrics?.length > 0 && (
-                  <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap', marginTop: 6 }}>
-                    {c.related_metrics.map(m => (
-                      <span key={m} className="dv2-q-tag">{m}</span>
-                    ))}
-                  </div>
-                )}
-              </div>
-            )}
           </div>
         );
       })}
@@ -230,7 +196,7 @@ export function OrgMirror({ contradictions, crossMetricInsights, metricInsights,
       {hiddenCount > 0 && (
         <button
           className="dv2-mirror-expand-btn"
-          onClick={() => { setShowAll(!showAll); setExpandedBar(null); }}
+          onClick={() => setShowAll(!showAll)}
         >
           <span>{showAll ? 'Show less' : `Show ${hiddenCount} more`}</span>
           <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"

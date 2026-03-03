@@ -5,9 +5,10 @@ import { METRIC_ORDER, getMetricScore, scoreColor, scoreLabel } from '../utils';
 interface MetricsGridProps {
   sortedMetrics: MetricScoreDetail[];
   metricInsights: MetricInsight[];
+  onViewTreemap?: () => void;
 }
 
-export function MetricsGrid({ sortedMetrics, metricInsights }: MetricsGridProps) {
+export function MetricsGrid({ sortedMetrics, metricInsights, onViewTreemap }: MetricsGridProps) {
   const [expandedCode, setExpandedCode] = useState<string | null>(null);
 
   return (
@@ -21,6 +22,11 @@ export function MetricsGrid({ sortedMetrics, metricInsights }: MetricsGridProps)
             Click any dimension for detailed interpretation
           </div>
         </div>
+        {onViewTreemap && (
+          <button className="dv2-view-analysis-btn--compact" onClick={(e) => { e.stopPropagation(); onViewTreemap(); }}>
+            SEE DETAILS
+          </button>
+        )}
         <div className="dv2-metrics-legend">
           <div className="dv2-m-legend-item"><div className="dv2-m-legend-dot" style={{ background: '#EF4444' }} /><span className="dv2-m-legend-txt">CRITICAL</span></div>
           <div className="dv2-m-legend-item"><div className="dv2-m-legend-dot" style={{ background: '#F59E0B' }} /><span className="dv2-m-legend-txt">WATCH</span></div>
