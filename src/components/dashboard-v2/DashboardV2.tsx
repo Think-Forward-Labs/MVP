@@ -40,6 +40,7 @@ import { CEOMirrorTab } from './components/CEOMirrorTab';
 import { PremiumLock } from './components/PremiumLock';
 import { ContradictionDetail } from './components/ContradictionDetail';
 import { MetricTreemap } from './components/MetricTreemap';
+import { MetricFullPage } from './components/MetricFullPage';
 import './DashboardV2.css';
 
 type TabId = 'eval' | 'ceo';
@@ -76,6 +77,7 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
   const [selectedCompanySize, setSelectedCompanySize] = useState<CompanySize>('medium');
   const [showGapStory, setShowGapStory] = useState(false);
   const [showMetricTreemap, setShowMetricTreemap] = useState(false);
+  const [selectedMetricCode, setSelectedMetricCode] = useState<string | null>(null);
 
   // Fetch all data
   useEffect(() => {
@@ -190,6 +192,19 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
     );
   }
 
+  // Full metric detail page
+  if (selectedMetricCode && metricInsights.length > 0) {
+    return (
+      <div className="dashboard-v2" data-theme={theme}>
+        <MetricFullPage
+          metricCode={selectedMetricCode}
+          metricInsights={metricInsights}
+          onBack={() => setSelectedMetricCode(null)}
+        />
+      </div>
+    );
+  }
+
   // Full metric intelligence treemap view
   if (showMetricTreemap && metricInsights.length > 0) {
     return (
@@ -236,7 +251,16 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
             operationalStrength={opStrength}
             futureReadiness={futReady}
             metricScores={extraGauges}
+            onSelectMetric={setSelectedMetricCode}
           />
+
+          {/* Executive Summary */}
+          {refinedReport?.executive_summary && (
+            <div className="dv2-exec-summary dv2-fi">
+              <div className="dv2-exec-label">EXECUTIVE SUMMARY</div>
+              <p className="dv2-exec-text">{refinedReport.executive_summary}</p>
+            </div>
+          )}
 
           {/* Main 3-column grid */}
           <div className="dv2-main-grid">
@@ -297,7 +321,7 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
           <VRINCard metricInsights={metricInsights} />
 
           {/* 14 Metrics Grid */}
-          <MetricsGrid sortedMetrics={sortedMetrics} metricInsights={metricInsights} onViewTreemap={() => setShowMetricTreemap(true)} />
+          <MetricsGrid sortedMetrics={sortedMetrics} metricInsights={metricInsights} onViewTreemap={() => setShowMetricTreemap(true)} onSelectMetric={setSelectedMetricCode} />
 
           {/* Actions */}
           <ActionsPanel actions={refinedReport?.key_actions || []} />

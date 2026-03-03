@@ -26,8 +26,11 @@ export function QuadrantCard({ quadrant, m1Score, m2Score, gap }: QuadrantCardPr
 
   useEffect(() => {
     if (!svgRef.current) return;
-    const px = (m1Score / 100) * (W - 30) + 15;
-    const py = H - ((m2Score / 100) * (H - 30) + 15);
+    // Rescale so score=65 maps to visual midpoint (matches quadrant boundaries)
+    const xPct = m1Score <= 65 ? (m1Score / 65) * 50 : 50 + ((m1Score - 65) / 35) * 50;
+    const yPct = m2Score <= 65 ? (m2Score / 65) * 50 : 50 + ((m2Score - 65) / 35) * 50;
+    const px = (xPct / 100) * (W - 30) + 15;
+    const py = H - ((yPct / 100) * (H - 30) + 15);
     const c = quadrant.color;
 
     // Theme-aware quadrant fills

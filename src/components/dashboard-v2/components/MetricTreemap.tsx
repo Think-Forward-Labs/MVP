@@ -184,7 +184,7 @@ export function MetricTreemap({ metricInsights, sortedMetrics, onBack }: MetricT
               >
                 {gr.childRects.map(rect => {
                   const isPositive = rect.item.sentiment === 'positive';
-                  const sentimentBg = isPositive ? 'rgba(34,197,94,0.06)' : 'rgba(239,68,68,0.06)';
+                  const sentimentBg = isPositive ? 'rgba(34,197,94,0.13)' : 'rgba(239,68,68,0.13)';
                   const sev = severityLabel(rect.item.severity);
 
                   // Effective area combines child size with parent group size.

@@ -6,7 +6,18 @@ interface VitalSignsProps {
   operationalStrength: number;
   futureReadiness: number;
   metricScores: Array<{ label: string; score: number }>;
+  onSelectMetric?: (metricCode: string) => void;
 }
+
+// Map gauge labels to their primary metric code for navigation
+const GAUGE_METRIC_MAP: Record<string, string> = {
+  'Operational Strength': 'M1',
+  'Future Readiness': 'M2',
+  'Cultural Health': 'M10',
+  'Resource Capability': 'M12',
+  'OODA Velocity': 'M3',
+  'Resilience Index': 'M13',
+};
 
 // Icon + tooltip metadata for each gauge
 const GAUGE_META: Record<string, { icon: string; tooltip: string }> = {
@@ -93,7 +104,7 @@ function useIsDark() {
   return isDark;
 }
 
-function Gauge({ score, size, label, isMain }: { score: number; size: number; label: string; isMain?: boolean }) {
+function Gauge({ score, size, label, isMain, onClick }: { score: number; size: number; label: string; isMain?: boolean; onClick?: () => void }) {
   const ref = useRef<SVGSVGElement>(null);
   const isDark = useIsDark();
 
@@ -105,9 +116,13 @@ function Gauge({ score, size, label, isMain }: { score: number; size: number; la
 
   const svgH = Math.round(size * 0.75);
   const meta = GAUGE_META[label];
+  const clickable = !!onClick;
 
   return (
-    <div className={`dv2-gauge-wrap ${isMain ? 'dv2-gauge-wrap--main' : ''}`}>
+    <div
+      className={`dv2-gauge-wrap ${isMain ? 'dv2-gauge-wrap--main' : ''} ${clickable ? 'dv2-gauge-wrap--clickable' : ''}`}
+      onClick={onClick}
+    >
       <div style={{ height: isMain ? undefined : 62, display: 'flex', alignItems: 'flex-start' }}>
         <svg ref={ref} width={size} height={svgH} />
       </div>
@@ -128,7 +143,7 @@ function Gauge({ score, size, label, isMain }: { score: number; size: number; la
   );
 }
 
-export function VitalSigns({ overall, operationalStrength, futureReadiness, metricScores }: VitalSignsProps) {
+export function VitalSigns({ overall, operationalStrength, futureReadiness, metricScores, onSelectMetric }: VitalSignsProps) {
   const subGauges = [
     { label: 'Operational Strength', score: operationalStrength },
     { label: 'Future Readiness', score: futureReadiness },
@@ -142,9 +157,18 @@ export function VitalSigns({ overall, operationalStrength, futureReadiness, metr
         <Gauge score={overall} size={150} label="Overall Health" isMain />
       </div>
       <div className="dv2-vitals-rest">
-        {subGauges.map((g, i) => (
-          <Gauge key={i} score={g.score} size={90} label={g.label} />
-        ))}
+        {subGauges.map((g, i) => {
+          const metricCode = GAUGE_METRIC_MAP[g.label];
+          return (
+            <Gauge
+              key={i}
+              score={g.score}
+              size={90}
+              label={g.label}
+              onClick={metricCode && onSelectMetric ? () => onSelectMetric(metricCode) : undefined}
+            />
+          );
+        })}
       </div>
     </div>
   );

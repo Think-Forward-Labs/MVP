@@ -59,6 +59,8 @@ export function buildMetricGroups(
   const groups: MetricGroup[] = [];
 
   for (const insight of insights) {
+    // Skip derived metrics (D1, D2) — they have no direct observations
+    if (insight.metric_code.startsWith('D')) continue;
     if (activeFilters && activeFilters.size > 0 && !activeFilters.has(insight.metric_code)) continue;
 
     const fallbackWeight = Math.max(100 - (insight.score || 0), 5);
