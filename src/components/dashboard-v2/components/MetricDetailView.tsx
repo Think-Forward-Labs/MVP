@@ -1,11 +1,28 @@
 import { useState } from 'react';
-import type { MetricInsight, MetricScoreDetail } from '../types';
+import type { MetricInsight, MetricScoreDetail, StructuredObservation, StructuredRecommendation } from '../types';
 import { METRIC_COLORS, scoreColor, scoreLabel, getMetricDisplayName } from '../utils';
+
+/** Type guard for structured observations */
+function isStructuredObs(obs: string | StructuredObservation): obs is StructuredObservation {
+  return typeof obs === 'object' && obs !== null && 'lens_id' in obs;
+}
+
+/** Type guard for structured recommendations */
+function isStructuredRec(rec: string | StructuredRecommendation): rec is StructuredRecommendation {
+  return typeof rec === 'object' && rec !== null && 'action' in rec;
+}
+
+/** Severity label from score */
+function severityBadge(score: number): { label: string; cls: string } {
+  if (score >= 0.7) return { label: 'CRITICAL', cls: 'md-sev--critical' };
+  if (score >= 0.5) return { label: 'HIGH', cls: 'md-sev--high' };
+  if (score >= 0.3) return { label: 'MEDIUM', cls: 'md-sev--medium' };
+  return { label: 'LOW', cls: 'md-sev--low' };
+}
 
 interface MetricDetailViewProps {
   metricCode: string;
-  highlightType: 'observation' | 'recommendation';
-  highlightIndex: number;
+  observationIndex: number;
   metricInsights: MetricInsight[];
   sortedMetrics: MetricScoreDetail[];
   onBack: () => void;
@@ -13,8 +30,7 @@ interface MetricDetailViewProps {
 
 export function MetricDetailView({
   metricCode,
-  highlightType,
-  highlightIndex,
+  observationIndex,
   metricInsights,
   onBack,
 }: MetricDetailViewProps) {
@@ -39,12 +55,21 @@ export function MetricDetailView({
   const sl = scoreLabel(insight.score);
   const displayName = getMetricDisplayName(metricCode, insight.metric_name);
 
-  const highlightedText = highlightType === 'observation'
-    ? insight.observations?.[highlightIndex]
-    : insight.recommendations?.[highlightIndex];
+  const primaryObs = insight.observations?.[observationIndex];
+  const isStructured = primaryObs && isStructuredObs(primaryObs);
 
-  const otherObservations = insight.observations?.filter((_, i) => !(highlightType === 'observation' && i === highlightIndex)) || [];
-  const otherRecommendations = insight.recommendations?.filter((_, i) => !(highlightType === 'recommendation' && i === highlightIndex)) || [];
+  // Get linked recommendations for the primary observation
+  const linkedRecs: StructuredRecommendation[] = [];
+  if (isStructured) {
+    for (const rec of insight.recommendations || []) {
+      if (isStructuredRec(rec) && rec.linked_observations?.includes(primaryObs.lens_id)) {
+        linkedRecs.push(rec);
+      }
+    }
+  }
+
+  // Other observations (not the primary one)
+  const otherObservations = insight.observations?.filter((_, i) => i !== observationIndex) || [];
 
   const toggleSection = (key: string) => {
     setExpandedSections(prev => {
@@ -53,9 +78,6 @@ export function MetricDetailView({
       return next;
     });
   };
-
-  // Find supporting evidence for the highlighted finding
-  const relevantEvidence = insight.evidence?.filter(e => e.supports === 'gap' || e.supports === 'strength') || [];
 
   return (
     <div className="cd-page" style={{ zIndex: 101 }}>
@@ -71,7 +93,7 @@ export function MetricDetailView({
 
       <div className="cd-scroll">
         <div className="md-content">
-          {/* Metric Header */}
+          {/* ── Header ── */}
           <div className="md-header">
             <div className="md-header-badge" style={{ background: colors.bg10, color: colors.base }}>
               {metricCode}
@@ -87,56 +109,148 @@ export function MetricDetailView({
             )}
           </div>
 
-          {/* Highlighted Finding */}
-          {highlightedText && (
-            <div className="md-highlight" style={{ borderLeftColor: colors.base }}>
-              <div className="md-highlight-type" style={{ color: colors.base }}>
-                {highlightType === 'observation' ? 'OBSERVATION' : 'RECOMMENDATION'}
+          {/* ── Primary Observation ── */}
+          {isStructured ? (
+            <>
+              {/* Lens Label */}
+              <div className="md-lens-label" style={{ color: colors.base }}>
+                {primaryObs.lens_name.toUpperCase()}
               </div>
-              <div className="md-highlight-text">{highlightedText}</div>
 
-              {/* Evidence quotes */}
-              {relevantEvidence.length > 0 && (
+              <div className="md-highlight" style={{
+                borderLeftColor: primaryObs.sentiment === 'positive' ? 'var(--positive)' : 'var(--negative)',
+              }}>
+                {/* Sentiment + Severity */}
+                <div style={{ display: 'flex', gap: 8, alignItems: 'center', marginBottom: 8 }}>
+                  <span className={`md-sentiment md-sentiment--${primaryObs.sentiment}`}>
+                    {primaryObs.sentiment === 'positive' ? 'STRENGTH' : 'GAP'}
+                  </span>
+                  {primaryObs.severity_score > 0 && (
+                    <span className={`md-sev ${severityBadge(primaryObs.severity_score).cls}`}>
+                      {severityBadge(primaryObs.severity_score).label}
+                    </span>
+                  )}
+                  {primaryObs.confidence && (
+                    <span className="md-confidence">{primaryObs.confidence.toUpperCase()} CONFIDENCE</span>
+                  )}
+                </div>
+
+                {/* Observation text */}
+                <div className="md-highlight-text">{primaryObs.text}</div>
+
+                {/* Business impact */}
+                {primaryObs.business_impact && (
+                  <div className="md-business-impact">{primaryObs.business_impact}</div>
+                )}
+              </div>
+
+              {/* ── Evidence (verbatim quotes) ── */}
+              {primaryObs.evidence?.length > 0 && (
+                <div className="md-evidence-grid">
+                  <div className="md-evidence-label">EVIDENCE</div>
+                  {primaryObs.evidence.map((ev, i) => (
+                    <div key={i} className="md-evidence-card">
+                      <div className="md-evidence-quote">"{ev.text}"</div>
+                      <div className="md-evidence-meta">
+                        <span className="md-evidence-role">{ev.role}</span>
+                        <span className="md-evidence-tag md-evidence-tag--context">Q: {ev.question_code}</span>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {/* ── Linked Recommendations ── */}
+              {linkedRecs.length > 0 && (
+                <div className="md-rec-section">
+                  <div className="md-evidence-label" style={{ marginTop: 20, marginBottom: 12 }}>RECOMMENDATIONS</div>
+                  {linkedRecs.map((rec, i) => (
+                    <div key={i} className="md-rec-card">
+                      <div className="md-rec-action">{rec.action}</div>
+                      <div className="md-rec-first-step">
+                        <span className="md-rec-label">FIRST STEP</span>
+                        {rec.first_step}
+                      </div>
+                      <div className="md-rec-meta">
+                        {rec.owner_role && (
+                          <span className="md-rec-owner">
+                            <span className="md-rec-label">OWNER</span> {rec.owner_role}
+                          </span>
+                        )}
+                        {rec.timeframe && (
+                          <span className="md-rec-timeframe">
+                            <span className="md-rec-label">TIMEFRAME</span> {rec.timeframe}
+                          </span>
+                        )}
+                      </div>
+                      {rec.expected_outcome && (
+                        <div className="md-rec-outcome">
+                          <span className="md-rec-label">EXPECTED OUTCOME</span> {rec.expected_outcome}
+                        </div>
+                      )}
+                      {rec.evidence_anchor && (
+                        <div className="md-rec-anchor">"{rec.evidence_anchor}"</div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </>
+          ) : primaryObs ? (
+            /* Legacy string observation */
+            <div className="md-highlight" style={{ borderLeftColor: colors.base }}>
+              <div className="md-highlight-type" style={{ color: colors.base }}>OBSERVATION</div>
+              <div className="md-highlight-text">{primaryObs as string}</div>
+              {/* Legacy evidence */}
+              {insight.evidence?.length > 0 && (
                 <div className="md-evidence-grid">
                   <div className="md-evidence-label">SUPPORTING EVIDENCE</div>
-                  {relevantEvidence.slice(0, 4).map((ev, i) => (
+                  {insight.evidence.filter(e => e.supports === 'gap' || e.supports === 'strength').slice(0, 4).map((ev, i) => (
                     <div key={i} className="md-evidence-card">
                       <div className="md-evidence-quote">"{ev.quote}"</div>
                       <div className="md-evidence-meta">
                         <span className="md-evidence-role">{ev.role}</span>
-                        <span className={`md-evidence-tag md-evidence-tag--${ev.supports}`}>
-                          {ev.supports}
-                        </span>
+                        <span className={`md-evidence-tag md-evidence-tag--${ev.supports}`}>{ev.supports}</span>
                       </div>
                     </div>
                   ))}
                 </div>
               )}
             </div>
-          )}
+          ) : null}
 
-          {/* Other Findings */}
-          {(otherObservations.length > 0 || otherRecommendations.length > 0) && (
+          {/* ── Other Observations (collapsed) ── */}
+          {otherObservations.length > 0 && (
             <div className="md-other-findings">
-              <button
-                className="md-section-toggle"
-                onClick={() => toggleSection('other')}
-              >
+              <button className="md-section-toggle" onClick={() => toggleSection('other')}>
                 <span className="md-section-toggle-icon">{expandedSections.has('other') ? '−' : '+'}</span>
-                <span>OTHER FINDINGS ({otherObservations.length + otherRecommendations.length})</span>
+                <span>OTHER OBSERVATIONS ({otherObservations.length})</span>
               </button>
               {expandedSections.has('other') && (
                 <div className="md-findings-list">
                   {otherObservations.map((obs, i) => (
-                    <div key={`obs-${i}`} className="md-finding-item">
-                      <span className="md-finding-type md-finding-type--obs">OBS</span>
-                      <span className="md-finding-text">{obs}</span>
-                    </div>
-                  ))}
-                  {otherRecommendations.map((rec, i) => (
-                    <div key={`rec-${i}`} className="md-finding-item">
-                      <span className="md-finding-type md-finding-type--rec">REC</span>
-                      <span className="md-finding-text">{rec}</span>
+                    <div key={i} className="md-finding-item">
+                      {isStructuredObs(obs) ? (
+                        <>
+                          <span className={`md-finding-type ${obs.sentiment === 'positive' ? 'md-finding-type--rec' : 'md-finding-type--obs'}`}>
+                            {obs.sentiment === 'positive' ? '+' : '-'}
+                          </span>
+                          <div>
+                            <div className="md-finding-lens">{obs.lens_name}</div>
+                            <span className="md-finding-text">{obs.text}</span>
+                            {obs.severity_score > 0 && (
+                              <span className={`md-sev md-sev--inline ${severityBadge(obs.severity_score).cls}`}>
+                                {severityBadge(obs.severity_score).label}
+                              </span>
+                            )}
+                          </div>
+                        </>
+                      ) : (
+                        <>
+                          <span className="md-finding-type md-finding-type--obs">OBS</span>
+                          <span className="md-finding-text">{obs as string}</span>
+                        </>
+                      )}
                     </div>
                   ))}
                 </div>
@@ -144,13 +258,25 @@ export function MetricDetailView({
             </div>
           )}
 
-          {/* AI Reasoning */}
+          {/* ── Metric Synthesis ── */}
+          {insight.synthesized_impact && (
+            <div className="md-synthesis">
+              <button className="md-section-toggle" onClick={() => toggleSection('synthesis')}>
+                <span className="md-section-toggle-icon">{expandedSections.has('synthesis') ? '−' : '+'}</span>
+                <span>METRIC SYNTHESIS</span>
+              </button>
+              {expandedSections.has('synthesis') && (
+                <div className="md-synthesis-content">
+                  <p className="md-synthesis-text">{insight.synthesized_impact}</p>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── AI Reasoning ── */}
           {insight.ai_reasoning && (
             <div className="md-reasoning">
-              <button
-                className="md-section-toggle"
-                onClick={() => toggleSection('reasoning')}
-              >
+              <button className="md-section-toggle" onClick={() => toggleSection('reasoning')}>
                 <span className="md-section-toggle-icon">{expandedSections.has('reasoning') ? '−' : '+'}</span>
                 <span>AI REASONING</span>
               </button>
@@ -199,13 +325,10 @@ export function MetricDetailView({
             </div>
           )}
 
-          {/* Benchmark Narrative */}
+          {/* ── Benchmark ── */}
           {insight.benchmark_narrative && (
             <div className="md-benchmark">
-              <button
-                className="md-section-toggle"
-                onClick={() => toggleSection('benchmark')}
-              >
+              <button className="md-section-toggle" onClick={() => toggleSection('benchmark')}>
                 <span className="md-section-toggle-icon">{expandedSections.has('benchmark') ? '−' : '+'}</span>
                 <span>BENCHMARK CONTEXT</span>
               </button>

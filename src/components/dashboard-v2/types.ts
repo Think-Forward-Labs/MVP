@@ -19,6 +19,38 @@ export interface MetricDef {
   academicTerm: string;
 }
 
+// Two-phase observation pipeline types
+export interface VerbatimQuote {
+  text: string;
+  role: string;
+  question_code: string;
+  verified: boolean;
+}
+
+export interface StructuredObservation {
+  lens_id: string;
+  lens_name: string;
+  text: string;
+  sentiment: 'positive' | 'negative';
+  severity_scope: string;
+  severity_urgency: string;
+  severity_score: number;
+  evidence: VerbatimQuote[];
+  is_emergent: boolean;
+  business_impact: string;
+  confidence: 'high' | 'medium' | 'low';
+}
+
+export interface StructuredRecommendation {
+  action: string;
+  first_step: string;
+  owner_role: string;
+  linked_observations: string[];
+  evidence_anchor: string;
+  expected_outcome: string;
+  timeframe: string;
+}
+
 // Refined report metric insight
 export interface MetricInsight {
   metric_code: string;
@@ -27,8 +59,9 @@ export interface MetricInsight {
   score: number;
   health_status: 'excellent' | 'good' | 'at_risk' | 'critical';
   summary: string;
-  observations: string[];
-  recommendations: string[];
+  observations: (string | StructuredObservation)[];
+  recommendations: (string | StructuredRecommendation)[];
+  synthesized_impact?: string;
   evidence: Array<{ quote: string; role: string; supports: 'strength' | 'gap' | 'context' }>;
   ai_reasoning?: {
     methodology: string;
