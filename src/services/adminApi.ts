@@ -584,6 +584,22 @@ export const adminApi = {
     });
   },
 
+  /**
+   * Retry scoring for a single question that failed
+   */
+  retryQuestionScoring: async (runId: string, scoreId: string): Promise<{
+    status: string;
+    question_code: string;
+    old_score: number;
+    new_score: number;
+    scoring_failed: boolean;
+    scoring_failure_reason: string | null;
+  }> => {
+    return adminRequest(`/evaluation/runs/${runId}/scores/${scoreId}/retry-scoring`, {
+      method: 'POST',
+    });
+  },
+
   // ============ Evaluation Assistant (Eunice) API ============
 
   /**

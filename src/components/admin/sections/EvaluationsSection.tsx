@@ -2965,6 +2965,7 @@ function RunSummaryView({
   const [expandedActionIndex, setExpandedActionIndex] = useState<number | null>(null);
   const [showFullExecutiveSummary, setShowFullExecutiveSummary] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
+  const [retryingScoreId, setRetryingScoreId] = useState<string | null>(null);
   const [selectedCompanySize, setSelectedCompanySize] = useState<'micro' | 'small' | 'medium' | 'large' | 'other'>('other');
 
   // Handle report download
@@ -3329,6 +3330,74 @@ function RunSummaryView({
           <style>{`@keyframes spin { to { transform: rotate(360deg); } }`}</style>
         </div>
       )}
+
+      {/* Scoring Failures Banner */}
+      {(() => {
+        const failedScores = scores?.question_scores?.filter(q => q.scoring_failed) || [];
+        if (failedScores.length === 0) return null;
+        return (
+          <div style={{
+            background: 'linear-gradient(90deg, #FEF2F2 0%, #FEE2E2 100%)',
+            border: '1px solid #FCA5A5',
+            borderRadius: '8px',
+            padding: '14px 20px',
+            marginBottom: '16px',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '12px',
+            flexWrap: 'wrap',
+          }}>
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#DC2626" strokeWidth="2" style={{ flexShrink: 0 }}>
+              <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+              <line x1="12" y1="9" x2="12" y2="13" />
+              <line x1="12" y1="17" x2="12.01" y2="17" />
+            </svg>
+            <div style={{ flex: 1 }}>
+              <p style={{ margin: 0, fontWeight: 600, color: '#991B1B', fontSize: '13px' }}>
+                {failedScores.length} question{failedScores.length !== 1 ? 's' : ''} failed scoring
+              </p>
+              <p style={{ margin: '2px 0 0', color: '#B91C1C', fontSize: '12px' }}>
+                {failedScores.map(s => s.question_code).join(', ')} scored 0 due to LLM errors — this may affect pathology detection
+              </p>
+            </div>
+            {failedScores.map(s => (
+              <button
+                key={s.id}
+                disabled={retryingScoreId === s.id}
+                onClick={async () => {
+                  setRetryingScoreId(s.id);
+                  try {
+                    const result = await adminApi.retryQuestionScoring(run.id, s.id);
+                    if (result.status === 'success') {
+                      window.location.reload();
+                    } else {
+                      alert(`Retry failed for ${result.question_code}: ${result.scoring_failure_reason}`);
+                    }
+                  } catch (err) {
+                    alert(`Retry error: ${err instanceof Error ? err.message : 'Unknown error'}`);
+                  } finally {
+                    setRetryingScoreId(null);
+                  }
+                }}
+                style={{
+                  padding: '6px 14px',
+                  borderRadius: '6px',
+                  border: '1px solid #FCA5A5',
+                  background: retryingScoreId === s.id ? '#FEE2E2' : 'white',
+                  color: '#DC2626',
+                  fontSize: '12px',
+                  fontWeight: 600,
+                  cursor: retryingScoreId === s.id ? 'not-allowed' : 'pointer',
+                  opacity: retryingScoreId === s.id ? 0.6 : 1,
+                  whiteSpace: 'nowrap',
+                }}
+              >
+                {retryingScoreId === s.id ? 'Retrying...' : `Retry ${s.question_code}`}
+              </button>
+            ))}
+          </div>
+        );
+      })()}
 
       {/* Single-Respondent Caveat Banner */}
       {(run.sources?.length || 0) < 3 && run.status === 'completed' && (

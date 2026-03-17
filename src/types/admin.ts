@@ -465,6 +465,8 @@ export interface QuestionScoreDetail {
   scoring_reasoning?: string;
   raw_response?: string;
   requires_review: boolean;
+  scoring_failed?: boolean;
+  scoring_failure_reason?: string;
 }
 
 export interface QuestionContribution {
