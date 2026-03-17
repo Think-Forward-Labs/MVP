@@ -19,6 +19,9 @@ import type {
   DimensionScoreDetail,
   BusinessReviewItem,
   BusinessWithReviews,
+  InterviewResponse,
+  InterviewSummary,
+  ReviewDetail,
 } from '../../../types/admin';
 
 interface EvaluationsSectionProps {
@@ -28,7 +31,7 @@ interface EvaluationsSectionProps {
 }
 
 // Navigation state
-type NavigationLevel = 'businesses' | 'assessments' | 'runs' | 'detail' | 'dashboard-v2';
+type NavigationLevel = 'businesses' | 'assessments' | 'runs' | 'detail' | 'dashboard-v2' | 'responses';
 type DetailSubLevel = 'summary' | 'breakdown' | 'interview';
 
 interface NavigationState {
@@ -39,6 +42,7 @@ interface NavigationState {
   detailSubLevel?: DetailSubLevel;
   selectedSourceId?: string;
   dashboardV2RunId?: string;
+  reviewResponsesId?: string;
 }
 
 // CABAS Metric ordering with client-facing and academic terms
@@ -396,13 +400,16 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
         }
       }
 
+      // Default to V2 unless ?view=v1 is in the URL
+      const useV1 = new URLSearchParams(window.location.search).get('view') === 'v1';
       setNav(prev => ({
         ...prev,
-        level: 'detail',
+        level: useV1 ? 'detail' : 'dashboard-v2',
         selectedBusiness: selectedBusiness,
         selectedRun: detail,
-        detailSubLevel: 'summary',
+        detailSubLevel: useV1 ? 'summary' : undefined,
         selectedSourceId: undefined,
+        dashboardV2RunId: useV1 ? undefined : runId,
       }));
       setScores(scoresData);
 
@@ -638,6 +645,14 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
           businesses={enrichedBusinesses}
           onViewRun={loadRunDetail}
           onTriggerEvaluation={triggerEvaluation}
+          onReviewResponses={(assessmentId, businessName) => {
+            setNav(prev => ({
+              ...prev,
+              level: 'responses',
+              reviewResponsesId: assessmentId,
+              selectedBusiness: { id: prev.selectedBusiness?.id || '', name: businessName },
+            }));
+          }}
           triggeringAssessment={triggeringReview}
           runningProgress={runningProgress}
           initialSelectedBusinessId={nav.selectedBusiness?.id}
@@ -676,11 +691,21 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
             onSidebarCollapse?.(false); // Restore sidebar
             setNav(prev => ({
               ...prev,
-              level: 'detail',
-              detailSubLevel: 'summary',
+              level: 'businesses',
+              detailSubLevel: undefined,
               dashboardV2RunId: undefined,
+              selectedRun: undefined,
             }));
           }}
+        />
+      )}
+
+      {/* Review Responses View */}
+      {nav.level === 'responses' && nav.reviewResponsesId && (
+        <ResponsesReviewView
+          reviewId={nav.reviewResponsesId}
+          businessName={nav.selectedBusiness?.name || ''}
+          onBack={() => setNav(prev => ({ ...prev, level: 'businesses', reviewResponsesId: undefined }))}
         />
       )}
 
@@ -898,6 +923,348 @@ function getLogoColor(name: string): { bg: string; text: string } {
   return LOGO_COLORS[index];
 }
 
+// ============ Response Review View ============
+
+function ResponsesReviewView({
+  reviewId,
+  businessName,
+  onBack,
+}: {
+  reviewId: string;
+  businessName: string;
+  onBack: () => void;
+}) {
+  const [review, setReview] = useState<ReviewDetail | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [selectedInterviewId, setSelectedInterviewId] = useState<string | null>(null);
+  const [responses, setResponses] = useState<InterviewResponse[]>([]);
+  const [loadingResponses, setLoadingResponses] = useState(false);
+
+  useEffect(() => {
+    const load = async () => {
+      setLoading(true);
+      try {
+        const data = await adminApi.getReview(reviewId);
+        setReview(data);
+        // Auto-select first completed interview
+        const completed = data.interviews?.filter(
+          (i: InterviewSummary) => i.status === 'submitted' || i.status === 'completed'
+        ) || [];
+        if (completed.length > 0) {
+          setSelectedInterviewId(completed[0].id);
+        }
+      } catch {
+        // ignore
+      } finally {
+        setLoading(false);
+      }
+    };
+    load();
+  }, [reviewId]);
+
+  useEffect(() => {
+    if (!selectedInterviewId) return;
+    const loadResp = async () => {
+      setLoadingResponses(true);
+      try {
+        const data = await adminApi.getInterviewResponses(selectedInterviewId);
+        setResponses(data);
+      } catch {
+        setResponses([]);
+      } finally {
+        setLoadingResponses(false);
+      }
+    };
+    loadResp();
+  }, [selectedInterviewId]);
+
+  if (loading) {
+    return (
+      <div style={{ padding: 40, textAlign: 'center', color: '#71717A' }}>
+        <div style={{ width: 24, height: 24, border: '2px solid #E4E4E7', borderTopColor: '#1A1A1A', borderRadius: '50%', animation: 'spin 0.8s linear infinite', margin: '0 auto 12px' }} />
+        Loading responses...
+      </div>
+    );
+  }
+
+  const interviews = review?.interviews || [];
+  const completedInterviews = interviews.filter(
+    (i: InterviewSummary) => i.status === 'submitted' || i.status === 'completed'
+  );
+
+  return (
+    <div style={rrStyles.container}>
+      {/* Header */}
+      <div style={rrStyles.header}>
+        <button onClick={onBack} style={rrStyles.backBtn}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+            <path d="M19 12H5M12 19l-7-7 7-7" />
+          </svg>
+          Back
+        </button>
+        <div>
+          <h2 style={rrStyles.title}>{businessName}</h2>
+          <p style={rrStyles.subtitle}>
+            {review?.name || 'Assessment'} · {completedInterviews.length} respondent{completedInterviews.length !== 1 ? 's' : ''}
+          </p>
+        </div>
+      </div>
+
+      {completedInterviews.length === 0 ? (
+        <div style={{ padding: 40, textAlign: 'center', color: '#A1A1AA' }}>
+          No completed interviews found for this assessment.
+        </div>
+      ) : (
+        <div style={rrStyles.splitLayout}>
+          {/* Left: Interview selector */}
+          <div style={rrStyles.interviewList}>
+            <div style={rrStyles.listHeader}>Respondents</div>
+            {completedInterviews.map((interview: InterviewSummary) => {
+              const isSelected = interview.id === selectedInterviewId;
+              return (
+                <div
+                  key={interview.id}
+                  onClick={() => setSelectedInterviewId(interview.id)}
+                  style={{
+                    ...rrStyles.interviewItem,
+                    backgroundColor: isSelected ? '#F5F5F5' : 'transparent',
+                    borderLeft: isSelected ? '3px solid #1A1A1A' : '3px solid transparent',
+                  }}
+                >
+                  <div style={rrStyles.interviewName}>
+                    {interview.participant_name || 'Anonymous'}
+                  </div>
+                  <div style={rrStyles.interviewMeta}>
+                    {interview.response_count} responses · {interview.mode === 'voice' ? 'Voice' : 'Text'}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Right: Responses */}
+          <div style={rrStyles.responsesPanel}>
+            {loadingResponses ? (
+              <div style={{ padding: 40, textAlign: 'center', color: '#71717A' }}>Loading responses...</div>
+            ) : responses.length === 0 ? (
+              <div style={{ padding: 40, textAlign: 'center', color: '#A1A1AA' }}>No responses found.</div>
+            ) : (
+              <div style={rrStyles.responsesList}>
+                {responses
+                  .filter(r => !r.is_followup)
+                  .sort((a, b) => a.question_number - b.question_number)
+                  .map(response => {
+                    const followups = responses.filter(r => r.parent_response_id === response.id);
+                    return (
+                      <div key={response.id} style={rrStyles.responseCard}>
+                        <div style={rrStyles.responseHeader}>
+                          <span style={rrStyles.questionBadge}>Q{response.question_number}</span>
+                          {response.question_aspect_code && (
+                            <span style={rrStyles.aspectBadge}>{response.question_aspect_code}</span>
+                          )}
+                          {response.is_voice && (
+                            <span style={rrStyles.voiceTag}>
+                              <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="#6366F1" strokeWidth="2">
+                                <path d="M12 1a3 3 0 00-3 3v8a3 3 0 006 0V4a3 3 0 00-3-3z" />
+                                <path d="M19 10v2a7 7 0 01-14 0v-2" />
+                              </svg>
+                              Voice
+                            </span>
+                          )}
+                        </div>
+                        <p style={rrStyles.questionText}>{response.question_text}</p>
+                        <div style={rrStyles.answerBox}>
+                          <p style={rrStyles.answerText}>
+                            {response.text || <em style={{ color: '#A1A1AA' }}>No response</em>}
+                          </p>
+                        </div>
+                        {/* Follow-ups */}
+                        {followups.map(fu => (
+                          <div key={fu.id} style={rrStyles.followupBox}>
+                            <span style={rrStyles.followupLabel}>Follow-up #{fu.followup_count}</span>
+                            <p style={rrStyles.answerText}>{fu.text}</p>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  })}
+              </div>
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+const rrStyles: Record<string, React.CSSProperties> = {
+  container: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    height: '100%',
+    overflow: 'hidden',
+  },
+  header: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 16,
+    padding: '16px 24px',
+    borderBottom: '1px solid #E4E4E7',
+    flexShrink: 0,
+  },
+  backBtn: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 6,
+    padding: '6px 12px',
+    fontSize: 13,
+    color: '#52525B',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #E4E4E7',
+    borderRadius: 6,
+    cursor: 'pointer',
+    flexShrink: 0,
+  },
+  title: {
+    fontSize: 16,
+    fontWeight: 600,
+    color: '#18181B',
+    margin: 0,
+  },
+  subtitle: {
+    fontSize: 12,
+    color: '#71717A',
+    margin: '2px 0 0 0',
+  },
+  splitLayout: {
+    display: 'flex',
+    flex: 1,
+    overflow: 'hidden',
+  },
+  interviewList: {
+    width: 220,
+    borderRight: '1px solid #E4E4E7',
+    overflowY: 'auto' as const,
+    flexShrink: 0,
+  },
+  listHeader: {
+    padding: '12px 16px',
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#A1A1AA',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+    borderBottom: '1px solid #F4F4F5',
+  },
+  interviewItem: {
+    padding: '12px 16px',
+    cursor: 'pointer',
+    borderBottom: '1px solid #F4F4F5',
+    transition: 'background-color 0.1s',
+  },
+  interviewName: {
+    fontSize: 13,
+    fontWeight: 500,
+    color: '#18181B',
+  },
+  interviewMeta: {
+    fontSize: 11,
+    color: '#A1A1AA',
+    marginTop: 2,
+  },
+  responsesPanel: {
+    flex: 1,
+    overflowY: 'auto' as const,
+    padding: '20px 28px',
+    backgroundColor: '#FAFAFA',
+  },
+  responsesList: {
+    display: 'flex',
+    flexDirection: 'column' as const,
+    gap: 16,
+    maxWidth: 720,
+  },
+  responseCard: {
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #E4E4E7',
+    borderRadius: 8,
+    padding: '16px 20px',
+  },
+  responseHeader: {
+    display: 'flex',
+    alignItems: 'center',
+    gap: 8,
+    marginBottom: 8,
+  },
+  questionBadge: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '2px 8px',
+    fontSize: 11,
+    fontWeight: 600,
+    color: '#FFFFFF',
+    backgroundColor: '#1A1A1A',
+    borderRadius: 4,
+  },
+  aspectBadge: {
+    display: 'inline-flex',
+    padding: '2px 8px',
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#6366F1',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 4,
+    letterSpacing: '0.3px',
+  },
+  voiceTag: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: 4,
+    padding: '2px 8px',
+    fontSize: 10,
+    fontWeight: 500,
+    color: '#6366F1',
+    backgroundColor: '#EEF2FF',
+    borderRadius: 4,
+  },
+  questionText: {
+    fontSize: 13,
+    color: '#71717A',
+    margin: '0 0 10px 0',
+    lineHeight: 1.5,
+  },
+  answerBox: {
+    backgroundColor: '#F9FAFB',
+    border: '1px solid #F0F0F0',
+    borderRadius: 6,
+    padding: '12px 16px',
+  },
+  answerText: {
+    fontSize: 14,
+    color: '#18181B',
+    margin: 0,
+    lineHeight: 1.6,
+    whiteSpace: 'pre-wrap' as const,
+  },
+  followupBox: {
+    backgroundColor: '#FFFBEB',
+    border: '1px solid #FDE68A',
+    borderRadius: 6,
+    padding: '10px 14px',
+    marginTop: 8,
+  },
+  followupLabel: {
+    fontSize: 10,
+    fontWeight: 600,
+    color: '#92400E',
+    textTransform: 'uppercase' as const,
+    letterSpacing: '0.5px',
+    display: 'block',
+    marginBottom: 4,
+  },
+};
+
 interface AssessmentWithRuns {
   id: string;
   name: string;
@@ -922,6 +1289,7 @@ function SplitPaneEvaluations({
   businesses,
   onViewRun,
   onTriggerEvaluation,
+  onReviewResponses,
   triggeringAssessment,
   runningProgress,
   initialSelectedBusinessId,
@@ -929,6 +1297,7 @@ function SplitPaneEvaluations({
   businesses: BusinessWithAssessments[];
   onViewRun: (runId: string, businessId: string) => void;
   onTriggerEvaluation: (assessmentId: string) => void;
+  onReviewResponses: (assessmentId: string, businessName: string) => void;
   triggeringAssessment: string | null;
   runningProgress?: { step: number; total: number; message: string };
   initialSelectedBusinessId?: string;
@@ -1072,28 +1441,42 @@ function SplitPaneEvaluations({
                             </span>
                           )}
                         </div>
-                        <button
-                          onClick={() => onTriggerEvaluation(assessment.id)}
-                          disabled={isRunning}
-                          style={{
-                            ...splitStyles.runButton,
-                            opacity: isRunning ? 0.7 : 1,
-                          }}
-                        >
-                          {isRunning ? (
-                            <>
-                              <div style={splitStyles.miniSpinner} />
-                              <span>Running...</span>
-                            </>
-                          ) : (
-                            <>
-                              <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
-                                <polygon points="5 3 19 12 5 21 5 3" />
-                              </svg>
-                              <span>Run Evaluation</span>
-                            </>
-                          )}
-                        </button>
+                        <div style={{ display: 'flex', gap: 6 }}>
+                          <button
+                            onClick={() => onReviewResponses(assessment.id, selectedBusiness!.name)}
+                            style={splitStyles.reviewResponsesButton}
+                          >
+                            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                              <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+                              <polyline points="14 2 14 8 20 8" />
+                              <line x1="16" y1="13" x2="8" y2="13" />
+                              <line x1="16" y1="17" x2="8" y2="17" />
+                            </svg>
+                            <span>Responses</span>
+                          </button>
+                          <button
+                            onClick={() => onTriggerEvaluation(assessment.id)}
+                            disabled={isRunning}
+                            style={{
+                              ...splitStyles.runButton,
+                              opacity: isRunning ? 0.7 : 1,
+                            }}
+                          >
+                            {isRunning ? (
+                              <>
+                                <div style={splitStyles.miniSpinner} />
+                                <span>Running...</span>
+                              </>
+                            ) : (
+                              <>
+                                <svg width="12" height="12" viewBox="0 0 24 24" fill="currentColor">
+                                  <polygon points="5 3 19 12 5 21 5 3" />
+                                </svg>
+                                <span>Run Evaluation</span>
+                              </>
+                            )}
+                          </button>
+                        </div>
                       </div>
 
                       {/* Progress Bar (when running) */}
@@ -1362,6 +1745,21 @@ const splitStyles: Record<string, React.CSSProperties> = {
   assessmentMeta: {
     fontSize: '12px',
     color: '#888888',
+  },
+  reviewResponsesButton: {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '5px',
+    padding: '8px 12px',
+    fontSize: '12px',
+    fontWeight: 500,
+    color: '#52525B',
+    backgroundColor: '#FFFFFF',
+    border: '1px solid #E4E4E7',
+    borderRadius: '6px',
+    cursor: 'pointer',
+    transition: 'all 0.15s',
+    flexShrink: 0,
   },
   runButton: {
     display: 'inline-flex',

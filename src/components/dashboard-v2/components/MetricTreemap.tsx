@@ -4,11 +4,14 @@ import { METRIC_COLORS, METRIC_ORDER, scoreColor } from '../utils';
 import { buildMetricGroups, squarifyNested } from '../treemapLayout';
 import type { MetricGroupRect } from '../treemapLayout';
 import { MetricDetailView } from './MetricDetailView';
+import { adminApi } from '../../../services/adminApi';
 
 interface MetricTreemapProps {
   metricInsights: MetricInsight[];
   sortedMetrics: MetricScoreDetail[];
   onBack: () => void;
+  runId?: string;
+  onMetricRegenerated?: () => void;
 }
 
 interface SelectedFinding {
@@ -23,10 +26,30 @@ function severityLabel(score: number): { label: string; cls: string } {
   return { label: 'LOW', cls: 'tm-severity--low' };
 }
 
-export function MetricTreemap({ metricInsights, sortedMetrics, onBack }: MetricTreemapProps) {
+export function MetricTreemap({ metricInsights, sortedMetrics, onBack, runId, onMetricRegenerated }: MetricTreemapProps) {
   const [activeFilters, setActiveFilters] = useState<Set<string>>(new Set());
   const [sentimentFilter, setSentimentFilter] = useState<'all' | 'positive' | 'negative'>('all');
   const [selectedFinding, setSelectedFinding] = useState<SelectedFinding | null>(null);
+  const [regenerating, setRegenerating] = useState<string | null>(null);
+  const [regenStatus, setRegenStatus] = useState<{ code: string; ok: boolean } | null>(null);
+
+  const handleRegenerate = async (metricCode: string, e: React.MouseEvent) => {
+    e.stopPropagation();
+    if (!runId || regenerating) return;
+    setRegenerating(metricCode);
+    setRegenStatus(null);
+    try {
+      await adminApi.regenerateMetric(runId, metricCode);
+      setRegenStatus({ code: metricCode, ok: true });
+      onMetricRegenerated?.();
+    } catch (err) {
+      console.error(`Failed to regenerate ${metricCode}:`, err);
+      setRegenStatus({ code: metricCode, ok: false });
+    } finally {
+      setRegenerating(null);
+      setTimeout(() => setRegenStatus(null), 4000);
+    }
+  };
 
   const groups = useMemo(
     () => buildMetricGroups(metricInsights, activeFilters),
@@ -184,7 +207,7 @@ export function MetricTreemap({ metricInsights, sortedMetrics, onBack }: MetricT
               >
                 {gr.childRects.map(rect => {
                   const isPositive = rect.item.sentiment === 'positive';
-                  const sentimentBg = isPositive ? 'rgba(34,197,94,0.13)' : 'rgba(239,68,68,0.13)';
+                  const sentimentBg = isPositive ? 'rgba(22,163,74,0.50)' : 'rgba(220,38,38,0.50)';
                   const sev = severityLabel(rect.item.severity);
 
                   // Effective area combines child size with parent group size.
@@ -199,6 +222,39 @@ export function MetricTreemap({ metricInsights, sortedMetrics, onBack }: MetricT
                   const obsPad = ea >= 60 ? '6px 8px'
                     : ea >= 30 ? '4px 6px'
                     : '2px 3px';
+
+                  const isError = rect.item.text.includes('Unable to generate');
+                  const isRegenerating = regenerating === rect.item.metricCode;
+
+                  if (isError && runId) {
+                    return (
+                      <div
+                        key={rect.item.id}
+                        className="tm-obs tm-obs--error"
+                        style={{
+                          left: `calc(${rect.x}% + 1px)`,
+                          top: `calc(${rect.y}% + 1px)`,
+                          width: `calc(${rect.w}% - 2px)`,
+                          height: `calc(${rect.h}% - 2px)`,
+                        }}
+                        onClick={(e) => handleRegenerate(rect.item.metricCode, e)}
+                      >
+                        <div className="tm-obs-error-content">
+                          <svg
+                            className={`tm-obs-resync-icon ${isRegenerating ? 'tm-obs-resync-icon--spin' : ''}`}
+                            width="20" height="20" viewBox="0 0 24 24" fill="none"
+                            stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"
+                          >
+                            <path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                            <path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+                          </svg>
+                          <span className="tm-obs-error-text">
+                            {isRegenerating ? 'Regenerating...' : 'Click to retry'}
+                          </span>
+                        </div>
+                      </div>
+                    );
+                  }
 
                   return (
                     <div
@@ -241,6 +297,24 @@ export function MetricTreemap({ metricInsights, sortedMetrics, onBack }: MetricT
           );
         })}
       </div>
+
+      {/* Regeneration status toast */}
+      {(regenerating || regenStatus) && (
+        <div className={`tm-regen-toast ${regenStatus?.ok === false ? 'tm-regen-toast--error' : ''}`}>
+          {regenerating && (
+            <>
+              <svg className="tm-obs-resync-icon--spin" width="16" height="16" viewBox="0 0 24 24" fill="none"
+                stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+                <path d="M21 2v6h-6" /><path d="M3 12a9 9 0 0 1 15-6.7L21 8" />
+                <path d="M3 22v-6h6" /><path d="M21 12a9 9 0 0 1-15 6.7L3 16" />
+              </svg>
+              Regenerating {regenerating}... This may take 15-30 seconds
+            </>
+          )}
+          {!regenerating && regenStatus?.ok && `${regenStatus.code} regenerated successfully`}
+          {!regenerating && regenStatus?.ok === false && `Failed to regenerate ${regenStatus.code}. Try again.`}
+        </div>
+      )}
     </div>
   );
 }

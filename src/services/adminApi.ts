@@ -571,6 +571,19 @@ export const adminApi = {
     return adminRequest(`/evaluation/runs/${runId}/refined-report`);
   },
 
+  /**
+   * Regenerate observations for a single failed metric
+   */
+  regenerateMetric: async (runId: string, metricCode: string): Promise<{
+    status: string;
+    metric_code: string;
+    metric: Record<string, unknown>;
+  }> => {
+    return adminRequest(`/evaluation/runs/${runId}/metrics/${metricCode}/regenerate`, {
+      method: 'POST',
+    });
+  },
+
   // ============ Evaluation Assistant (Eunice) API ============
 
   /**
