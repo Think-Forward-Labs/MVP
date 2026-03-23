@@ -41,6 +41,8 @@ import { PremiumLock } from './components/PremiumLock';
 import { ContradictionDetail } from './components/ContradictionDetail';
 import { MetricTreemap } from './components/MetricTreemap';
 import { MetricFullPage } from './components/MetricFullPage';
+import { EuniceChatPanel } from '../chat/EuniceChatPanel';
+import { SiriOrb } from '../interview/SiriOrb';
 import './DashboardV2.css';
 
 type TabId = 'eval' | 'ceo';
@@ -78,6 +80,7 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
   const [showGapStory, setShowGapStory] = useState(false);
   const [showMetricTreemap, setShowMetricTreemap] = useState(false);
   const [selectedMetricCode, setSelectedMetricCode] = useState<string | null>(null);
+  const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Fetch all data
   useEffect(() => {
@@ -205,6 +208,26 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
     );
   }
 
+  // Refresh refined report (after metric regeneration)
+  const refreshReport = async () => {
+    try {
+      const reportData = await adminApi.getRefinedReport(runId);
+      if (reportData?.report) {
+        setRefinedReport({
+          metrics: reportData.report.metrics || [],
+          executive_summary: reportData.report.executive_summary || '',
+          key_actions: normalizeActions(reportData.report.key_actions || []),
+          critical_issues: normalizeIssues(reportData.report.critical_issues || []),
+          strengths: normalizeStrengths(reportData.report.strengths || []),
+          pathologies: (reportData.report.pathologies || []).map((p: { is_core?: boolean }) => ({ ...p, is_core: p.is_core ?? true })) as RefinedReport['pathologies'],
+          contradictions: reportData.report.contradictions || [],
+          cross_metric_insights: reportData.report.cross_metric_insights || {},
+          level_comparison: (reportData.report as Record<string, unknown>).level_comparison as RefinedReport['level_comparison'],
+        });
+      }
+    } catch { /* ignore */ }
+  };
+
   // Full metric intelligence treemap view
   if (showMetricTreemap && metricInsights.length > 0) {
     return (
@@ -213,13 +236,15 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
           metricInsights={metricInsights}
           sortedMetrics={sortedMetrics}
           onBack={() => setShowMetricTreemap(false)}
+          runId={runId}
+          onMetricRegenerated={refreshReport}
         />
       </div>
     );
   }
 
   return (
-    <div className="dashboard-v2" data-theme={theme}>
+    <div className="dashboard-v2" data-theme={theme} style={{ position: 'relative' }}>
       {/* Header */}
       <Header
         run={run}
@@ -340,6 +365,101 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
           <span className="dv2-footer-v">v2.1 · 14 metrics · {refinedReport?.pathologies?.length || 0} pathologies</span>
         </div>
       </div>
+
+      {/* Ask Eunice — floating pill (bottom-right) */}
+      {!isChatOpen && (
+        <button
+          onClick={() => setIsChatOpen(true)}
+          style={{
+            position: 'fixed',
+            bottom: 24,
+            right: 24,
+            zIndex: 50,
+            display: 'flex',
+            alignItems: 'center',
+            gap: 10,
+            padding: '8px 18px 8px 8px',
+            background: 'var(--bg-2)',
+            border: '1px solid var(--border-h)',
+            borderRadius: 24,
+            cursor: 'pointer',
+            transition: 'all 0.25s cubic-bezier(0.32, 0.72, 0, 1)',
+            boxShadow: '0 4px 20px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255,255,255,0.04)',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.borderColor = 'rgba(255, 255, 255, 0.2)';
+            e.currentTarget.style.boxShadow = '0 4px 24px rgba(0, 0, 0, 0.4), 0 0 0 1px rgba(255, 255, 255, 0.15)';
+            e.currentTarget.style.transform = 'translateY(-2px)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.borderColor = 'var(--border-h)';
+            e.currentTarget.style.boxShadow = '0 4px 20px rgba(0, 0, 0, 0.3), 0 0 0 1px rgba(255,255,255,0.04)';
+            e.currentTarget.style.transform = 'none';
+          }}
+        >
+          <SiriOrb size={28} isSpeaking={false} isListening={true} />
+          <span style={{
+            fontFamily: 'var(--mono)',
+            fontSize: '11px',
+            fontWeight: 500,
+            color: 'var(--t2)',
+            letterSpacing: '0.5px',
+            textTransform: 'uppercase',
+          }}>
+            Ask Eunice
+          </span>
+        </button>
+      )}
+
+      {/* Eunice Chat — overlay panel */}
+      {isChatOpen && (
+        <>
+          {/* Backdrop */}
+          <div
+            onClick={() => setIsChatOpen(false)}
+            style={{
+              position: 'fixed',
+              inset: 0,
+              zIndex: 60,
+              background: 'rgba(6, 11, 24, 0.5)',
+              backdropFilter: 'blur(4px)',
+              WebkitBackdropFilter: 'blur(4px)',
+              animation: 'dv2FadeIn 0.2s ease-out',
+            }}
+          />
+          {/* Panel */}
+          <div style={{
+            position: 'fixed',
+            top: 0,
+            right: 0,
+            bottom: 0,
+            width: '420px',
+            zIndex: 70,
+            animation: 'dv2SlideIn 0.28s cubic-bezier(0.32, 0.72, 0, 1)',
+            boxShadow: '-8px 0 32px rgba(0, 0, 0, 0.4)',
+          }}>
+            <EuniceChatPanel
+              isOpen={true}
+              onClose={() => setIsChatOpen(false)}
+              runId={runId}
+              evaluationName={businessName}
+              theme={theme}
+            />
+          </div>
+        </>
+      )}
+
+      {/* Overlay animations */}
+      <style>{`
+        @keyframes dv2FadeIn {
+          from { opacity: 0; }
+          to { opacity: 1; }
+        }
+        @keyframes dv2SlideIn {
+          from { transform: translateX(100%); }
+          to { transform: translateX(0); }
+        }
+      `}</style>
     </div>
   );
 }
