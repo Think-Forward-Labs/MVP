@@ -301,6 +301,7 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
               crossMetricInsights={refinedReport?.cross_metric_insights}
               metricInsights={metricInsights}
               sortedMetrics={sortedMetrics}
+              sourceCount={sourceCount}
               onViewFullAnalysis={() => setShowGapStory(true)}
             />
 
