@@ -3995,6 +3995,34 @@ function RunSummaryView({
                         </div>
                       </div>
 
+                      {/* Research context anchor statement */}
+                      {(pathology as any).client_anchor && (
+                        <div style={{
+                          marginTop: '12px',
+                          padding: '12px 16px',
+                          borderLeft: '3px solid rgba(59,130,246,0.3)',
+                          backgroundColor: 'rgba(59,130,246,0.04)',
+                          borderRadius: '0 8px 8px 0',
+                        }}>
+                          <span style={{
+                            display: 'block',
+                            fontSize: '11px',
+                            fontWeight: 600,
+                            textTransform: 'uppercase' as const,
+                            letterSpacing: '0.8px',
+                            color: '#3B82F6',
+                            marginBottom: '6px',
+                          }}>Research Context</span>
+                          <p style={{
+                            fontSize: '13px',
+                            color: '#4A4A4A',
+                            lineHeight: '1.6',
+                            fontStyle: 'italic',
+                            margin: 0,
+                          }}>{(pathology as any).client_anchor}</p>
+                        </div>
+                      )}
+
                       {/* Related metrics tags */}
                       {pathology.related_metrics?.length > 0 && (
                         <div style={{
