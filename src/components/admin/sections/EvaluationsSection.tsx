@@ -4551,7 +4551,7 @@ function RunSummaryView({
                 margin: 0,
                 lineHeight: 1.5,
               }}>
-                The VRIN framework identifies which assets give sustainable advantage. Cross-metric signals show how strategic position connects to capabilities.
+                The Defensible Strengths framework identifies which assets give sustainable advantage. Cross-metric signals show how strategic position connects to capabilities.
               </p>
             </div>
           </div>

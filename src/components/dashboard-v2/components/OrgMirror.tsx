@@ -7,6 +7,7 @@ interface OrgMirrorProps {
   crossMetricInsights?: Record<string, string>;
   metricInsights: MetricInsight[];
   sortedMetrics: MetricScoreDetail[];
+  sourceCount?: number;
   onViewFullAnalysis?: () => void;
 }
 
@@ -26,9 +27,38 @@ function getContradictionScore(
   return Math.round(scores.reduce((a, b) => a + b, 0) / scores.length);
 }
 
-export function OrgMirror({ contradictions, crossMetricInsights, metricInsights, sortedMetrics, onViewFullAnalysis }: OrgMirrorProps) {
+export function OrgMirror({ contradictions, crossMetricInsights, metricInsights, sortedMetrics, sourceCount, onViewFullAnalysis }: OrgMirrorProps) {
   const [showAll, setShowAll] = useState(false);
   const [percGapExpanded, setPercGapExpanded] = useState(false);
+
+  // --- Single-respondent guard ---
+  if (sourceCount !== undefined && sourceCount <= 1) {
+    return (
+      <div style={{
+        background: 'linear-gradient(135deg, #FFF8E1 0%, #FFF3C4 100%)',
+        border: '1px solid #F59E0B',
+        borderRadius: '12px',
+        padding: '24px',
+        marginBottom: '16px',
+      }}>
+        <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" style={{ flexShrink: 0, marginTop: '2px' }}>
+            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
+            <line x1="12" y1="9" x2="12" y2="13" />
+            <line x1="12" y1="17" x2="12.01" y2="17" />
+          </svg>
+          <div>
+            <p style={{ margin: 0, fontWeight: 700, color: '#92400E', fontSize: '14px' }}>
+              Say-Do Gap Analysis
+            </p>
+            <p style={{ margin: '8px 0 0', color: '#78350F', fontSize: '13px', lineHeight: '1.5' }}>
+              Multi-level contradiction detection requires responses from more than one organisational level. Not available for single-respondent assessments.
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   // --- Perception Gap ---
   const perceptionGap = useMemo(() => {
