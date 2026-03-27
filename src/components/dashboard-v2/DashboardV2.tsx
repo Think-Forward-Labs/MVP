@@ -305,7 +305,8 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
             {/* Column 3: Risk + Issues */}
             <div className="dv2-col3">
               <RiskExposure m2Score={m2Score} selectedSize={selectedCompanySize} onSelectSize={setSelectedCompanySize} />
-              <CriticalIssues issues={refinedReport?.critical_issues || []} />
+              {/* CriticalIssues hidden per Iva — kept in pipeline, not shown on UI */}
+              {/* <CriticalIssues issues={refinedReport?.critical_issues || []} /> */}
             </div>
           </div>
 
