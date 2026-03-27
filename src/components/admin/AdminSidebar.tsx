@@ -14,6 +14,7 @@ interface AdminSidebarProps {
   collapsed?: boolean;
   onToggleCollapse?: () => void;
   isDark?: boolean;
+  onToggleTheme?: () => void;
 }
 
 interface NavItem {
@@ -94,6 +95,7 @@ export function AdminSidebar({
   collapsed = false,
   onToggleCollapse,
   isDark = false,
+  onToggleTheme,
 }: AdminSidebarProps) {
   const [hoveredItem, setHoveredItem] = useState<string | null>(null);
 
@@ -167,7 +169,6 @@ export function AdminSidebar({
                 onClick={() => onSectionChange(item.id)}
                 onMouseEnter={() => setHoveredItem(item.id)}
                 onMouseLeave={() => setHoveredItem(null)}
-                title={collapsed ? item.label : undefined}
                 style={{
                   ...styles.navItem,
                   ...(isActive && (isDark ? {
@@ -180,6 +181,7 @@ export function AdminSidebar({
                   justifyContent: collapsed ? 'center' : 'flex-start',
                   padding: collapsed ? '10px' : '10px 12px',
                   color: isDark && !isActive ? 'rgba(255,255,255,0.55)' : undefined,
+                  position: 'relative',
                 }}
               >
                 <span style={{
@@ -192,6 +194,9 @@ export function AdminSidebar({
                   {item.icon}
                 </span>
                 {!collapsed && <span style={styles.navText}>{item.label}</span>}
+                {collapsed && isHovered && (
+                  <span className="sidebar-tooltip" style={{ opacity: 1 }}>{item.label}</span>
+                )}
                 {isActive && !collapsed && <div style={{
                   ...styles.activeIndicator,
                   background: isDark ? 'rgba(255,255,255,0.6)' : '#1D1D1F',
@@ -247,6 +252,37 @@ export function AdminSidebar({
               </p>
             </div>
           </div>
+        )}
+
+        {onToggleTheme && (
+          <button
+            onClick={onToggleTheme}
+            style={{
+              ...styles.logoutButton,
+              justifyContent: collapsed ? 'center' : 'flex-start',
+              padding: collapsed ? '10px' : '10px 12px',
+              color: isDark ? 'rgba(255,255,255,0.55)' : 'rgba(60, 60, 67, 0.6)',
+              marginBottom: '4px',
+              position: 'relative',
+            }}
+            onMouseEnter={(e) => {
+              e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.03)' : 'rgba(0, 0, 0, 0.03)';
+            }}
+            onMouseLeave={(e) => {
+              e.currentTarget.style.background = 'transparent';
+            }}
+          >
+            {isDark ? (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+              </svg>
+            ) : (
+              <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+                <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+              </svg>
+            )}
+            {!collapsed && <span>{isDark ? 'Light mode' : 'Dark mode'}</span>}
+          </button>
         )}
 
         <button

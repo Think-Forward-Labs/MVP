@@ -489,44 +489,71 @@ export function EvaluationsSection({ onError, onSidebarCollapse, sidebarCollapse
   const triggerEvaluation = async (assessmentId: string) => {
     try {
       setTriggeringReview(assessmentId);
+      setShowTriggerModal(false);
 
-      // Simulate progress steps for better UX
-      const progressSteps = [
-        { step: 1, total: 5, message: 'Loading interview data...' },
-        { step: 2, total: 5, message: 'Analyzing responses...' },
-        { step: 3, total: 5, message: 'Calculating metrics...' },
-        { step: 4, total: 5, message: 'Generating insights...' },
-        { step: 5, total: 5, message: 'Finalizing report...' },
-      ];
+      // Step 1: Trigger the evaluation
+      setRunningProgress({ step: 1, total: 6, message: 'Starting evaluation...' });
+      const result = await adminApi.runEvaluation(assessmentId);
 
-      // Show progress animation
-      for (const progress of progressSteps) {
-        setRunningProgress(progress);
-        await new Promise(resolve => setTimeout(resolve, 800));
+      if (!result.run_id) {
+        throw new Error('No run ID returned');
       }
 
-      const result = await adminApi.runEvaluation(assessmentId);
-      setShowTriggerModal(false);
+      // Step 2-5: Poll until the evaluation completes
+      const pollMessages = [
+        { step: 2, total: 6, message: 'Scoring interview responses...' },
+        { step: 3, total: 6, message: 'Running interdependency checks...' },
+        { step: 4, total: 6, message: 'Calculating metrics...' },
+        { step: 5, total: 6, message: 'Generating narrative insights...' },
+      ];
+      let pollIndex = 0;
+      let completed = false;
+      const maxPolls = 120; // 120 × 3s = 6 minutes max
+      let pollCount = 0;
+
+      while (!completed && pollCount < maxPolls) {
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        pollCount++;
+
+        // Cycle through progress messages to show activity
+        if (pollCount % 4 === 0 && pollIndex < pollMessages.length - 1) {
+          pollIndex++;
+        }
+        setRunningProgress(pollMessages[pollIndex]);
+
+        try {
+          const detail = await adminApi.getEvaluationRun(result.run_id);
+          if (detail.status === 'completed' || detail.status === 'failed') {
+            completed = true;
+            if (detail.status === 'failed') {
+              throw new Error(detail.error_message || 'Evaluation failed');
+            }
+          }
+        } catch (pollErr: any) {
+          // If it's our own thrown error (failed status), re-throw
+          if (pollErr.message?.includes('failed')) throw pollErr;
+          // Otherwise keep polling (transient network error)
+        }
+      }
+
+      if (!completed) {
+        throw new Error('Evaluation timed out — check the evaluation runs list for status');
+      }
+
+      // Step 6: Done — navigate to results
+      setRunningProgress({ step: 6, total: 6, message: 'Evaluation complete! Loading results...' });
+      await new Promise(resolve => setTimeout(resolve, 800));
+
       setRunningProgress(undefined);
 
-      // Refresh enriched data for Stripe-style view
+      // Refresh and navigate to DashboardV2
       if (nav.level === 'businesses') {
         await loadEnrichedBusinesses();
-        // Auto-navigate to the new run
-        if (result.run_id) {
-          setTimeout(() => loadRunDetail(result.run_id), 500);
-        }
-      } else {
-        // Fallback for old-style navigation
-        await loadRuns(assessmentId);
-        setTimeout(() => {
-          if (result.run_id) {
-            loadRunDetail(result.run_id);
-          }
-        }, 1000);
       }
-    } catch (err) {
-      onError('Failed to trigger evaluation');
+      loadRunDetail(result.run_id);
+
+    } catch (err: any) {
+      onError(err.message || 'Failed to trigger evaluation');
       setRunningProgress(undefined);
     } finally {
       setTriggeringReview(null);
