@@ -83,7 +83,7 @@ export function VRINCard({ metricInsights }: VRINCardProps) {
             Strategic Asset Assessment
           </div>
           <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--accent)', letterSpacing: '0.08em' }}>
-            VRIN FRAMEWORK · M13
+            DEFENSIBLE STRENGTHS · M13
           </div>
         </div>
         <div style={{ fontFamily: 'var(--mono)', fontSize: '11px', color: 'var(--tm)', letterSpacing: '0.06em' }}>
