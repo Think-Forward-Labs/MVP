@@ -48,23 +48,20 @@ import './DashboardV2.css';
 type TabId = 'eval' | 'ceo';
 
 export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
-  // Theme — default dark, applied universally to <html>
+  // Theme — reads from global app-theme (set by App.tsx), default light
   const [theme, setTheme] = useState<DashboardTheme>(() => {
-    return (localStorage.getItem('dashboard-v2-theme') as DashboardTheme) || 'dark';
+    return (localStorage.getItem('app-theme') as DashboardTheme) || 'light';
   });
 
-  // Apply theme to <html> so it affects entire app (sidebar, background, etc.)
+  // Sync with <html> data-theme attribute
   useEffect(() => {
     document.documentElement.setAttribute('data-theme', theme);
-    return () => {
-      document.documentElement.removeAttribute('data-theme');
-    };
   }, [theme]);
 
   const toggleTheme = () => {
     setTheme(prev => {
       const next = prev === 'light' ? 'dark' : 'light';
-      localStorage.setItem('dashboard-v2-theme', next);
+      localStorage.setItem('app-theme', next);
       return next;
     });
   };
@@ -308,7 +305,8 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
             {/* Column 3: Risk + Issues */}
             <div className="dv2-col3">
               <RiskExposure m2Score={m2Score} selectedSize={selectedCompanySize} onSelectSize={setSelectedCompanySize} />
-              <CriticalIssues issues={refinedReport?.critical_issues || []} />
+              {/* CriticalIssues hidden per Iva — kept in pipeline, not shown on UI */}
+              {/* <CriticalIssues issues={refinedReport?.critical_issues || []} /> */}
             </div>
           </div>
 

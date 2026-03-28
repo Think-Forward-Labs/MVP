@@ -36,6 +36,13 @@ export function PathologyCard({ pathologies }: PathologyCardProps) {
             </div>
           )}
 
+          {expandedIndex === i && (p as any).client_anchor && (
+            <div style={{ marginTop: 9, padding: '8px 10px', background: 'rgba(59,130,246,.05)', borderRadius: 5, borderLeft: '2px solid rgba(59,130,246,.3)' }}>
+              <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: 'var(--b)', letterSpacing: '0.8px', marginBottom: 3 }}>RESEARCH CONTEXT</div>
+              <div style={{ fontSize: '11px', color: 'var(--td)', lineHeight: 1.6, fontStyle: 'italic' }}>{(p as any).client_anchor}</div>
+            </div>
+          )}
+
           {expandedIndex === i && p.coaching_question && (
             <div style={{ marginTop: 9, padding: '8px 10px', background: 'rgba(0,197,160,.05)', borderRadius: 5, borderLeft: '2px solid rgba(0,197,160,.3)' }}>
               <div style={{ fontFamily: 'var(--mono)', fontSize: '8px', color: 'var(--t)', letterSpacing: '0.8px', marginBottom: 3 }}>COACHING QUESTION</div>

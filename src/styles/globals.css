@@ -8,19 +8,44 @@ html, body, #root {
   height: 100%;
 }
 
+/* ── Global Theme Variables (light default) ── */
+:root {
+  --app-bg: #FAFAFA;
+  --app-bg-card: #FFFFFF;
+  --app-bg-hover: #F4F4F5;
+  --app-text: #18181B;
+  --app-text-secondary: #52525B;
+  --app-text-muted: #A1A1AA;
+  --app-border: #E4E4E7;
+  --app-accent: #0D6B63;
+  --app-accent-light: rgba(13,107,99,0.08);
+  --app-positive: #15803D;
+  --app-negative: #B91C1C;
+  --app-warning: #B45309;
+}
+
+html[data-theme="dark"] {
+  --app-bg: #060B18;
+  --app-bg-card: #0B1222;
+  --app-bg-hover: #101A2E;
+  --app-text: rgba(255,255,255,0.92);
+  --app-text-secondary: rgba(255,255,255,0.55);
+  --app-text-muted: rgba(255,255,255,0.30);
+  --app-border: rgba(255,255,255,0.06);
+  --app-accent: #34BFA8;
+  --app-accent-light: rgba(52,191,168,0.10);
+  --app-positive: #22C55E;
+  --app-negative: #EF4444;
+  --app-warning: #F59E0B;
+}
+
 body {
   font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  background-color: #FAFAFA;
-  color: #18181B;
+  background-color: var(--app-bg);
+  color: var(--app-text);
   transition: background-color 0.3s ease, color 0.3s ease;
-}
-
-/* Dark mode — applied when DashboardV2 sets data-theme on <html> */
-html[data-theme="dark"] body {
-  background-color: #060B18;
-  color: rgba(255,255,255,0.92);
 }
 
 html[data-theme="dark"] ::-webkit-scrollbar-thumb {
@@ -55,12 +80,8 @@ textarea:focus {
 }
 
 button:focus-visible {
-  outline: 2px solid #18181B;
+  outline: 2px solid var(--app-text);
   outline-offset: 2px;
-}
-
-html[data-theme="dark"] button:focus-visible {
-  outline-color: rgba(255,255,255,0.4);
 }
 
 /* Disable default button styles */
@@ -79,10 +100,184 @@ button {
 }
 
 ::-webkit-scrollbar-thumb {
-  background: #D4D4D8;
+  background: var(--app-border);
   border-radius: 3px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: #A1A1AA;
+  background: var(--app-text-muted);
+}
+
+/* ── Dark Mode Overrides for inline-styled components ── */
+
+/* Force dark backgrounds on cards, panels, modals, tables */
+html[data-theme="dark"] div[style*="background-color: rgb(255"],
+html[data-theme="dark"] div[style*="background-color: rgba(255, 255, 255"],
+html[data-theme="dark"] div[style*="background-color: #FFF"],
+html[data-theme="dark"] div[style*="background-color: #fff"],
+html[data-theme="dark"] div[style*="backgroundColor: rgb(255"],
+html[data-theme="dark"] div[style*="background: rgb(255"],
+html[data-theme="dark"] div[style*="background: rgba(255, 255, 255"] {
+  background-color: #0B1222 !important;
+  background: #0B1222 !important;
+}
+
+html[data-theme="dark"] div[style*="background-color: #F5F5F7"],
+html[data-theme="dark"] div[style*="backgroundColor: #F5F5F7"],
+html[data-theme="dark"] div[style*="background-color: #FAFAFA"],
+html[data-theme="dark"] div[style*="background-color: #f5f5f7"],
+html[data-theme="dark"] div[style*="background: linear-gradient(135deg, #F5F5F7"] {
+  background-color: #060B18 !important;
+  background: #060B18 !important;
+}
+
+html[data-theme="dark"] div[style*="background-color: #F9FAFB"],
+html[data-theme="dark"] div[style*="background-color: #F6F7F9"],
+html[data-theme="dark"] div[style*="background-color: #F3F4F6"],
+html[data-theme="dark"] div[style*="background: #F9FAFB"],
+html[data-theme="dark"] div[style*="background: #F6F7F9"],
+html[data-theme="dark"] div[style*="background: #F3F4F6"],
+html[data-theme="dark"] td[style*="background"],
+html[data-theme="dark"] th[style*="background"] {
+  background-color: #101A2E !important;
+  background: #101A2E !important;
+}
+
+/* Force dark text colors */
+html[data-theme="dark"] [style*="color: #18181B"],
+html[data-theme="dark"] [style*="color: #1D1D1F"],
+html[data-theme="dark"] [style*="color: #111827"],
+html[data-theme="dark"] [style*="color: #1F2937"],
+html[data-theme="dark"] [style*="color: rgb(24"],
+html[data-theme="dark"] [style*="color: rgb(29"],
+html[data-theme="dark"] [style*="color: rgb(17"],
+html[data-theme="dark"] [style*="color: rgb(31"] {
+  color: rgba(255,255,255,0.92) !important;
+}
+
+html[data-theme="dark"] [style*="color: #374151"],
+html[data-theme="dark"] [style*="color: #4B5563"],
+html[data-theme="dark"] [style*="color: #52525B"],
+html[data-theme="dark"] [style*="color: #3C3C43"],
+html[data-theme="dark"] [style*="color: rgba(60, 60, 67"],
+html[data-theme="dark"] [style*="color: rgb(55"],
+html[data-theme="dark"] [style*="color: rgb(75"] {
+  color: rgba(255,255,255,0.55) !important;
+}
+
+html[data-theme="dark"] [style*="color: #6B7280"],
+html[data-theme="dark"] [style*="color: #71717A"],
+html[data-theme="dark"] [style*="color: #9CA3AF"],
+html[data-theme="dark"] [style*="color: #A1A1AA"],
+html[data-theme="dark"] [style*="color: rgb(107"],
+html[data-theme="dark"] [style*="color: rgb(113"],
+html[data-theme="dark"] [style*="color: rgb(156"],
+html[data-theme="dark"] [style*="color: rgb(161"] {
+  color: rgba(255,255,255,0.35) !important;
+}
+
+/* Force dark borders */
+html[data-theme="dark"] [style*="border-color: #E5E7EB"],
+html[data-theme="dark"] [style*="border-color: #E4E4E7"],
+html[data-theme="dark"] [style*="border-color: #D1D5DB"],
+html[data-theme="dark"] [style*="border: 1px solid #E"],
+html[data-theme="dark"] [style*="border: 1px solid rgb(229"],
+html[data-theme="dark"] [style*="border: 1px solid rgba(0, 0, 0, 0.0"],
+html[data-theme="dark"] [style*="border-bottom: 1px solid #E"],
+html[data-theme="dark"] [style*="border-bottom: 1px solid rgba(0"],
+html[data-theme="dark"] [style*="borderBottom: 1px solid"] {
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Force dark on table elements */
+html[data-theme="dark"] table {
+  color: rgba(255,255,255,0.92);
+}
+
+html[data-theme="dark"] table th {
+  color: rgba(255,255,255,0.55) !important;
+  background-color: #101A2E !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+html[data-theme="dark"] table td {
+  color: rgba(255,255,255,0.85) !important;
+  border-color: rgba(255,255,255,0.06) !important;
+}
+
+html[data-theme="dark"] table tr:hover td {
+  background-color: rgba(255,255,255,0.03) !important;
+}
+
+/* Force dark on inputs, textareas, selects */
+html[data-theme="dark"] input,
+html[data-theme="dark"] textarea,
+html[data-theme="dark"] select {
+  background-color: #101A2E !important;
+  color: rgba(255,255,255,0.92) !important;
+  border-color: rgba(255,255,255,0.10) !important;
+}
+
+html[data-theme="dark"] input::placeholder,
+html[data-theme="dark"] textarea::placeholder {
+  color: rgba(255,255,255,0.30) !important;
+}
+
+/* Force dark on common section backgrounds */
+html[data-theme="dark"] section,
+html[data-theme="dark"] main {
+  color: rgba(255,255,255,0.92);
+}
+
+/* Hide light-mode background orbs in dark mode */
+html[data-theme="dark"] div[style*="radial-gradient(circle, rgba(0, 122, 255"],
+html[data-theme="dark"] div[style*="radial-gradient(circle, rgba(88, 86, 214"],
+html[data-theme="dark"] div[style*="radial-gradient(circle, rgba(52, 199, 89"] {
+  opacity: 0 !important;
+}
+
+/* Tags, badges, pills */
+html[data-theme="dark"] [style*="background-color: rgba(0, 122, 255, 0.1"] {
+  background-color: rgba(59, 130, 246, 0.15) !important;
+}
+
+html[data-theme="dark"] [style*="background-color: rgba(118, 118, 128, 0.12"] {
+  background-color: rgba(255,255,255,0.06) !important;
+}
+
+/* Paragraph and span text fallback */
+html[data-theme="dark"] p, html[data-theme="dark"] span, html[data-theme="dark"] label, html[data-theme="dark"] h1, html[data-theme="dark"] h2, html[data-theme="dark"] h3, html[data-theme="dark"] h4 {
+  color: inherit;
+}
+
+/* Theme toggle button */
+.app-theme-toggle {
+  display: none; /* Hidden — toggle is in sidebar */
+}
+
+/* Admin sidebar collapsed tooltip */
+.sidebar-tooltip {
+  position: absolute;
+  left: 100%;
+  top: 50%;
+  transform: translateY(-50%);
+  margin-left: 8px;
+  padding: 6px 12px;
+  background: var(--app-bg-card);
+  color: var(--app-text);
+  border: 1px solid var(--app-border);
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+  white-space: nowrap;
+  pointer-events: none;
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+  z-index: 100;
+  opacity: 0;
+  transition: opacity 0.15s ease;
+}
+
+button:hover > .sidebar-tooltip,
+a:hover > .sidebar-tooltip {
+  opacity: 1;
 }

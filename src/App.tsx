@@ -38,6 +38,23 @@ function App() {
   // Admin portal state
   const [adminUser, setAdminUser] = useState<Admin | null>(null);
 
+  // Global theme — light default, persisted to localStorage
+  const [theme, setTheme] = useState<'light' | 'dark'>(() => {
+    return (localStorage.getItem('app-theme') as 'light' | 'dark') || 'light';
+  });
+
+  useEffect(() => {
+    document.documentElement.setAttribute('data-theme', theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prev => {
+      const next = prev === 'light' ? 'dark' : 'light';
+      localStorage.setItem('app-theme', next);
+      return next;
+    });
+  };
+
   // Session restoration on mount
   useEffect(() => {
     const restoreSession = async () => {
@@ -223,13 +240,15 @@ function App() {
   // Review Detail View
   if (currentView === 'review-detail' && selectedReview) {
     return (
-      <ReviewDetailPanel
-        review={selectedReview}
-        user={user}
-        onBack={handleBackToDashboard}
-        onStartInterview={(reviewId, participantId) => handleStartInterview('select', reviewId, participantId)}
-        onParticipantAdded={() => handleSelectReview(selectedReview.id)}
-      />
+      <>
+        <ReviewDetailPanel
+          review={selectedReview}
+          user={user}
+          onBack={handleBackToDashboard}
+          onStartInterview={(reviewId, participantId) => handleStartInterview('select', reviewId, participantId)}
+          onParticipantAdded={() => handleSelectReview(selectedReview.id)}
+        />
+      </>
     );
   }
 
@@ -270,15 +289,43 @@ function App() {
 
   // Admin Login Page
   if (currentView === 'admin-login') {
-    return <AdminLogin onSuccess={handleAdminLogin} />;
+    return (
+      <>
+        <AdminLogin onSuccess={handleAdminLogin} />
+      </>
+    );
   }
 
   // Admin Dashboard
   if (currentView === 'admin-dashboard' && adminUser) {
-    return <AdminDashboard admin={adminUser} onLogout={handleAdminLogout} />;
+    return (
+      <>
+        <AdminDashboard admin={adminUser} onLogout={handleAdminLogout} onToggleTheme={toggleTheme} />
+      </>
+    );
   }
 
   return null;
+}
+
+function ThemeToggleButton({ theme, onToggle }: { theme: 'light' | 'dark'; onToggle: () => void }) {
+  return (
+    <button
+      onClick={onToggle}
+      title={`Switch to ${theme === 'dark' ? 'light' : 'dark'} mode`}
+      className="app-theme-toggle"
+    >
+      {theme === 'dark' ? (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <circle cx="12" cy="12" r="5" /><line x1="12" y1="1" x2="12" y2="3" /><line x1="12" y1="21" x2="12" y2="23" /><line x1="4.22" y1="4.22" x2="5.64" y2="5.64" /><line x1="18.36" y1="18.36" x2="19.78" y2="19.78" /><line x1="1" y1="12" x2="3" y2="12" /><line x1="21" y1="12" x2="23" y2="12" /><line x1="4.22" y1="19.78" x2="5.64" y2="18.36" /><line x1="18.36" y1="5.64" x2="19.78" y2="4.22" />
+        </svg>
+      ) : (
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+          <path d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z" />
+        </svg>
+      )}
+    </button>
+  );
 }
 
 const styles: Record<string, React.CSSProperties> = {
@@ -289,19 +336,19 @@ const styles: Record<string, React.CSSProperties> = {
     alignItems: 'center',
     justifyContent: 'center',
     gap: '16px',
-    backgroundColor: '#FAFAFA',
+    backgroundColor: 'var(--app-bg)',
   },
   spinner: {
     width: '40px',
     height: '40px',
-    border: '3px solid #E4E4E7',
-    borderTopColor: '#18181B',
+    border: '3px solid var(--app-border)',
+    borderTopColor: 'var(--app-text)',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
   },
   loadingText: {
     fontSize: '14px',
-    color: '#71717A',
+    color: 'var(--app-text-muted)',
   },
 };
 

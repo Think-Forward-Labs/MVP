@@ -239,7 +239,7 @@ const styles: Record<string, CSSProperties> = {
   container: {
     display: 'flex',
     minHeight: '100vh',
-    backgroundColor: '#F5F5F7',
+    backgroundColor: 'var(--app-bg)',
     position: 'relative',
     overflow: 'hidden',
   },
@@ -251,7 +251,7 @@ const styles: Record<string, CSSProperties> = {
     left: 0,
     right: 0,
     bottom: 0,
-    background: 'linear-gradient(135deg, #F5F5F7 0%, #E8E8ED 50%, #F5F5F7 100%)',
+    background: 'linear-gradient(135deg, var(--app-bg) 0%, var(--app-bg-hover) 50%, var(--app-bg) 100%)',
     zIndex: 0,
   },
   backgroundOrb1: {
@@ -291,7 +291,7 @@ const styles: Record<string, CSSProperties> = {
   // Sidebar - Glass Effect
   sidebar: {
     width: '300px',
-    backgroundColor: 'rgba(255, 255, 255, 0.72)',
+    backgroundColor: 'var(--app-bg-card)',
     backdropFilter: 'blur(20px) saturate(180%)',
     WebkitBackdropFilter: 'blur(20px) saturate(180%)',
     borderRight: '1px solid rgba(0, 0, 0, 0.06)',
@@ -326,7 +326,7 @@ const styles: Record<string, CSSProperties> = {
     transition: 'all 0.2s cubic-bezier(0.4, 0, 0.2, 1)',
   },
   tabActive: {
-    backgroundColor: 'rgba(255, 255, 255, 0.9)',
+    backgroundColor: 'var(--app-bg-card)',
     color: '#1D1D1F',
     boxShadow: '0 1px 3px rgba(0, 0, 0, 0.08), 0 1px 2px rgba(0, 0, 0, 0.04)',
   },
@@ -368,7 +368,7 @@ const styles: Record<string, CSSProperties> = {
     fontSize: '13px',
     fontWeight: '500',
     color: '#FFFFFF',
-    backgroundColor: '#18181B',
+    backgroundColor: 'var(--app-accent)',
     border: 'none',
     borderRadius: '10px',
     cursor: 'pointer',
@@ -476,7 +476,7 @@ const styles: Record<string, CSSProperties> = {
     width: '24px',
     height: '24px',
     border: '2px solid #E4E4E7',
-    borderTopColor: '#18181B',
+    borderTopColor: 'var(--app-text)',
     borderRadius: '50%',
     animation: 'spin 1s linear infinite',
   },

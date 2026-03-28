@@ -16,9 +16,10 @@ import { EvaluationsSection } from './sections/EvaluationsSection';
 interface AdminDashboardProps {
   admin: Admin;
   onLogout: () => void;
+  onToggleTheme?: () => void;
 }
 
-export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
+export function AdminDashboard({ admin, onLogout, onToggleTheme }: AdminDashboardProps) {
   const [activeSection, setActiveSection] = useState<AdminSection>('businesses');
   const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
 
@@ -69,7 +70,7 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
   return (
     <div style={{
       ...styles.container,
-      backgroundColor: isDark ? '#060B18' : '#F5F5F7',
+      backgroundColor: 'var(--app-bg)',
     }}>
       {/* Background gradient — hidden in dark mode */}
       {!isDark && <div style={styles.backgroundGradient} />}
@@ -98,6 +99,7 @@ export function AdminDashboard({ admin, onLogout }: AdminDashboardProps) {
           collapsed={sidebarCollapsed}
           onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
           isDark={isDark}
+          onToggleTheme={onToggleTheme}
         />
         <main style={styles.main}>
           {renderSection()}
