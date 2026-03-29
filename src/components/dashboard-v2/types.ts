@@ -122,6 +122,14 @@ export interface PathologyType {
   evidence: Array<{ quote: string; role: string }>;
   related_metrics: string[];
   is_core?: boolean;
+  client_anchor?: string;
+  roadmap?: {
+    title?: string;
+    urgency?: string;
+    month_1?: { theme?: string; actions?: string[] };
+    month_2?: { theme?: string; actions?: string[] };
+    month_3?: { theme?: string; actions?: string[] };
+  };
 }
 
 // Level comparison for CEO Mirror

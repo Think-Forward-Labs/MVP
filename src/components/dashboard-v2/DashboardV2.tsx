@@ -29,11 +29,12 @@ import {
 import { Header } from './components/Header';
 import { VitalSigns } from './components/VitalSigns';
 import { QuadrantCard } from './components/QuadrantCard';
-import { PathologyCard } from './components/PathologyCard';
-import { OrgMirror } from './components/OrgMirror';
+import { PathologySummary } from './components/PathologySummary';
+import { PathologyListPage } from './components/PathologyListPage';
+import { SayDoGapsSummary } from './components/SayDoGapsSummary';
 import { VRINCard } from './components/VRINCard';
 import { RiskExposure } from './components/RiskExposure';
-import { CriticalIssues } from './components/CriticalIssues';
+// CriticalIssues hidden per Iva
 import { MetricsGrid } from './components/MetricsGrid';
 import { ActionsPanel } from './components/ActionsPanel';
 import { CEOMirrorTab } from './components/CEOMirrorTab';
@@ -77,6 +78,7 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
   const [showGapStory, setShowGapStory] = useState(false);
   const [showMetricTreemap, setShowMetricTreemap] = useState(false);
   const [selectedMetricCode, setSelectedMetricCode] = useState<string | null>(null);
+  const [showPathologyList, setShowPathologyList] = useState(false);
   const [isChatOpen, setIsChatOpen] = useState(false);
 
   // Fetch all data
@@ -179,6 +181,18 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
 
   // Full gap analysis story view
   const contradictions = refinedReport?.contradictions || [];
+  // Pathology list page
+  if (showPathologyList) {
+    return (
+      <div className="dashboard-v2" data-theme={theme}>
+        <PathologyListPage
+          pathologies={refinedReport?.pathologies || []}
+          onBack={() => setShowPathologyList(false)}
+        />
+      </div>
+    );
+  }
+
   if (showGapStory && contradictions.length > 0) {
     return (
       <div className="dashboard-v2" data-theme={theme}>
@@ -276,39 +290,35 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
             onSelectMetric={setSelectedMetricCode}
           />
 
-          {/* Executive Summary */}
-          {refinedReport?.executive_summary && (
-            <div className="dv2-exec-summary dv2-fi">
-              <div className="dv2-exec-label">EXECUTIVE SUMMARY</div>
-              <p className="dv2-exec-text">{refinedReport.executive_summary}</p>
-            </div>
-          )}
+          {/* TOP ROW: Quadrant + Executive Summary */}
+          <div className="dv2-top-row">
+            <QuadrantCard quadrant={quadrant} m1Score={m1Score} m2Score={m2Score} gap={gap} />
+            {refinedReport?.executive_summary && (
+              <div className="dv2-exec-summary dv2-fi">
+                <div className="dv2-exec-label">EXECUTIVE SUMMARY</div>
+                <p className="dv2-exec-text">{refinedReport.executive_summary}</p>
+              </div>
+            )}
+          </div>
 
-          {/* Main 3-column grid */}
-          <div className="dv2-main-grid">
-            {/* Column 1: Quadrant + Pathology */}
-            <div className="dv2-col1">
-              <QuadrantCard quadrant={quadrant} m1Score={m1Score} m2Score={m2Score} gap={gap} />
-              <PathologyCard pathologies={refinedReport?.pathologies || []} />
-            </div>
-
-            {/* Column 2: Org Mirror — Perception Gap + Say-Do Gaps */}
-            <OrgMirror
+          {/* MIDDLE ROW: Say-Do Gaps + Pathologies */}
+          <div className="dv2-middle-row">
+            <SayDoGapsSummary
               contradictions={refinedReport?.contradictions || []}
               crossMetricInsights={refinedReport?.cross_metric_insights}
               metricInsights={metricInsights}
               sortedMetrics={sortedMetrics}
               sourceCount={sourceCount}
-              onViewFullAnalysis={() => setShowGapStory(true)}
+              onViewDetails={() => setShowGapStory(true)}
             />
-
-            {/* Column 3: Risk + Issues */}
-            <div className="dv2-col3">
-              <RiskExposure m2Score={m2Score} selectedSize={selectedCompanySize} onSelectSize={setSelectedCompanySize} />
-              {/* CriticalIssues hidden per Iva — kept in pipeline, not shown on UI */}
-              {/* <CriticalIssues issues={refinedReport?.critical_issues || []} /> */}
-            </div>
+            <PathologySummary
+              pathologies={refinedReport?.pathologies || []}
+              onViewDetails={() => setShowPathologyList(true)}
+            />
           </div>
+
+          {/* Risk */}
+          <RiskExposure m2Score={m2Score} selectedSize={selectedCompanySize} onSelectSize={setSelectedCompanySize} />
 
           {/* 3-Level Preview (locked) */}
           {sourceCount <= 1 && (

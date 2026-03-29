@@ -3553,3 +3553,473 @@
   .md-reasoning-label { width: auto; }
   .md-rec-meta { flex-direction: column; gap: 4px; }
 }
+
+/* ═══════════════════════════════════════════════════════════
+   NEW LAYOUT: Top Row + Middle Row
+   ═══════════════════════════════════════════════════════════ */
+
+/* TOP ROW: Quadrant (compact) + Executive Summary */
+.dv2-top-row {
+  display: grid;
+  grid-template-columns: 220px 1fr;
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: stretch;
+}
+
+/* MIDDLE ROW: Say-Do (~60%) + Pathologies (~40%) */
+.dv2-middle-row {
+  display: grid;
+  grid-template-columns: 3fr 2fr;
+  gap: 12px;
+  margin-bottom: 12px;
+  align-items: start;
+}
+
+@media (max-width: 1100px) {
+  .dv2-top-row { grid-template-columns: 1fr; }
+  .dv2-middle-row { grid-template-columns: 1fr; }
+}
+
+@media (max-width: 1400px) {
+  .dv2-top-row { grid-template-columns: 200px 1fr; }
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SHARED PANEL STYLES
+   ═══════════════════════════════════════════════════════════ */
+.dv2-panel {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-radius: var(--rad);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+}
+.dv2-panel-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 12px;
+}
+.dv2-panel-label {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--tm);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+.dv2-view-details-btn {
+  width: 100%;
+  padding: 8px 12px;
+  margin-top: auto;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: transparent;
+  color: var(--txt);
+  font-family: var(--mono);
+  font-size: 10px;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s;
+}
+.dv2-view-details-btn:hover {
+  background: var(--bg-2);
+  border-color: var(--a);
+}
+
+/* ═══════════════════════════════════════════════════════════
+   SAY-DO GAPS SUMMARY — Elegant Amber
+   ═══════════════════════════════════════════════════════════ */
+.dv2-panel--saydo {
+  background: linear-gradient(135deg, #FFFDF5 0%, #FFF9E6 50%, #FFF5D6 100%);
+  border: 1px solid rgba(217, 175, 60, .25);
+  box-shadow: 0 1px 3px rgba(180, 140, 20, .06), inset 0 1px 0 rgba(255, 255, 255, .7);
+}
+[data-theme="dark"] .dv2-panel--saydo {
+  background: linear-gradient(135deg, rgba(60, 50, 20, .4) 0%, rgba(50, 42, 15, .35) 100%);
+  border-color: rgba(217, 175, 60, .18);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, .2), inset 0 1px 0 rgba(255, 255, 255, .03);
+}
+.dv2-panel-label--saydo {
+  color: #92700E;
+}
+[data-theme="dark"] .dv2-panel-label--saydo {
+  color: #D4A72C;
+}
+.dv2-panel--saydo .dv2-saydo-item {
+  border-bottom-color: rgba(217, 175, 60, .15);
+}
+[data-theme="dark"] .dv2-panel--saydo .dv2-saydo-item {
+  border-bottom-color: rgba(217, 175, 60, .1);
+}
+.dv2-view-details-btn--saydo {
+  border-color: rgba(180, 140, 20, .25);
+  color: #78590A;
+}
+[data-theme="dark"] .dv2-view-details-btn--saydo {
+  border-color: rgba(217, 175, 60, .2);
+  color: #D4A72C;
+}
+.dv2-view-details-btn--saydo:hover {
+  background: rgba(217, 175, 60, .1);
+  border-color: rgba(180, 140, 20, .4);
+}
+
+.dv2-saydo-content {
+  flex: 1;
+  max-height: 280px;
+  overflow: hidden;
+  position: relative;
+  margin-bottom: 12px;
+}
+.dv2-saydo-content::after {
+  content: '';
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 40px;
+  background: linear-gradient(transparent, #FFF9E6);
+  pointer-events: none;
+}
+[data-theme="dark"] .dv2-saydo-content::after {
+  background: linear-gradient(transparent, rgba(50, 42, 15, .35));
+}
+.dv2-saydo-item {
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.dv2-saydo-item:last-child {
+  border-bottom: none;
+}
+.dv2-saydo-item-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 6px;
+}
+.dv2-saydo-item-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--txt);
+}
+.dv2-saydo-item-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+.dv2-saydo-item-tag[data-type="over"] {
+  color: var(--r);
+  background: rgba(239,68,68,.08);
+}
+.dv2-saydo-item-tag[data-type="under"] {
+  color: var(--b);
+  background: rgba(59,130,246,.08);
+}
+.dv2-saydo-item-severity {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 6px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PATHOLOGY SUMMARY (compact list)
+   ═══════════════════════════════════════════════════════════ */
+.dv2-pathology-list {
+  flex: 1;
+  margin-bottom: 12px;
+}
+.dv2-pathology-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid var(--border);
+}
+.dv2-pathology-row:last-child {
+  border-bottom: none;
+}
+.dv2-pathology-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.dv2-pathology-info {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex: 1;
+  min-width: 0;
+}
+.dv2-pathology-title {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--txt);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dv2-pathology-severity {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--ts);
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  flex-shrink: 0;
+  margin-left: 8px;
+}
+
+/* ═══════════════════════════════════════════════════════════
+   PATHOLOGY LIST PAGE
+   ═══════════════════════════════════════════════════════════ */
+.plp-container {
+  max-width: 900px;
+  margin: 0 auto;
+  padding: 24px;
+}
+.plp-topbar {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  margin-bottom: 24px;
+  padding-bottom: 16px;
+  border-bottom: 1px solid var(--border);
+}
+.plp-back-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: none;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  color: var(--txt);
+  font-size: 12px;
+  cursor: pointer;
+  transition: background 0.15s;
+}
+.plp-back-btn:hover {
+  background: var(--bg-2);
+}
+.plp-title {
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--txt);
+  flex: 1;
+}
+.plp-count {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--ts);
+  letter-spacing: 0.5px;
+}
+.plp-list {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.plp-card {
+  background: var(--bg-1);
+  border: 1px solid var(--border);
+  border-left: 3px solid;
+  border-radius: var(--rad);
+  overflow: hidden;
+  transition: box-shadow 0.2s;
+}
+.plp-card:hover {
+  box-shadow: 0 2px 8px rgba(0,0,0,.06);
+}
+.plp-card-header {
+  padding: 16px;
+  cursor: pointer;
+  position: relative;
+}
+.plp-card-title-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 6px;
+}
+.plp-severity-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+.plp-card-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--txt);
+  flex: 1;
+}
+.plp-severity-badge {
+  font-family: var(--mono);
+  font-size: 9px;
+  padding: 2px 8px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+  flex-shrink: 0;
+}
+.plp-card-desc {
+  font-size: 13px;
+  color: var(--td);
+  line-height: 1.6;
+  margin: 0;
+  padding-right: 28px;
+}
+.plp-chevron {
+  position: absolute;
+  right: 16px;
+  top: 18px;
+  transition: transform 0.2s;
+}
+
+/* Card body (expanded) */
+.plp-card-body {
+  padding: 0 16px 16px;
+  border-top: 1px solid var(--border);
+}
+.plp-section {
+  padding: 12px 0;
+  border-bottom: 1px solid var(--border);
+}
+.plp-section:last-child {
+  border-bottom: none;
+}
+.plp-section-label {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--tm);
+  letter-spacing: 0.8px;
+  margin-bottom: 8px;
+}
+.plp-evidence {
+  padding: 8px 12px;
+  background: rgba(239,68,68,.03);
+  border-left: 2px solid rgba(239,68,68,.2);
+  border-radius: 0 4px 4px 0;
+  margin-bottom: 6px;
+}
+.plp-quote {
+  font-size: 12px;
+  color: var(--td);
+  line-height: 1.6;
+  font-style: italic;
+}
+.plp-role {
+  display: block;
+  font-size: 10px;
+  color: var(--ts);
+  margin-top: 4px;
+}
+.plp-section--anchor {
+  background: rgba(59,130,246,.03);
+  border-left: 2px solid rgba(59,130,246,.3);
+  border-radius: 0 4px 4px 0;
+  padding: 12px;
+  margin: 12px 0;
+}
+.plp-anchor-text {
+  font-size: 12px;
+  color: var(--td);
+  line-height: 1.6;
+  font-style: italic;
+  margin: 0;
+}
+.plp-section--coaching {
+  background: rgba(0,197,160,.03);
+  border-left: 2px solid rgba(0,197,160,.3);
+  border-radius: 0 4px 4px 0;
+  padding: 12px;
+  margin: 12px 0;
+}
+.plp-coaching-text {
+  font-size: 12px;
+  color: var(--td);
+  line-height: 1.6;
+  margin: 0;
+}
+
+/* Roadmap timeline */
+.plp-roadmap {
+  display: flex;
+  flex-direction: column;
+  gap: 0;
+}
+.plp-roadmap-phase {
+  display: flex;
+  gap: 12px;
+}
+.plp-roadmap-marker {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  width: 24px;
+  flex-shrink: 0;
+}
+.plp-roadmap-num {
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: var(--a);
+  color: white;
+  font-size: 11px;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.plp-roadmap-line {
+  width: 2px;
+  flex: 1;
+  min-height: 16px;
+  background: var(--border);
+}
+.plp-roadmap-content {
+  flex: 1;
+  padding-bottom: 14px;
+}
+.plp-roadmap-month {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--txt);
+  margin-bottom: 4px;
+}
+.plp-roadmap-action {
+  font-size: 11px;
+  color: var(--td);
+  line-height: 1.6;
+  padding-left: 10px;
+  position: relative;
+}
+.plp-roadmap-action::before {
+  content: '\2022';
+  position: absolute;
+  left: 0;
+  color: var(--ts);
+}
+
+/* Metric tags */
+.plp-metrics-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-top: 12px;
+}
+.plp-metric-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--tm);
+  background: var(--bg-2);
+  padding: 2px 8px;
+  border-radius: 3px;
+  letter-spacing: 0.5px;
+}
