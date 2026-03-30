@@ -775,21 +775,30 @@
   margin: 0 auto 32px;
   line-height: 1.65;
 }
-/* Engine Room Animation */
+/* Engine Room GIF */
 .dc-welcome-engine {
   margin: 32px auto;
-  max-width: 320px;
+  max-width: 360px;
+  border-radius: 16px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--bg-1);
 }
-.dc-engine-svg {
+.dc-welcome-engine img {
   width: 100%;
-  height: auto;
-  color: var(--text-0);
+  display: block;
+  opacity: 0.85;
 }
-.dc-gear--lg { animation: dc-spin 12s linear infinite; transform-origin: 70px 60px; }
-.dc-gear--sm { animation: dc-spin-reverse 8s linear infinite; transform-origin: 118px 48px; }
-.dc-gear--xs { animation: dc-spin 6s linear infinite; transform-origin: 145px 80px; }
-@keyframes dc-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
-@keyframes dc-spin-reverse { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
+.dc.dark .dc-welcome-engine,
+.dc[data-theme="dark"] .dc-welcome-engine {
+  border-color: var(--border);
+  background: var(--bg-2);
+}
+.dc.dark .dc-welcome-engine img,
+.dc[data-theme="dark"] .dc-welcome-engine img {
+  filter: invert(1) hue-rotate(180deg);
+  opacity: 0.7;
+}
 .dc-welcome-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);
