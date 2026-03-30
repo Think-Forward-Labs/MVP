@@ -775,17 +775,21 @@
   margin: 0 auto 32px;
   line-height: 1.65;
 }
-.dc-welcome-gif {
-  margin: 24px auto;
-  max-width: 400px;
-  border-radius: 16px;
-  overflow: hidden;
-  border: 1px solid var(--border);
+/* Engine Room Animation */
+.dc-welcome-engine {
+  margin: 32px auto;
+  max-width: 320px;
 }
-.dc-welcome-gif img {
+.dc-engine-svg {
   width: 100%;
-  display: block;
+  height: auto;
+  color: var(--text-0);
 }
+.dc-gear--lg { animation: dc-spin 12s linear infinite; transform-origin: 70px 60px; }
+.dc-gear--sm { animation: dc-spin-reverse 8s linear infinite; transform-origin: 118px 48px; }
+.dc-gear--xs { animation: dc-spin 6s linear infinite; transform-origin: 145px 80px; }
+@keyframes dc-spin { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+@keyframes dc-spin-reverse { from { transform: rotate(0deg); } to { transform: rotate(-360deg); } }
 .dc-welcome-grid {
   display: grid;
   grid-template-columns: repeat(2, 1fr);

@@ -144,8 +144,41 @@ function PageWelcome() {
           This is the complete technical reference for the CABAS® organisational assessment platform.
           Every formula, every weight, every rubric, every interdependency — documented from first principles.
         </p>
-        <div className="dc-welcome-gif">
-          <img src="/engine-room.gif" alt="Engine Room" onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }} />
+        <div className="dc-welcome-engine">
+          <svg viewBox="0 0 200 120" className="dc-engine-svg">
+            {/* Large gear */}
+            <g className="dc-gear dc-gear--lg">
+              <circle cx="70" cy="60" r="28" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.15" />
+              <circle cx="70" cy="60" r="20" fill="none" stroke="currentColor" strokeWidth="3" opacity="0.3" />
+              {[0,45,90,135,180,225,270,315].map(a => (
+                <rect key={a} x="66" y="32" width="8" height="12" rx="2" fill="currentColor" opacity="0.2"
+                  transform={`rotate(${a} 70 60)`} />
+              ))}
+              <circle cx="70" cy="60" r="6" fill="currentColor" opacity="0.12" />
+            </g>
+            {/* Small gear */}
+            <g className="dc-gear dc-gear--sm">
+              <circle cx="118" cy="48" r="16" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.15" />
+              <circle cx="118" cy="48" r="11" fill="none" stroke="currentColor" strokeWidth="2.5" opacity="0.25" />
+              {[0,60,120,180,240,300].map(a => (
+                <rect key={a} x="115" y="30" width="6" height="8" rx="1.5" fill="currentColor" opacity="0.18"
+                  transform={`rotate(${a} 118 48)`} />
+              ))}
+              <circle cx="118" cy="48" r="4" fill="currentColor" opacity="0.1" />
+            </g>
+            {/* Tiny gear */}
+            <g className="dc-gear dc-gear--xs">
+              <circle cx="145" cy="80" r="10" fill="none" stroke="currentColor" strokeWidth="1.5" opacity="0.12" />
+              <circle cx="145" cy="80" r="7" fill="none" stroke="currentColor" strokeWidth="2" opacity="0.2" />
+              {[0,72,144,216,288].map(a => (
+                <rect key={a} x="143" y="69" width="4" height="6" rx="1" fill="currentColor" opacity="0.15"
+                  transform={`rotate(${a} 145 80)`} />
+              ))}
+            </g>
+            {/* Connection lines */}
+            <line x1="90" y1="55" x2="105" y2="50" stroke="currentColor" strokeWidth="1" opacity="0.08" strokeDasharray="3 3" />
+            <line x1="130" y1="58" x2="138" y2="72" stroke="currentColor" strokeWidth="1" opacity="0.08" strokeDasharray="3 3" />
+          </svg>
         </div>
       </div>
 
