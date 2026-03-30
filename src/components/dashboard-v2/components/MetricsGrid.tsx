@@ -49,7 +49,7 @@ export function MetricsGrid({ sortedMetrics, metricInsights, onViewTreemap, onSe
             >
               <div className="dv2-m-top">
                 <span className="dv2-m-name">{def.clientName}</span>
-                <span className="dv2-m-score" style={{ color: c }}>{score || '—'}</span>
+                <span className="dv2-m-score" style={{ color: c }}>{score ? Math.round(score) : '—'}</span>
               </div>
               <div className="dv2-m-bar-track">
                 <div className="dv2-m-bar-fill" style={{ width: `${score}%`, background: c }} />

@@ -27,26 +27,7 @@ function getContradictionScore(
 const MAX_VISIBLE = 3;
 
 export function SayDoGapsSummary({ contradictions, crossMetricInsights, metricInsights, sortedMetrics, sourceCount, onViewDetails }: SayDoGapsSummaryProps) {
-  // Single-respondent guard
-  if (sourceCount !== undefined && sourceCount <= 1) {
-    return (
-      <div className="dv2-panel dv2-fi">
-        <div className="dv2-panel-header">
-          <span className="dv2-panel-label">ORGANISATIONAL MIRROR</span>
-        </div>
-        <div style={{ padding: '20px 14px', display: 'flex', alignItems: 'flex-start', gap: 10 }}>
-          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2" style={{ flexShrink: 0, marginTop: 1 }}>
-            <path d="M10.29 3.86L1.82 18a2 2 0 001.71 3h16.94a2 2 0 001.71-3L13.71 3.86a2 2 0 00-3.42 0z" />
-            <line x1="12" y1="9" x2="12" y2="13" />
-            <line x1="12" y1="17" x2="12.01" y2="17" />
-          </svg>
-          <div style={{ fontSize: 12, color: '#78350F', lineHeight: 1.5 }}>
-            Say-Do gap analysis requires responses from more than one organisational level.
-          </div>
-        </div>
-      </div>
-    );
-  }
+  const isSingleRespondent = sourceCount !== undefined && sourceCount <= 1;
 
   // Perception Gap
   const perceptionGap = useMemo(() => {
@@ -163,12 +144,24 @@ export function SayDoGapsSummary({ contradictions, crossMetricInsights, metricIn
           </div>
         )}
 
-        {!hasContent && (
+        {!hasContent && !isSingleRespondent && (
           <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--ts)', fontSize: 12 }}>
-            No perception gaps detected.
+            No contradictions detected across {sourceCount || 0} respondents.
+          </div>
+        )}
+
+        {!hasContent && isSingleRespondent && (
+          <div style={{ padding: '16px 0', textAlign: 'center', color: 'var(--ts)', fontSize: 12 }}>
+            No within-respondent contradictions detected.
           </div>
         )}
       </div>
+
+      {isSingleRespondent && (
+        <div style={{ padding: '6px 10px', fontSize: 10, color: '#92700E', background: 'rgba(217,175,60,.08)', borderRadius: 4, marginBottom: 8 }}>
+          Cross-level gap analysis requires 2+ organisational levels. Within-respondent contradictions are shown above.
+        </div>
+      )}
 
       {hasContent && (
         <button className="dv2-view-details-btn dv2-view-details-btn--saydo" onClick={onViewDetails}>

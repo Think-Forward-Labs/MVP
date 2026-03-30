@@ -145,8 +145,8 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
   const extraGauges = [
     { label: 'Cultural Health', score: hasData ? Math.round((getMetricScore('M10', sortedMetrics, metricInsights) + getMetricScore('M6', sortedMetrics, metricInsights)) / 2) : 0 },
     { label: 'Resource Capability', score: getMetricScore('M12', sortedMetrics, metricInsights) },
-    { label: 'OODA Velocity', score: hasData ? Math.round((getMetricScore('M3', sortedMetrics, metricInsights) + getMetricScore('M4', sortedMetrics, metricInsights)) / 2) : 0 },
-    { label: 'Resilience Index', score: hasData ? Math.round((getMetricScore('M13', sortedMetrics, metricInsights) + getMetricScore('M14', sortedMetrics, metricInsights)) / 2) : 0 },
+    { label: 'OODA Velocity', score: hasData ? Math.round(getMetricScore('D1', sortedMetrics, metricInsights)) : 0 },
+    { label: 'Resilience Index', score: hasData ? Math.round(getMetricScore('D2', sortedMetrics, metricInsights)) : 0 },
   ];
 
   // Loading

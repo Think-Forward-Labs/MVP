@@ -15,8 +15,8 @@ const GAUGE_METRIC_MAP: Record<string, string> = {
   'Future Readiness': 'M2',
   'Cultural Health': 'M10',
   'Resource Capability': 'M12',
-  'OODA Velocity': 'M3',
-  'Resilience Index': 'M13',
+  'OODA Velocity': 'D1',
+  'Resilience Index': 'D2',
 };
 
 // Icon + tooltip metadata for each gauge
@@ -86,7 +86,7 @@ function drawGaugeContent(score: number, size: number, isMain: boolean, isDark: 
     <path d="${arcPath(cx, cy, innerBorderR, S, E)}" fill="none" stroke="${borderColor}" stroke-width="0.8" stroke-linecap="round"/>
     <path d="${arcPath(cx, cy, r, S, E)}" fill="none" stroke="${trackColor}" stroke-width="${sw}" stroke-linecap="round"/>
     <path d="${arcPath(cx, cy, r, S, fillEnd)}" fill="none" stroke="${c}" stroke-width="${sw}" stroke-linecap="round" style="filter:drop-shadow(0 0 4px ${c}40)"/>
-    <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" style="font-family:var(--mono);font-size:${scoreFontSize}px;font-weight:700;fill:${c};font-variant-numeric:tabular-nums;letter-spacing:-0.03em">${score}</text>
+    <text x="${cx}" y="${cy}" text-anchor="middle" dominant-baseline="central" style="font-family:var(--mono);font-size:${scoreFontSize}px;font-weight:700;fill:${c};font-variant-numeric:tabular-nums;letter-spacing:-0.03em">${Math.round(score)}</text>
   `;
 }
 

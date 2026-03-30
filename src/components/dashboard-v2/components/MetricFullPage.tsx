@@ -101,7 +101,7 @@ export function MetricFullPage({ metricCode, metricInsights, onBack }: MetricFul
             <div className="mfp-hero-badge" style={{ background: colors.base }}>{metricCode}</div>
             <h1 className="mfp-hero-title">{displayName}</h1>
             <div className="mfp-hero-score-row">
-              <span className="mfp-hero-score" style={{ color: sc }}>{insight.score}</span>
+              <span className="mfp-hero-score" style={{ color: sc }}>{Math.round(insight.score)}</span>
               <span className="mfp-hero-label" style={{ color: sc }}>{scoreLabel(insight.score)}</span>
               <span className="mfp-hero-health">{insight.health_status?.replace('_', ' ').toUpperCase()}</span>
             </div>

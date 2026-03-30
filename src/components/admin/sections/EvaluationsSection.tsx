@@ -3190,10 +3190,10 @@ function RunSummaryView({
     other: { label: 'Not sure', spend: 200000 },
   };
   const RISK_BANDS = [
-    { maxScore: 29, midpoint: 0.75, label: 'Severely at risk', sources: 'Bain 88%, McKinsey 70%' },
-    { maxScore: 49, midpoint: 0.60, label: 'At risk', sources: 'BCG 65% failure rate' },
-    { maxScore: 69, midpoint: 0.40, label: 'Moderate risk without intervention', sources: 'BCG 35% success rate' },
-    { maxScore: 100, midpoint: 0.20, label: 'Good odds but not guaranteed', sources: 'Prosci 7x with excellent CM' },
+    { maxScore: 29, midpoint: 0.75, label: 'Severely at risk', sources: 'Research shows 60–70% of transformation initiatives fail to deliver intended results' },
+    { maxScore: 49, midpoint: 0.60, label: 'At risk', sources: 'Research shows 60–70% of transformation initiatives fail to deliver intended results' },
+    { maxScore: 69, midpoint: 0.40, label: 'Moderate risk without intervention', sources: 'Research shows organisations with structured change management are significantly more likely to succeed' },
+    { maxScore: 100, midpoint: 0.20, label: 'Good odds but not guaranteed', sources: 'Research shows organisations with structured change management are significantly more likely to succeed' },
   ];
   const currentSpend = SPEND_BY_SIZE[selectedCompanySize].spend;
   const riskBand = RISK_BANDS.find(b => m2Score <= b.maxScore) || RISK_BANDS[RISK_BANDS.length - 1];
