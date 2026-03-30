@@ -243,9 +243,16 @@ function PageArchitecture() {
 // PAGE: QUESTION DATA
 // ═══════════════════════════════════════════════════════════
 function PageQuestionData() {
+  const { data: questions, loading } = useDocsData<any[]>('questions');
+  const [expandedQ, setExpandedQ] = useState<string | null>(null);
+
+  const typeColor: Record<string, 'blue' | 'green' | 'amber' | 'red'> = {
+    open: 'blue', scale: 'green', percentage: 'amber', single_select: 'red', multi_select: 'red',
+  };
+
   return (
     <div className="dc-page">
-      <Hero badge="Questions" badgeVariant="blue" title="Question Data" subtitle="28 questions across 4 types form the input to the evaluation pipeline." />
+      <Hero badge="Questions" badgeVariant="blue" title="Question Data" subtitle="28 questions across 4 types. Click any question to see the full text asked to respondents." />
 
       <Card>
         <h3>Question Types</h3>
@@ -258,42 +265,57 @@ function PageQuestionData() {
       </Card>
 
       <Card>
-        <h3>Complete Question List</h3>
-        <Table compact headers={['Code', 'Type', 'Summary', 'Primary Metric']} rows={[
-          ['B1', 'Open', 'Role, level, tenure', 'Triangulation'],
-          ['B2', 'Open', 'Team description, special skills', 'Defensible Strengths'],
-          ['B5', 'Multi-select', 'What customers value most', 'Op. Strength'],
-          ['B6', 'Single-select', 'Market change speed', 'Future Readiness'],
-          ['M1', 'Open', 'How you discuss/interpret info', 'Insight-to-Action'],
-          ['M4', 'Scale 1-5', 'Cross-team conversation effectiveness', 'Structure Fitness'],
-          ['S1', 'Open', 'Signals noticed and sources', 'Market Radar'],
-          ['S3a', 'Scale 1-5', 'Ease of raising bad news/risks', 'Change Readiness'],
-          ['S5', 'Scale 1-5', 'Organisation spots changes early', 'Future Readiness'],
-          ['I1', 'Open', 'Example: learning → change', '5 Metrics'],
-          ['I2', 'Open', 'Enablers and barriers', 'Impl. Speed'],
-          ['I4', 'Scale 1-5', 'Changes implemented and stay', 'Op. Strength'],
-          ['X3a', 'Percentage', '% time exploitation (run)', 'Run/Transform'],
-          ['X3b', 'Percentage', '% time exploration (transform)', 'Run/Transform'],
-          ['X4', 'Scale 1-5', 'Ability to change direction', 'Impl. Speed'],
-          ['C1', 'Open', 'Response to mistakes (example)', 'Change Readiness'],
-          ['C2', 'Open', 'What leaders do for learning', 'Insight-to-Action'],
-          ['C3', 'Scale 1-5', 'Feel safe to speak up', 'Change Readiness'],
-          ['C4', 'Open', 'Teams respond differently?', 'Structure Fitness'],
-          ['R1', 'Open', 'Tools help or create friction', 'Capacity & Tools'],
-          ['R2', 'Open', 'Experiments/pilots with partners', 'Future Readiness'],
-          ['R3', 'Scale 1-5', 'Tech supports learning', 'Capacity & Tools'],
-          ['P2', 'Open', 'Biggest barriers (list 3)', 'Synthesis'],
-          ['P4', 'Scale 1-5', 'Overall readiness for change', 'Meta-check'],
-          ['RA1', 'Open', 'Last significant risk taken', 'Risk Tolerance'],
-          ['RA2', 'Open', 'Response to failed risks', 'Risk Tolerance'],
-          ['OL1', 'Open', 'Orphan problem handling', 'Accountability Speed'],
-          ['OL2', 'Open', 'Time to ownership', 'Accountability Speed'],
-        ]} />
+        <h3>All Questions</h3>
+        <p className="dc-text-muted">{loading ? 'Loading...' : `${questions?.length || 0} questions loaded. Click to view full text.`}</p>
+        {!loading && questions && (
+          <div className="dc-rubric-list">
+            {questions.map((q: any) => {
+              const isOpen = expandedQ === q.code;
+              return (
+                <div key={q.code} className={`dc-rubric ${isOpen ? 'dc-rubric--open' : ''}`}>
+                  <button className="dc-rubric-header" onClick={() => setExpandedQ(isOpen ? null : q.code)}>
+                    <div className="dc-rubric-code">{q.code}</div>
+                    <div className="dc-rubric-meta">
+                      <Badge variant={typeColor[q.type] || 'default'}>{q.type}</Badge>
+                      <span className="dc-rubric-dims">{q.aspect || ''}</span>
+                    </div>
+                    <svg className={`dc-rubric-chevron ${isOpen ? 'dc-rubric-chevron--open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  {isOpen && (
+                    <div className="dc-rubric-body">
+                      <div className="dc-question-text">{q.text}</div>
+                      {q.options && q.options.length > 0 && (
+                        <div className="dc-question-options">
+                          <div className="dc-rubric-formula-label">Options</div>
+                          {q.options.map((opt: any, i: number) => (
+                            <div key={i} className="dc-question-option">
+                              {typeof opt === 'string' ? opt : opt.label || opt.text || JSON.stringify(opt)}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {q.scale && Object.keys(q.scale).length > 0 && (
+                        <div className="dc-question-options">
+                          <div className="dc-rubric-formula-label">Scale</div>
+                          {Object.entries(q.scale).map(([k, v]: [string, any]) => (
+                            <div key={k} className="dc-question-option">{k}: {typeof v === 'string' ? v : JSON.stringify(v)}</div>
+                          ))}
+                        </div>
+                      )}
+                      {q.purpose && (
+                        <div className="dc-question-purpose">
+                          <div className="dc-rubric-formula-label">Purpose</div>
+                          <div>{q.purpose}</div>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
       </Card>
-
-      <Info type="tip" title="Scale Conversion">
-        All 1-5 scale questions: <strong>Score = Scale × 20</strong>. No AI. 1→20, 2→40, 3→60, 4→80, 5→100.
-      </Info>
     </div>
   );
 }
@@ -304,91 +326,177 @@ function PageQuestionData() {
 function PageScoring() {
   const { data: rubrics, loading } = useDocsData<Record<string, any>>('scoring-rubrics');
   const [expandedQ, setExpandedQ] = useState<string | null>(null);
-  const questionOrder = ['I1','R1','I2','M1','S1','C1','C2','C4','R2','B2','P2','RA1','RA2','OL1','OL2'];
+
+  const allQuestions = [
+    { code: 'B1', type: 'open', label: 'Role, level, tenure' },
+    { code: 'B2', type: 'open', label: 'Team description, special skills' },
+    { code: 'B5', type: 'multi_select', label: 'What customers value most' },
+    { code: 'B6', type: 'single_select', label: 'Market change speed' },
+    { code: 'M1', type: 'open', label: 'How you discuss/interpret info' },
+    { code: 'M4', type: 'scale', label: 'Cross-team effectiveness' },
+    { code: 'S1', type: 'open', label: 'Signals noticed and sources' },
+    { code: 'S3a', type: 'scale', label: 'Ease of raising bad news' },
+    { code: 'S5', type: 'scale', label: 'Spots changes early' },
+    { code: 'I1', type: 'open', label: 'Example: learning → change' },
+    { code: 'I2', type: 'open', label: 'Enablers and barriers' },
+    { code: 'I4', type: 'scale', label: 'Changes stick' },
+    { code: 'X3a', type: 'percentage', label: '% exploitation (run)' },
+    { code: 'X3b', type: 'percentage', label: '% exploration (transform)' },
+    { code: 'X4', type: 'scale', label: 'Ability to pivot' },
+    { code: 'C1', type: 'open', label: 'Response to mistakes' },
+    { code: 'C2', type: 'open', label: 'What leaders do for learning' },
+    { code: 'C3', type: 'scale', label: 'Safe to speak up' },
+    { code: 'C4', type: 'open', label: 'Teams respond differently' },
+    { code: 'R1', type: 'open', label: 'Tools help or friction' },
+    { code: 'R2', type: 'open', label: 'Pilots with partners' },
+    { code: 'R3', type: 'scale', label: 'Tech supports learning' },
+    { code: 'P2', type: 'open', label: 'Biggest barriers (list 3)' },
+    { code: 'P4', type: 'scale', label: 'Overall readiness' },
+    { code: 'RA1', type: 'open', label: 'Last significant risk' },
+    { code: 'RA2', type: 'open', label: 'Response to failed risks' },
+    { code: 'OL1', type: 'open', label: 'Orphan problem handling' },
+    { code: 'OL2', type: 'open', label: 'Time to ownership' },
+  ];
+
+  const typeColor: Record<string, 'blue' | 'green' | 'amber' | 'red'> = {
+    open: 'blue', scale: 'green', percentage: 'amber', single_select: 'red', multi_select: 'red',
+  };
 
   return (
     <div className="dc-page">
-      <Hero badge="Questions" title="Scoring" subtitle="How each open-ended question is scored using AI with multi-dimension rubrics and BARS anchors." />
+      <Hero badge="Questions" title="Scoring" subtitle="How each of the 28 questions is scored — from AI rubrics to direct conversion to distance-from-ideal." />
 
       <Card>
-        <h3>Scoring Architecture</h3>
-        <Steps steps={[
-          { title: 'Load rubric', desc: 'Each of the 15 open-ended questions has a unique rubric with 3-5 scoring dimensions.' },
-          { title: 'AI scores each dimension 1-5', desc: 'The LLM matches the response to the closest BARS anchor per dimension. Returns score, confidence, and reasoning.' },
-          { title: 'Compute weighted average', desc: 'Overall = Σ(dimension_score × weight) ÷ Σ(weights). Levels 1-5 map to 20-100.' },
-          { title: 'Apply ceiling if triggered', desc: 'Post-scoring: if a hard ceiling condition is met, the overall is capped. Dimension scores preserved.' },
+        <h3>Scoring Methods by Type</h3>
+        <Table headers={['Type', 'Method', 'Formula']} rows={[
+          [<Badge variant="blue">Open-Ended (15)</Badge>, 'AI scores 3-5 dimensions using BARS anchors', 'Σ(dim_score × weight) ÷ Σ(weights) × 20'],
+          [<Badge variant="green">Scale 1-5 (8)</Badge>, 'Direct mathematical conversion', 'Score = Scale × 20 (1→20, 5→100)'],
+          [<Badge variant="amber">Percentage (2)</Badge>, 'Distance-from-ideal with B6 context', 'X3b 20-40% = 100, <10% = 20-59'],
+          [<Badge variant="red">Select (3)</Badge>, 'Category mapping', 'Based on selection category'],
         ]} />
-        <Formula label="Overall Score">{'Σ (dimension_level × dimension_weight%) ÷ 100 × 20  →  0-100'}</Formula>
       </Card>
 
       <Card>
-        <h3>Question Rubrics</h3>
+        <h3>All 28 Questions — Scoring Detail</h3>
         <p className="dc-text-muted">
-          {loading ? 'Loading from backend...' : `${Object.keys(rubrics || {}).length} rubrics loaded. Click to expand.`}
+          {loading ? 'Loading rubrics...' : 'Click any question to see how it is scored. Open-ended questions show full AI rubric with dimensions and BARS anchors.'}
         </p>
-        {!loading && rubrics && (
-          <div className="dc-rubric-list">
-            {questionOrder.map(code => {
-              const key = `q_cabas_${code.toLowerCase()}`;
-              const r = rubrics[key];
-              if (!r) return null;
-              const qCode = r.question_code || code;
-              const dims = r.dimensions || [];
-              const isOpen = expandedQ === qCode;
+        <div className="dc-rubric-list">
+          {allQuestions.map(q => {
+            const key = `q_cabas_${q.code.toLowerCase()}`;
+            const r = rubrics?.[key];
+            const dims = r?.dimensions || [];
+            const isOpen = expandedQ === q.code;
+            const hasRubric = dims.length > 0;
 
-              return (
-                <div key={qCode} className={`dc-rubric ${isOpen ? 'dc-rubric--open' : ''}`}>
-                  <button className="dc-rubric-header" onClick={() => setExpandedQ(isOpen ? null : qCode)}>
-                    <div className="dc-rubric-code">{qCode}</div>
-                    <div className="dc-rubric-meta">
-                      <span className="dc-rubric-dims">{dims.length} dimensions</span>
-                      <span className="dc-rubric-type">{r.scoring_type || 'dimensional'}</span>
-                    </div>
-                    <svg className={`dc-rubric-chevron ${isOpen ? 'dc-rubric-chevron--open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
-                  </button>
-                  {isOpen && (
-                    <div className="dc-rubric-body">
-                      <div className="dc-rubric-formula">
-                        <span className="dc-rubric-formula-label">Formula</span>
-                        <span className="dc-rubric-formula-text">{dims.map((d: any) => `${d.id}(${d.weight}%)`).join(' + ')}</span>
-                      </div>
-                      {r.critical_flags && typeof r.critical_flags === 'object' && !Array.isArray(r.critical_flags) && Object.keys(r.critical_flags).length > 0 && (
-                        <div className="dc-rubric-flags">
-                          <div className="dc-rubric-flags-label">Critical Flags</div>
-                          {Object.entries(r.critical_flags).map(([fid, f]: [string, any]) => (
-                            <div key={fid} className="dc-rubric-flag">
-                              <Badge variant="red">{fid}</Badge>
-                              <span>{f.condition || String(f)}</span>
-                              {f.max_score && <Badge variant="amber">max: {f.max_score}</Badge>}
-                            </div>
-                          ))}
+            return (
+              <div key={q.code} className={`dc-rubric ${isOpen ? 'dc-rubric--open' : ''}`}>
+                <button className="dc-rubric-header" onClick={() => setExpandedQ(isOpen ? null : q.code)}>
+                  <div className="dc-rubric-code">{q.code}</div>
+                  <div className="dc-rubric-meta">
+                    <Badge variant={typeColor[q.type] || 'default'}>{q.type}</Badge>
+                    <span className="dc-rubric-dims">{q.label}</span>
+                  </div>
+                  <svg className={`dc-rubric-chevron ${isOpen ? 'dc-rubric-chevron--open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                </button>
+                {isOpen && (
+                  <div className="dc-rubric-body">
+                    {/* Scale questions */}
+                    {q.type === 'scale' && (
+                      <>
+                        <div className="dc-rubric-formula">
+                          <span className="dc-rubric-formula-label">Method</span>
+                          <span className="dc-rubric-formula-text">Direct conversion — no AI interpretation</span>
                         </div>
-                      )}
-                      {dims.map((dim: any) => (
-                        <div key={dim.id} className="dc-dimension">
-                          <div className="dc-dimension-header">
-                            <div className="dc-dimension-name">{dim.name}</div>
-                            <Badge variant="blue">{dim.weight}%</Badge>
-                          </div>
-                          {dim.description && <p className="dc-dimension-desc">{dim.description}</p>}
-                          <div className="dc-anchors">
-                            {(dim.anchors || []).map((a: any) => (
-                              <div key={a.level} className="dc-anchor">
-                                <div className={`dc-anchor-level dc-anchor-level--${a.level}`}>{a.level}</div>
-                                <div className="dc-anchor-range">{a.score_range}</div>
-                                <div className="dc-anchor-behavior">{a.behavior}</div>
+                        <Formula label="Formula">{'Score = Scale Value × 20  |  1→20, 2→40, 3→60, 4→80, 5→100'}</Formula>
+                        <Info type="tip">Mathematical conversion. Deterministic. No variation between runs.</Info>
+                      </>
+                    )}
+
+                    {/* Percentage questions */}
+                    {q.type === 'percentage' && (
+                      <>
+                        <div className="dc-rubric-formula">
+                          <span className="dc-rubric-formula-label">Method</span>
+                          <span className="dc-rubric-formula-text">Distance-from-ideal with B6 market context</span>
+                        </div>
+                        <Formula label="Ideal Range">{'70% exploitation / 30% exploration. X3b 20-40% = 100. X3b <10% = 20-59. X3b >60% = 20-59.'}</Formula>
+                        <Info type="note">The ideal ratio adjusts based on B6 (market dynamism). Fast markets reward more exploration.</Info>
+                      </>
+                    )}
+
+                    {/* Select questions */}
+                    {(q.type === 'single_select' || q.type === 'multi_select') && (
+                      <>
+                        <div className="dc-rubric-formula">
+                          <span className="dc-rubric-formula-label">Method</span>
+                          <span className="dc-rubric-formula-text">{q.type === 'multi_select' ? 'Category-based scoring from selected options' : 'Direct mapping from selected option'}</span>
+                        </div>
+                        {q.code === 'B6' && (
+                          <Table compact headers={['Selection', 'Score']} rows={[
+                            ['Very Slow — Stable for years', '20'],
+                            ['Slow — Gradual, predictable', '40'],
+                            ['Moderate — Noticeable shifts', '60'],
+                            ['Fast — Significant disruption', '80'],
+                            ['Very Fast — Constant upheaval', '100'],
+                          ]} />
+                        )}
+                        {q.code === 'B5' && (
+                          <Info type="note">B5 scores on differentiation signal. All operational selections (Reliability, Quality, Speed, Price) = 60-65. Mix of operational + strategic (Innovation, Expertise) = 70-75. All strategic = 75-80.</Info>
+                        )}
+                      </>
+                    )}
+
+                    {/* Open-ended with AI rubric */}
+                    {q.type === 'open' && hasRubric && (
+                      <>
+                        <div className="dc-rubric-formula">
+                          <span className="dc-rubric-formula-label">Method</span>
+                          <span className="dc-rubric-formula-text">AI-scored: {dims.map((d: any) => `${d.id}(${d.weight}%)`).join(' + ')}</span>
+                        </div>
+                        {r.critical_flags && typeof r.critical_flags === 'object' && !Array.isArray(r.critical_flags) && Object.keys(r.critical_flags).length > 0 && (
+                          <div className="dc-rubric-flags">
+                            <div className="dc-rubric-flags-label">Critical Flags</div>
+                            {Object.entries(r.critical_flags).map(([fid, f]: [string, any]) => (
+                              <div key={fid} className="dc-rubric-flag">
+                                <Badge variant="red">{fid}</Badge>
+                                <span>{f.condition || String(f)}</span>
+                                {f.max_score && <Badge variant="amber">max: {f.max_score}</Badge>}
                               </div>
                             ))}
                           </div>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
+                        )}
+                        {dims.map((dim: any) => (
+                          <div key={dim.id} className="dc-dimension">
+                            <div className="dc-dimension-header">
+                              <div className="dc-dimension-name">{dim.name}</div>
+                              <Badge variant="blue">{dim.weight}%</Badge>
+                            </div>
+                            {dim.description && <p className="dc-dimension-desc">{dim.description}</p>}
+                            <div className="dc-anchors">
+                              {(dim.anchors || []).map((a: any) => (
+                                <div key={a.level} className="dc-anchor">
+                                  <div className={`dc-anchor-level dc-anchor-level--${a.level}`}>{a.level}</div>
+                                  <div className="dc-anchor-range">{a.score_range}</div>
+                                  <div className="dc-anchor-behavior">{a.behavior}</div>
+                                </div>
+                              ))}
+                            </div>
+                          </div>
+                        ))}
+                      </>
+                    )}
+
+                    {/* Open-ended without rubric */}
+                    {q.type === 'open' && !hasRubric && (
+                      <Info type="note">This question uses the default scoring approach or is used for triangulation/context only.</Info>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+        </div>
       </Card>
 
       <Info type="danger" title="Critical Principle">
