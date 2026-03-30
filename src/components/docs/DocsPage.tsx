@@ -1,212 +1,48 @@
 import { useState, useEffect } from 'react';
 import './DocsPage.css';
 
-// ─── TYPES ───
-interface NavItem {
+// ─── PAGE DEFINITIONS ───
+interface DocPage {
   id: string;
   label: string;
-  children?: NavItem[];
+  group: string;
+  content: () => JSX.Element;
 }
 
-// ─── NAV STRUCTURE ───
-const NAV: NavItem[] = [
-  { id: 'overview', label: 'Pipeline Overview' },
-  { id: 'questions', label: 'Question Bank', children: [
-    { id: 'questions-open', label: 'Open-Ended (15)' },
-    { id: 'questions-scale', label: 'Scale 1-5 (8)' },
-    { id: 'questions-pct', label: 'Percentage (2)' },
-    { id: 'questions-select', label: 'Select (3)' },
-  ]},
-  { id: 'scoring', label: 'Scoring Engine', children: [
-    { id: 'scoring-dimensions', label: 'Dimension Rubrics' },
-    { id: 'scoring-ceilings', label: 'Hard Score Ceilings' },
-    { id: 'scoring-formula', label: 'Score Calculation' },
-  ]},
-  { id: 'metrics', label: 'Metric Definitions', children: [
-    { id: 'metrics-core', label: 'Core Metrics (M1-M14)' },
-    { id: 'metrics-derived', label: 'Derived (D1, D2)' },
-    { id: 'metrics-weights', label: 'Question Weights' },
-  ]},
-  { id: 'interdependency', label: 'Interdependency Map', children: [
-    { id: 'interdependency-pathology', label: 'Pathology Links' },
-    { id: 'interdependency-contradiction', label: 'Contradiction Links' },
-    { id: 'interdependency-validation', label: 'Validation Links' },
-  ]},
-  { id: 'pathology', label: 'Pathology Detection', children: [
-    { id: 'pathology-logic', label: 'Detection Logic (7)' },
-    { id: 'pathology-indicators', label: 'Partial Indicators' },
-    { id: 'pathology-roadmaps', label: 'Recovery Roadmaps' },
-  ]},
-  { id: 'saydo', label: 'Say-Do Checks', children: [
-    { id: 'saydo-pattern', label: 'Pattern Checks (10)' },
-    { id: 'saydo-crossq', label: 'Cross-Question (6)' },
-    { id: 'saydo-n1', label: 'Single-Respondent Rules' },
-  ]},
-  { id: 'quadrant', label: 'Quadrant Classification' },
-  { id: 'training', label: 'Training Data Bank', children: [
-    { id: 'training-cases', label: 'Historical Cases' },
-    { id: 'training-signals', label: 'Scoring Signals' },
-    { id: 'training-calibration', label: 'Calibration Examples' },
-    { id: 'training-sector', label: 'Sector Norms' },
-    { id: 'training-exec', label: 'Exec Summary Examples' },
-    { id: 'training-saydo', label: 'Say-Do Examples' },
-    { id: 'training-recs', label: 'Recommendation Examples' },
-    { id: 'training-roadmaps', label: 'Pathology Roadmaps' },
-    { id: 'training-labels', label: 'Label Translations' },
-  ]},
-  { id: 'refinement', label: 'Refinement Pipeline', children: [
-    { id: 'refinement-narratives', label: 'Metric Narratives' },
-    { id: 'refinement-observations', label: 'Observation Mining' },
-    { id: 'refinement-summary', label: 'Executive Summary' },
-    { id: 'refinement-actions', label: 'Recommendations' },
-  ]},
-  { id: 'quality', label: 'Quality Gate', children: [
-    { id: 'quality-reviewers', label: 'Parallel Reviewers' },
-    { id: 'quality-rules', label: 'Rules Checker' },
-    { id: 'quality-fixer', label: 'Fix Loop' },
-  ]},
-  { id: 'terminology', label: 'Terminology Map' },
+const GROUPS = [
+  { id: 'getting-started', label: 'Getting Started' },
+  { id: 'scoring', label: 'Scoring' },
+  { id: 'analysis', label: 'Analysis' },
+  { id: 'output', label: 'Output' },
+  { id: 'reference', label: 'Reference' },
 ];
 
-// ─── MAIN COMPONENT ───
-export function DocsPage() {
-  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
-    (localStorage.getItem('docs-theme') as 'light' | 'dark') || 'light'
-  );
-  const [activeSection, setActiveSection] = useState('overview');
-  const [sidebarOpen, setSidebarOpen] = useState(true);
-  const [expandedNav, setExpandedNav] = useState<Set<string>>(new Set(['overview']));
+// ─── REUSABLE COMPONENTS ───
+function Card({ children, className = '' }: { children: React.ReactNode; className?: string }) {
+  return <div className={`dc-card ${className}`}>{children}</div>;
+}
 
-  useEffect(() => {
-    document.documentElement.setAttribute('data-docs-theme', theme);
-    localStorage.setItem('docs-theme', theme);
-  }, [theme]);
+function Badge({ children, variant = 'default' }: { children: React.ReactNode; variant?: 'default' | 'green' | 'amber' | 'red' | 'blue' }) {
+  return <span className={`dc-badge dc-badge--${variant}`}>{children}</span>;
+}
 
-  const toggleNav = (id: string) => {
-    setExpandedNav(prev => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id); else next.add(id);
-      return next;
-    });
-  };
-
-  const scrollTo = (id: string) => {
-    setActiveSection(id);
-    const el = document.getElementById(id);
-    if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  };
-
+function InfoBlock({ type = 'note', title, children }: { type?: 'note' | 'warning' | 'danger' | 'tip'; title?: string; children: React.ReactNode }) {
+  const icons = { note: '💡', warning: '⚠️', danger: '🚨', tip: '✨' };
   return (
-    <div className="docs" data-theme={theme}>
-      {/* Header */}
-      <header className="docs-header">
-        <div className="docs-header-left">
-          <button className="docs-menu-btn" onClick={() => setSidebarOpen(!sidebarOpen)}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-              <line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/>
-            </svg>
-          </button>
-          <div className="docs-logo">
-            <span className="docs-logo-mark">C</span>
-            <span className="docs-logo-text">CABAS<sup>®</sup> Technical Documentation</span>
-          </div>
-        </div>
-        <div className="docs-header-right">
-          <span className="docs-version">v2.2</span>
-          <button className="docs-theme-btn" onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')}>
-            {theme === 'light' ? (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/></svg>
-            ) : (
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
-            )}
-          </button>
-        </div>
-      </header>
-
-      <div className="docs-body">
-        {/* Sidebar */}
-        <nav className={`docs-sidebar ${sidebarOpen ? 'docs-sidebar--open' : ''}`}>
-          {NAV.map(item => (
-            <div key={item.id} className="docs-nav-group">
-              <button
-                className={`docs-nav-item ${activeSection === item.id ? 'docs-nav-item--active' : ''}`}
-                onClick={() => { scrollTo(item.id); if (item.children) toggleNav(item.id); }}
-              >
-                <span>{item.label}</span>
-                {item.children && (
-                  <svg className={`docs-nav-chevron ${expandedNav.has(item.id) ? 'docs-nav-chevron--open' : ''}`} width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                    <polyline points="6 9 12 15 18 9"/>
-                  </svg>
-                )}
-              </button>
-              {item.children && expandedNav.has(item.id) && (
-                <div className="docs-nav-children">
-                  {item.children.map(child => (
-                    <button
-                      key={child.id}
-                      className={`docs-nav-child ${activeSection === child.id ? 'docs-nav-child--active' : ''}`}
-                      onClick={() => scrollTo(child.id)}
-                    >
-                      {child.label}
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          ))}
-        </nav>
-
-        {/* Content */}
-        <main className="docs-content">
-          <PipelineOverview />
-          <QuestionBank />
-          <ScoringEngine />
-          <MetricDefinitions />
-          <InterdependencyMap />
-          <PathologyDetection />
-          <SayDoChecks />
-          <QuadrantClassification />
-          <TrainingDataBank />
-          <RefinementPipeline />
-          <QualityGate />
-          <TerminologyMap />
-        </main>
+    <div className={`dc-info dc-info--${type}`}>
+      <div className="dc-info-header">
+        <span className="dc-info-icon">{icons[type]}</span>
+        <span className="dc-info-title">{title || type.charAt(0).toUpperCase() + type.slice(1)}</span>
       </div>
+      <div className="dc-info-body">{children}</div>
     </div>
   );
 }
 
-// ─── SECTION COMPONENTS ───
-
-function Section({ id, title, subtitle, children }: { id: string; title: string; subtitle?: string; children: React.ReactNode }) {
+function DataTable({ headers, rows, compact = false }: { headers: string[]; rows: (string | JSX.Element)[][]; compact?: boolean }) {
   return (
-    <section id={id} className="docs-section">
-      <div className="docs-section-header">
-        <h2 className="docs-section-title">{title}</h2>
-        {subtitle && <p className="docs-section-subtitle">{subtitle}</p>}
-      </div>
-      {children}
-    </section>
-  );
-}
-
-function SubSection({ id, title, children }: { id: string; title: string; children: React.ReactNode }) {
-  return (
-    <div id={id} className="docs-subsection">
-      <h3 className="docs-subsection-title">{title}</h3>
-      {children}
-    </div>
-  );
-}
-
-function Formula({ children }: { children: React.ReactNode }) {
-  return <div className="docs-formula">{children}</div>;
-}
-
-function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
-  return (
-    <div className="docs-table-wrap">
-      <table className="docs-table">
+    <div className="dc-table-wrap">
+      <table className={`dc-table ${compact ? 'dc-table--compact' : ''}`}>
         <thead><tr>{headers.map((h, i) => <th key={i}>{h}</th>)}</tr></thead>
         <tbody>{rows.map((row, i) => <tr key={i}>{row.map((cell, j) => <td key={j}>{cell}</td>)}</tr>)}</tbody>
       </table>
@@ -214,415 +50,437 @@ function Table({ headers, rows }: { headers: string[]; rows: string[][] }) {
   );
 }
 
-function CodeBlock({ title, children }: { title?: string; children: string }) {
+function CodeBlock({ title, lang, children }: { title?: string; lang?: string; children: string }) {
   return (
-    <div className="docs-code">
-      {title && <div className="docs-code-title">{title}</div>}
+    <div className="dc-code">
+      {(title || lang) && (
+        <div className="dc-code-header">
+          {title && <span className="dc-code-title">{title}</span>}
+          {lang && <span className="dc-code-lang">{lang}</span>}
+        </div>
+      )}
       <pre><code>{children}</code></pre>
     </div>
   );
 }
 
-function Callout({ type = 'info', children }: { type?: 'info' | 'warning' | 'critical'; children: React.ReactNode }) {
-  const icons = { info: 'i', warning: '!', critical: '!!' };
+function FormulaBlock({ label, children }: { label?: string; children: string }) {
   return (
-    <div className={`docs-callout docs-callout--${type}`}>
-      <span className="docs-callout-icon">{icons[type]}</span>
-      <div>{children}</div>
+    <div className="dc-formula">
+      {label && <div className="dc-formula-label">{label}</div>}
+      <div className="dc-formula-expr">{children}</div>
     </div>
   );
 }
 
-// ─── PIPELINE OVERVIEW ───
-function PipelineOverview() {
+function StepList({ steps }: { steps: { title: string; desc: string }[] }) {
   return (
-    <Section id="overview" title="Pipeline Overview" subtitle="5-stage evaluation pipeline from raw responses to client-ready report">
-      <div className="docs-pipeline">
-        {[
-          { stage: '1', name: 'Question Scoring', desc: 'LLM scores each open-ended question against dimension rubrics. Scale/percentage questions use direct conversion. Hard ceilings applied post-scoring.', time: '~15s' },
-          { stage: '2', name: 'Interdependency Checks', desc: 'Cross-question checks for pathologies, contradictions, validation, and context. 10 SAYDO pattern checks + 6 cross-question consistency checks.', time: '~2s' },
-          { stage: '3', name: 'Metric Calculation', desc: 'Weighted aggregation of question scores into 14 core metrics + 2 derived metrics. Per-metric dimension weights applied.', time: '~1s' },
-          { stage: '4', name: 'Refinement', desc: '14 metrics x 2 LLM calls (observation mining + reasoning). Plus executive summary, VRIN assessment, pathology descriptions, and recommendations.', time: '~60-80s' },
-          { stage: '5', name: 'Quality Gate', desc: 'Parallel reviewers check writing quality against Iva\'s standards. Rules-based terminology check + LLM reviewers for tone, structure, specificity.', time: '~30-60s' },
-        ].map((s, i) => (
-          <div key={i} className="docs-pipeline-stage">
-            <div className="docs-pipeline-num">{s.stage}</div>
-            <div className="docs-pipeline-body">
-              <div className="docs-pipeline-name">{s.name}</div>
-              <div className="docs-pipeline-desc">{s.desc}</div>
-              <div className="docs-pipeline-time">{s.time}</div>
-            </div>
-            {i < 4 && <div className="docs-pipeline-arrow">&#8594;</div>}
+    <div className="dc-steps">
+      {steps.map((s, i) => (
+        <div key={i} className="dc-step">
+          <div className="dc-step-num">{i + 1}</div>
+          <div className="dc-step-body">
+            <div className="dc-step-title">{s.title}</div>
+            <div className="dc-step-desc">{s.desc}</div>
           </div>
-        ))}
+        </div>
+      ))}
+    </div>
+  );
+}
+
+// ─── PAGE: PIPELINE OVERVIEW ───
+function PageOverview() {
+  return (
+    <div className="dc-page">
+      <div className="dc-page-hero">
+        <Badge variant="blue">Architecture</Badge>
+        <h1>Pipeline Overview</h1>
+        <p>CABAS® evaluates organisational health through a 5-stage pipeline. Each stage builds on the previous, transforming raw interview responses into a comprehensive diagnostic report.</p>
       </div>
 
-      <CodeBlock title="Score Band Definitions">
-{`Leading Strength  85-100  Genuine differentiators
-Strong            70-84   Solid performance, maintain
-Adequate          55-69   Functional but not competitive
-Watch Area        40-54   Below transformation readiness
-Critical Gap       0-39   Below functioning threshold`}
-      </CodeBlock>
+      <StepList steps={[
+        { title: 'Question Scoring', desc: 'LLM scores each of 15 open-ended questions against multi-dimension rubrics (BARS anchors). 8 scale questions use direct conversion (1→20, 2→40, 3→60, 4→80, 5→100). Hard ceilings are applied post-scoring to prevent inflation.' },
+        { title: 'Interdependency Checks', desc: '10 SAYDO pattern checks + 6 cross-question consistency checks detect contradictions between what people say and what the data shows. Pathology conditions are evaluated across linked questions.' },
+        { title: 'Metric Calculation', desc: '14 core metrics (M1-M14) computed as weighted aggregations of question scores. 2 derived metrics (D1, D2) computed as averages of core metrics. Per-metric dimension weights extract specific signals.' },
+        { title: 'Refinement', desc: '14 metrics × 2 LLM calls each: observation mining (structured findings with verbatim quotes) and reasoning (business impact + recommendations). Plus executive summary synthesis.' },
+        { title: 'Quality Gate', desc: '5 parallel reviewers check writing quality against Iva\'s standards. Rules-based terminology check (instant) + LLM reviewers for tone and structure. Fix loop with max 2 iterations.' },
+      ]} />
 
-      <Callout type="info">
-        All scores are integers in client-facing output. Scale questions: 1=20, 2=40, 3=60, 4=80, 5=100. No decimals.
-      </Callout>
-    </Section>
-  );
-}
-
-// ─── QUESTION BANK ───
-function QuestionBank() {
-  const questions = [
-    ['B1', 'Open', 'Role, level, tenure', 'Triangulation'],
-    ['B2', 'Open', 'Team description, special skills', 'Defensible Strengths'],
-    ['B5', 'Multi-select', 'What customers value most', 'Op. Strength'],
-    ['B6', 'Single-select', 'Market change speed', 'Future Readiness'],
-    ['M1', 'Open', 'How you discuss/interpret info', 'Insight-to-Action'],
-    ['M4', 'Scale 1-5', 'Cross-team conversation effectiveness', 'Structure Fitness'],
-    ['S1', 'Open', 'Signals noticed and sources', 'Market Radar'],
-    ['S3a', 'Scale 1-5', 'Ease of raising bad news/risks', 'Change Readiness'],
-    ['S5', 'Scale 1-5', 'Organisation spots changes early', 'Future Readiness'],
-    ['I1', 'Open', 'Example: learning to change', '5 Metrics'],
-    ['I2', 'Open', 'Enablers and barriers', 'Impl. Speed'],
-    ['I4', 'Scale 1-5', 'Changes implemented and stay', 'Op. Strength'],
-    ['X3a', 'Percentage', '% time exploitation', 'Run/Transform'],
-    ['X3b', 'Percentage', '% time exploration', 'Run/Transform'],
-    ['X4', 'Scale 1-5', 'Ability to change direction', 'Impl. Speed'],
-    ['C1', 'Open', 'Response to mistakes (example)', 'Change Readiness'],
-    ['C2', 'Open', 'What leaders do for learning', 'Insight-to-Action'],
-    ['C3', 'Scale 1-5', 'Feel safe to speak up', 'Change Readiness'],
-    ['C4', 'Open', 'Teams respond differently?', 'Structure Fitness'],
-    ['R1', 'Open', 'Tools help or create friction', 'Capacity & Tools'],
-    ['R2', 'Open', 'Experiments/pilots with partners', 'Future Readiness'],
-    ['R3', 'Scale 1-5', 'Tech supports learning', 'Capacity & Tools'],
-    ['P2', 'Open', 'Biggest barriers (list 3)', 'Synthesis'],
-    ['P4', 'Scale 1-5', 'Overall readiness for change', 'Meta-check'],
-    ['RA1', 'Open', 'Last significant risk taken', 'Risk Tolerance'],
-    ['RA2', 'Open', 'Response to failed risks', 'Risk Tolerance'],
-    ['OL1', 'Open', 'Orphan problem handling', 'Accountability Speed'],
-    ['OL2', 'Open', 'Time to ownership', 'Accountability Speed'],
-  ];
-
-  return (
-    <Section id="questions" title="Question Bank" subtitle="28 questions across 4 types. v2.1 base + PB1/FC1 planned for v2.2.">
-      <Table
-        headers={['Code', 'Type', 'Summary', 'Primary Metric']}
-        rows={questions}
-      />
-      <SubSection id="questions-open" title="Open-Ended Questions (15)">
-        <p className="docs-text">Scored by LLM against multi-dimension rubrics. Each dimension has 5-level BARS anchors. Score = weighted average of dimension scores. Hard ceilings may cap the overall score.</p>
-      </SubSection>
-      <SubSection id="questions-scale" title="Scale Questions (8)">
-        <Formula>Score = Scale Value × 20 &nbsp;&nbsp;|&nbsp;&nbsp; 1→20, 2→40, 3→60, 4→80, 5→100</Formula>
-        <p className="docs-text">Direct mathematical conversion. No AI interpretation. No variation.</p>
-      </SubSection>
-      <SubSection id="questions-pct" title="Percentage Questions (2)">
-        <p className="docs-text">X3a (exploitation %) and X3b (exploration %). Scored using distance-from-ideal formula with B6 market dynamism context.</p>
-        <Formula>Ideal: 70% exploitation / 30% exploration. X3b 20-40% = 100. X3b &lt;10% = 20-59. X3b &gt;60% = 20-59.</Formula>
-      </SubSection>
-      <SubSection id="questions-select" title="Select Questions (3)">
-        <p className="docs-text">B5 (multi-select: what customers value), B6 (single-select: market speed). Scored based on selection categories.</p>
-      </SubSection>
-    </Section>
-  );
-}
-
-// ─── SCORING ENGINE ───
-function ScoringEngine() {
-  const ceilings = [
-    ['S1', '≤60', 'Fewer than 4 of 5 signal types mentioned', 'Market Radar'],
-    ['I1', '≤65', 'Change compliance-driven/reactive, timeline >3 months', '5 Metrics'],
-    ['R1', '≤55', 'Workarounds, friction, or manual processes described', 'Capacity & Tools'],
-    ['C2', '≤55', 'Under 4 sentences, no specific examples', 'Change Readiness'],
-    ['OL1', '≤45', 'Ownership delay >2 weeks in example', 'Accountability Speed'],
-    ['I2', '≤55', 'Barriers >> enablers, approvals/bureaucracy cited', 'Impl. Speed'],
-    ['C1', '≤60', 'Any blame/finger-pointing, even if learning followed', 'Change Readiness'],
-  ];
-
-  return (
-    <Section id="scoring" title="Scoring Engine" subtitle="Stage 1: How each response becomes a 0-100 score">
-      <SubSection id="scoring-dimensions" title="Dimension Rubrics">
-        <p className="docs-text">Each open-ended question has 3-5 scoring dimensions. Each dimension has a weight and 5-level Behaviourally Anchored Rating Scale (BARS). The LLM scores each dimension 1-5, then the overall score is computed as a weighted average converted to 0-100.</p>
-        <Formula>Overall Score = Σ (dimension_score × dimension_weight) / Σ weights × 20</Formula>
-        <Callout type="critical">
-          <strong>Principle:</strong> Score what the organisation DOES, not how well the respondent describes it. A clearly articulated failure is still a failure.
-        </Callout>
-      </SubSection>
-
-      <SubSection id="scoring-ceilings" title="Hard Score Ceilings">
-        <p className="docs-text">Applied post-scoring, before metric calculation. If a ceiling condition is met, the overall score is capped regardless of how high the LLM scored the dimensions.</p>
-        <Table
-          headers={['Question', 'Ceiling', 'Condition', 'Affected Metric']}
-          rows={ceilings}
-        />
-        <Callout type="warning">
-          Ceilings never raise scores. If the LLM already scored below the ceiling, no change is made. Dimension scores are preserved — only overall_score is capped.
-        </Callout>
-      </SubSection>
-
-      <SubSection id="scoring-formula" title="Score Calculation Flow">
-        <CodeBlock title="Per-Question Scoring Flow">
-{`1. Response text → LLM with dimension rubric + BARS anchors
-2. LLM returns: dimension_id, score (1-5), confidence, reasoning
-3. Overall = weighted average of dimensions × 20 → 0-100 scale
-4. Apply hard ceiling if condition met → cap overall_score
-5. Store: overall_score, dimension_scores[], raw_response, reasoning`}
-        </CodeBlock>
-      </SubSection>
-    </Section>
-  );
-}
-
-// ─── METRIC DEFINITIONS ───
-function MetricDefinitions() {
-  const coreMetrics = [
-    ['M1', 'Operational Strength', 'Current execution capability', 'I1(25%) + I4(30%) + X3a(20%) + R1(10%) + B5(15%CL)'],
-    ['M2', 'Future Readiness', 'Preparedness for disruption', 'S5(25%) + I1(15%) + X4(15%) + B6(10%) + X3b(10%) + R2(10%) + S3a(10%)'],
-    ['M3', 'Insight-to-Action', 'Converting insights into decisions', 'M1(30%) + I1(25%) + C2(25%) + S1(20%)'],
-    ['M4', 'Implementation Speed', 'How fast changes get executed', 'M4(50%) + I2(30%) + X4(20%)'],
-    ['M5', 'Market Radar', 'External signal detection', 'S1(50%) + S5(30%) + B6(20%)'],
-    ['M6', 'Decision Flow', 'Information flow quality', 'M1(35%) + M4(50%) + R1(15%)'],
-    ['M7', 'Knowledge Leverage', 'Integration and reuse of knowledge', 'I1(100%) with per-metric dimension weights'],
-    ['M8', 'Accountability Speed', 'How fast ownership is established', 'OL1(40%) + OL2(40%) + I2(10%) + M4(10%)'],
-    ['M9', 'Run/Transform Balance', 'Exploitation vs exploration split', 'X3a + X3b (distance-from-ideal)'],
-    ['M10', 'Change Readiness', 'Organisational readiness for change', 'C3(20%) + C1(20%) + S3a(15%) + I1(15%) + C2(15%) + I4(15%)'],
-    ['M11', 'Structure Fitness', 'How well structure supports strategy', 'M4(30%) + C4(25%) + I4(20%) + I2(15%) + B5(10%CL)'],
-    ['M12', 'Capacity & Tools', 'Resource adequacy and tool fitness', 'R1(60%) + R2(25%) + R3(15%)'],
-    ['M13', 'Defensible Strengths', 'VRIN competitive advantage', 'B2(20%) + B5(30%) + I1(25%) + R2(10%) + C1(15%)'],
-    ['M14', 'Risk Tolerance', 'Willingness to take calculated risks', 'RA1(50%) + RA2(30%) + C3(20%)'],
-  ];
-
-  return (
-    <Section id="metrics" title="Metric Definitions" subtitle="14 core metrics + 2 derived metrics measuring organisational health">
-      <SubSection id="metrics-core" title="Core Metrics (M1-M14)">
-        <Table
-          headers={['Code', 'Client Name', 'Measures', 'Formula (Question Weights)']}
-          rows={coreMetrics}
-        />
-        <Callout type="info">
-          <strong>CL</strong> = Cross-Level contribution. Requires multi-respondent data. Skipped for N=1 with weight redistributed.
-        </Callout>
-      </SubSection>
-
-      <SubSection id="metrics-derived" title="Derived Metrics (D1, D2)">
-        <Formula>D1 OODA Velocity = (M5 + M6 + M8 + M4) ÷ 4</Formula>
-        <Formula>D2 Resilience Index = (M12 + M10 + M3) ÷ 3</Formula>
-        <p className="docs-text">Derived metrics are simple averages of their source metrics. No LLM calls — calculated directly from core metric scores.</p>
-      </SubSection>
-
-      <SubSection id="metrics-weights" title="Dimension Weight Override">
-        <p className="docs-text">When a question feeds multiple metrics, each metric applies its own dimension weights to extract the most relevant signal. For example, I1 feeds 5 metrics — M1 emphasises <code>sustainability</code> while M7 emphasises <code>organizational_reach</code>.</p>
-      </SubSection>
-    </Section>
-  );
-}
-
-// ─── INTERDEPENDENCY MAP ───
-function InterdependencyMap() {
-  return (
-    <Section id="interdependency" title="Interdependency Map" subtitle="Cross-question connections that drive pathology detection, contradiction flagging, and validation">
-      <SubSection id="interdependency-pathology" title="Pathology Links">
-        <p className="docs-text">Questions linked with <code>type: "pathology"</code> feed into pathology detection logic. When conditions across linked questions are met, a pathology flag is raised.</p>
-      </SubSection>
-      <SubSection id="interdependency-contradiction" title="Contradiction Links">
-        <p className="docs-text">Questions linked with <code>type: "contradiction"</code> are checked for say-do gaps. A scale rating that contradicts a narrative response triggers a contradiction flag.</p>
-        <Table
-          headers={['Primary', 'Linked', 'Flag Condition']}
+      <Card>
+        <h3>Score Bands</h3>
+        <p className="dc-text-muted">All metric scores fall into one of 5 tiers. These determine the health status label and colour coding throughout the platform.</p>
+        <DataTable
+          headers={['Band', 'Range', 'Meaning']}
           rows={[
-            ['C3 (safety rating)', 'C1 (mistake response)', 'C3≥80 but C1 shows blame/hiding'],
-            ['S3a (escalation ease)', 'C1 (mistake response)', 'S3a≥80 but C1 shows blame'],
-            ['M4 (cross-team)', 'M1 (info discussion)', 'M4≥80 but M1 describes isolation'],
-            ['I4 (changes stick)', 'I1 (change example)', 'I4≥80 but I1 shows failure/stalled'],
-            ['R3 (tech supports)', 'R1 (tool friction)', 'R3≥80 but R1 describes workarounds'],
-            ['RA2 (risk response)', 'C1 (mistake response)', 'C1 shows blame but RA2 denies punishment'],
-            ['OL1 (orphan handling)', 'OL2 (ownership speed)', 'OL1 shows long delay but OL2 claims fast'],
-            ['X3b (exploration %)', 'R2 (external pilots)', 'X3b >20% but R2 shows limited engagement'],
-            ['S3a (escalation)', 'C3 (safety)', 'Gap >20 points — escalation masks safety'],
+            [<Badge variant="green">Leading Strength</Badge>, '85–100', 'Genuine differentiator. Top 1-2 metrics only.'],
+            [<Badge variant="green">Strong</Badge>, '70–84', 'Solid performance. Maintain investment.'],
+            [<Badge variant="amber">Adequate</Badge>, '55–69', 'Functional but not competitive. Could bottleneck.'],
+            [<Badge variant="amber">Watch Area</Badge>, '40–54', 'Below transformation readiness. Needs attention.'],
+            [<Badge variant="red">Critical Gap</Badge>, '0–39', 'Below functioning threshold. Will undermine initiatives.'],
           ]}
         />
-      </SubSection>
-      <SubSection id="interdependency-validation" title="Validation Links">
-        <p className="docs-text">Questions linked with <code>type: "validation"</code> cross-check claims against evidence. Used for confidence scoring, not flag generation.</p>
-      </SubSection>
-    </Section>
+      </Card>
+
+      <InfoBlock type="note" title="Timing">
+        Without refinement: ~20s. With refinement: ~100s. With quality gate: ~200s. Scale questions are instant (mathematical conversion).
+      </InfoBlock>
+    </div>
   );
 }
 
-// ─── PATHOLOGY DETECTION ───
-function PathologyDetection() {
-  const pathologies = [
-    ['1', 'Safety Crisis', 'CRITICAL', 'C1=BLAME AND C3<3 AND S3a<3', 'C1, C3, S3a'],
-    ['2', 'Power Block', 'CRITICAL', 'PB1=repeated informal veto AND C3<4 AND I4<3', 'PB1, C3, I4'],
-    ['3', 'Implementation Gap', 'CRITICAL', 'Leadership-frontline gap >1.5 on C3 OR I4', 'B1, C3, I4'],
-    ['4', 'Risk Paralysis', 'HIGH', 'RA1<30 AND RA2=punish AND I2="approvals" AND C3<4', 'RA1, RA2, I2, C3'],
-    ['5', 'Accountability Vacuum', 'HIGH', 'OL1="falls through" AND OL2>1wk AND I2="unclear ownership"', 'OL1, OL2, I2'],
-    ['6', 'Optimization Lock', 'HIGH', 'X3a>80% AND X3b<10% AND B6≥Fast', 'X3a, X3b, B6'],
-    ['7', 'Activity Without Impact', 'HIGH', 'X3b>20% AND I4<3', 'X3b, I4'],
-  ];
-
+// ─── PAGE: QUESTION BANK ───
+function PageQuestions() {
   return (
-    <Section id="pathology" title="Pathology Detection" subtitle="7 organisational pathologies with precise detection logic">
-      <SubSection id="pathology-logic" title="Detection Logic">
-        <Callout type="critical">
-          All conditions must be met (AND logic). Condition matching: FULL = all conditions met = pathology triggered. PARTIAL = 2 of 3 = "Indicator" (planned).
-        </Callout>
-        <Table
-          headers={['#', 'Client Name', 'Risk', 'Detection (ALL must met)', 'Questions']}
-          rows={pathologies}
-        />
-      </SubSection>
+    <div className="dc-page">
+      <div className="dc-page-hero">
+        <Badge variant="blue">Foundation</Badge>
+        <h1>Question Bank</h1>
+        <p>28 questions across 4 types form the input to the evaluation pipeline. Each question is precisely mapped to one or more metrics with defined contribution weights.</p>
+      </div>
 
-      <SubSection id="pathology-indicators" title="Partial Indicators">
-        <p className="docs-text">When a pathology meets 2 of 3 (or 3 of 4) conditions but does not fully trigger, it is displayed as an "Indicator" rather than a confirmed pathology. This adds diagnostic value without overclaiming.</p>
-      </SubSection>
+      <Card>
+        <h3>Question Types</h3>
+        <div className="dc-stat-grid">
+          <div className="dc-stat"><div className="dc-stat-num">15</div><div className="dc-stat-label">Open-Ended</div><div className="dc-stat-desc">Scored by LLM with dimension rubrics</div></div>
+          <div className="dc-stat"><div className="dc-stat-num">8</div><div className="dc-stat-label">Scale 1–5</div><div className="dc-stat-desc">Direct conversion: score = value × 20</div></div>
+          <div className="dc-stat"><div className="dc-stat-num">2</div><div className="dc-stat-label">Percentage</div><div className="dc-stat-desc">X3a/X3b with distance-from-ideal</div></div>
+          <div className="dc-stat"><div className="dc-stat-num">3</div><div className="dc-stat-label">Select</div><div className="dc-stat-desc">B5 multi-select, B6 single-select, B1 open</div></div>
+        </div>
+      </Card>
 
-      <SubSection id="pathology-roadmaps" title="Recovery Roadmaps">
-        <p className="docs-text">Each pathology has a phased 1/2/3 month recovery roadmap with specific actions. Stored in <code>data/training/pathology_roadmaps.json</code>. Injected into both the refinement prompt (for narrative generation) and the pathology detail page on the dashboard.</p>
-      </SubSection>
-    </Section>
-  );
-}
-
-// ─── SAY-DO CHECKS ───
-function SayDoChecks() {
-  const patternChecks = [
-    ['SAYDO-01', 'C3≥4 + C1=BLAME', 'Safety Crisis', 'YES'],
-    ['SAYDO-02', 'S3a≥4 + C1=BLAME', 'Overconfidence', 'YES'],
-    ['SAYDO-03', 'M4≥4 + M1=isolated', 'Frozen Middle', 'YES'],
-    ['SAYDO-04', 'I4≥4 + I1=stalled', 'Activity w/o Impact', 'YES'],
-    ['SAYDO-05', 'X4≥4 + I1/I2=slow', 'Execution Barrier', 'YES'],
-    ['SAYDO-06', 'R3≥4 + R1=friction', 'Resource Gap', 'YES'],
-    ['SAYDO-07', 'P4>FR by >1.5', 'Overconfidence', 'YES'],
-    ['SAYDO-08', 'C3 level gap >1.5', 'Impl. Gap', 'NO (N>1)'],
-    ['SAYDO-09', 'I4 level gap >1.5', 'Frozen Middle', 'NO (N>1)'],
-    ['SAYDO-10', 'RA1<30 + RA2=punitive', 'Risk Paralysis', 'YES'],
-  ];
-
-  const crossChecks = [
-    ['S3a vs C3', 'Both measure psychological safety', 'Difference >1 point'],
-    ['C1 vs RA2', 'Both about response to failure', 'C1 "learning" but RA2 "punished"'],
-    ['X3b vs R2', 'Both about exploration activity', 'X3b >20% but R2 no engagement'],
-    ['M1 vs M4', 'Process vs effectiveness', 'M1 isolated but M4 ≥4'],
-    ['I2 vs P2', 'Barriers should overlap', 'Completely different barriers cited'],
-    ['OL1 vs OL2', 'Orphan handling vs speed', 'OL1 positive but OL2 "weeks"'],
-  ];
-
-  return (
-    <Section id="saydo" title="Say-Do Contradiction Checks" subtitle="Detecting gaps between what people say and what the data shows">
-      <SubSection id="saydo-pattern" title="Pattern Checks (SAYDO-01 to SAYDO-10)">
-        <p className="docs-text">Each check compares a scale rating against narrative content. A high self-rating that contradicts the qualitative evidence is flagged.</p>
-        <Table
-          headers={['Flag', 'Trigger', 'Pathology', 'Active N=1?']}
-          rows={patternChecks}
-        />
-      </SubSection>
-
-      <SubSection id="saydo-crossq" title="Cross-Question Consistency Checks (6)">
-        <p className="docs-text">All active for N=1. These compare two related questions that should align.</p>
-        <Table
-          headers={['Pair', 'Expected Alignment', 'Flag If']}
-          rows={crossChecks}
-        />
-      </SubSection>
-
-      <SubSection id="saydo-n1" title="Single-Respondent Rules">
-        <Callout type="warning">
-          For N=1: SAYDO-01 through SAYDO-07 and SAYDO-10 are ACTIVE. All cross-question checks are ACTIVE. Only SAYDO-08 and SAYDO-09 (level-based triangulation) are suppressed.
-        </Callout>
-        <p className="docs-text">Dashboard shows: "Level-based triangulation requires responses from more than one organisational level. Within-respondent contradiction checks are active below."</p>
-      </SubSection>
-    </Section>
-  );
-}
-
-// ─── QUADRANT CLASSIFICATION ───
-function QuadrantClassification() {
-  return (
-    <Section id="quadrant" title="Quadrant Classification" subtitle="2×2 matrix based on Operational Strength (M1) and Future Readiness (M2)">
-      <Formula>Threshold: M1 and M2 compared against configurable cutoff (currently ≥65)</Formula>
-      <Table
-        headers={['Quadrant', 'Condition', 'Tone']}
-        rows={[
-          ['Adaptive Leader', 'M1 ≥ threshold AND M2 ≥ threshold', 'Respectful, nuanced — surface tensions beneath strength'],
-          ['Solid Performer', 'M1 ≥ threshold AND M2 < threshold', 'Direct, urgent — validate achievement then pivot to risk'],
-          ['Scattered Experimenter', 'M1 < threshold AND M2 ≥ threshold', 'Validating but grounding — show execution gap'],
-          ['At-Risk', 'M1 < threshold AND M2 < threshold', 'Compassionate, unflinching — focus on actionable starting point'],
-        ]}
-      />
-      <Callout type="info">
-        Borderline detection: when either score falls within ±5 of the threshold, the report acknowledges classification ambiguity.
-      </Callout>
-    </Section>
-  );
-}
-
-// ─── TRAINING DATA BANK ───
-function TrainingDataBank() {
-  const files = [
-    ['historical_cases.json', '10 cases', 'Real-world pathology examples (IBM, Nokia, Kodak, Challenger, etc.)'],
-    ['scoring_signals.json', '15 questions', 'Per-dimension keywords and signal phrases for each scoring level'],
-    ['calibration_examples.json', '15 questions', 'Good/bad scoring examples for AI calibration'],
-    ['sector_norms.json', '6 industries', 'Industry-specific Run/Transform norms, pathology patterns, risk framing'],
-    ['executive_summary_examples.json', '8 examples', 'Per-quadrant narrative examples + 10 golden rules + 8 pathology templates'],
-    ['say_do_gap_examples.json', '4 examples', 'Good/bad say-do gap narrative examples with "why it fails"'],
-    ['recommendation_examples.json', '4 quadrants', 'Monday Morning Test good/bad examples per quadrant'],
-    ['pathology_roadmaps.json', '8 roadmaps', 'Phased 1/2/3 month recovery plans per pathology'],
-    ['label_translations.json', '45 mappings', 'Academic term → client-facing plain language equivalents'],
-    ['score_ceilings.json', '7 rules', 'Hard score ceiling conditions and values'],
-  ];
-
-  return (
-    <Section id="training" title="Training Data Bank" subtitle="Structured reference data for AI calibration — all stored in data/training/">
-      <Table
-        headers={['File', 'Content', 'Description']}
-        rows={files}
-      />
-      <SubSection id="training-cases" title="Historical Cases">
-        <p className="docs-text">10 real-world cases mapped to CABAS pathologies. Used as anchor statements in pathology descriptions and AI calibration.</p>
-        <Table
-          headers={['Case', 'Pathology', 'Key Lesson']}
+      <Card>
+        <h3>Complete Question List</h3>
+        <DataTable
+          compact
+          headers={['Code', 'Type', 'Summary', 'Primary Metric']}
           rows={[
-            ['IBM pre-1990s', 'Optimization Lock', 'Competence became the source of blindness'],
-            ['DEC', 'Accountability Vacuum', 'Strong culture ≠ readiness. Independence prevented coordination'],
-            ['Argyris Military Team', 'Safety Crisis', 'Espoused theory vs theory-in-use — the invisible gap'],
-            ['AutoCo (Car Launch)', 'Activity Without Impact', 'Concealment was culturally logical, not dishonest'],
-            ['Nokia 2007', 'Implementation Gap', 'Middle management filtered signals before they reached the top'],
-            ['Kodak 1975-2012', 'Optimization Lock', 'Success made reallocation feel irrational at every decision point'],
-            ['Challenger 1986', 'Safety Crisis', 'Information was present, structure made it impossible to act'],
-            ['Columbia 2003', 'Activity Without Impact', 'More processes ≠ better decisions'],
-            ['Bay of Pigs 1961', 'Risk Paralysis', 'Unanimous support for a plan nobody privately believed would work'],
-            ['Titanic 1912', 'Accountability Vacuum', '6 warnings received, 0 converted to action — no owner in the chain'],
+            ['B1', 'Open', 'Role, level, tenure', 'Triangulation'],
+            ['B2', 'Open', 'Team description, special skills', 'Defensible Strengths'],
+            ['B5', 'Multi-select', 'What customers value most', 'Op. Strength'],
+            ['B6', 'Single-select', 'Market change speed', 'Future Readiness'],
+            ['M1', 'Open', 'How you discuss/interpret info', 'Insight-to-Action'],
+            ['M4', 'Scale 1-5', 'Cross-team conversation effectiveness', 'Structure Fitness'],
+            ['S1', 'Open', 'Signals noticed and sources', 'Market Radar'],
+            ['S3a', 'Scale 1-5', 'Ease of raising bad news/risks', 'Change Readiness'],
+            ['S5', 'Scale 1-5', 'Organisation spots changes early', 'Future Readiness'],
+            ['I1', 'Open', 'Example: learning → change', '5 Metrics'],
+            ['I2', 'Open', 'Enablers and barriers', 'Impl. Speed'],
+            ['I4', 'Scale 1-5', 'Changes implemented and stay', 'Op. Strength'],
+            ['X3a', 'Percentage', '% time exploitation (run)', 'Run/Transform'],
+            ['X3b', 'Percentage', '% time exploration (transform)', 'Run/Transform'],
+            ['X4', 'Scale 1-5', 'Ability to change direction', 'Impl. Speed'],
+            ['C1', 'Open', 'Response to mistakes (example)', 'Change Readiness'],
+            ['C2', 'Open', 'What leaders do for learning', 'Insight-to-Action'],
+            ['C3', 'Scale 1-5', 'Feel safe to speak up', 'Change Readiness'],
+            ['C4', 'Open', 'Teams respond differently?', 'Structure Fitness'],
+            ['R1', 'Open', 'Tools help or create friction', 'Capacity & Tools'],
+            ['R2', 'Open', 'Experiments/pilots with partners', 'Future Readiness'],
+            ['R3', 'Scale 1-5', 'Tech supports learning', 'Capacity & Tools'],
+            ['P2', 'Open', 'Biggest barriers (list 3)', 'Synthesis'],
+            ['P4', 'Scale 1-5', 'Overall readiness for change', 'Meta-check'],
+            ['RA1', 'Open', 'Last significant risk taken', 'Risk Tolerance'],
+            ['RA2', 'Open', 'Response to failed risks', 'Risk Tolerance'],
+            ['OL1', 'Open', 'Orphan problem handling', 'Accountability Speed'],
+            ['OL2', 'Open', 'Time to ownership', 'Accountability Speed'],
           ]}
         />
-      </SubSection>
-      <SubSection id="training-signals" title="Scoring Signals"><p className="docs-text">Per-dimension signal phrases for each scoring level. Loaded into the scoring prompt to help the LLM calibrate.</p></SubSection>
-      <SubSection id="training-calibration" title="Calibration Examples"><p className="docs-text">Per-question scoring examples showing how to apply the rubric. Includes dimension breakdown and reasoning.</p></SubSection>
-      <SubSection id="training-sector" title="Sector Norms"><p className="docs-text">Industry-specific context: typical Run/Transform ratios, common pathology patterns, risk framing, and regulatory pressures.</p></SubSection>
-      <SubSection id="training-exec" title="Executive Summary Examples"><p className="docs-text">8 examples (2 per quadrant) demonstrating Iva's expected tone, structure, and specificity. Plus 10 golden rules and 8 pathology statement templates.</p></SubSection>
-      <SubSection id="training-saydo" title="Say-Do Gap Examples"><p className="docs-text">Good and bad examples of say-do gap narratives with explanations of why bad examples fail.</p></SubSection>
-      <SubSection id="training-recs" title="Recommendation Examples"><p className="docs-text">Per-quadrant Monday Morning Test examples showing good (actionable) vs bad (vague/enterprise) recommendations.</p></SubSection>
-      <SubSection id="training-roadmaps" title="Pathology Roadmaps"><p className="docs-text">Phased 1/2/3 month recovery plans for each of the 8 pathologies.</p></SubSection>
-      <SubSection id="training-labels" title="Label Translations"><p className="docs-text">45 academic-to-plain-language mappings. No academic term may appear in client-facing output.</p></SubSection>
-    </Section>
+      </Card>
+
+      <InfoBlock type="tip" title="Scale Conversion">
+        All 1-5 scale questions use the same formula: <strong>Score = Scale × 20</strong>. No AI interpretation. 1→20, 2→40, 3→60, 4→80, 5→100.
+      </InfoBlock>
+    </div>
   );
 }
 
-// ─── REFINEMENT PIPELINE ───
-function RefinementPipeline() {
+// ─── PAGE: SCORING RUBRICS ───
+function PageRubrics() {
   return (
-    <Section id="refinement" title="Refinement Pipeline" subtitle="Stage 4: LLM-generated narratives, observations, and recommendations">
-      <SubSection id="refinement-narratives" title="Metric Narratives">
-        <p className="docs-text">14 metrics × 2 LLM calls each = 28 calls. Phase 1: Observation Mining (extract structured findings with verbatim quotes). Phase 2: Reasoning & Recommendations (business impact, recommendations, synthesised summary).</p>
-      </SubSection>
-      <SubSection id="refinement-observations" title="Observation Mining (Phase 1)">
-        <p className="docs-text">Each metric is analysed through analytical lenses. For each lens, produce ONE structured observation with verbatim evidence quotes, sentiment, and severity assessment.</p>
-        <Callout type="warning">Every quote must be copied EXACTLY from interview responses. Never paraphrase. Never cite procedural/navigation text.</Callout>
-      </SubSection>
-      <SubSection id="refinement-summary" title="Executive Summary (Call #15)">
-        <p className="docs-text">Single LLM call synthesising all metric insights into a 150-250 word executive summary following the 10 Golden Rules.</p>
-        <CodeBlock title="10 Golden Rules">
+    <div className="dc-page">
+      <div className="dc-page-hero">
+        <Badge>Scoring</Badge>
+        <h1>Dimension Rubrics &amp; Ceilings</h1>
+        <p>Each open-ended question is scored against 3-5 dimensions using Behaviourally Anchored Rating Scales (BARS). Hard ceilings cap scores when specific conditions are detected.</p>
+      </div>
+
+      <Card>
+        <h3>How Dimension Scoring Works</h3>
+        <StepList steps={[
+          { title: 'LLM receives response + rubric', desc: 'The scoring prompt includes the respondent\'s text, the dimension definitions, and 5-level BARS anchors for each dimension.' },
+          { title: 'Score each dimension 1-5', desc: 'The LLM assigns a score (1-5) to each dimension with confidence level and reasoning.' },
+          { title: 'Weighted average → 0-100', desc: 'Overall score = Σ(dimension_score × weight) ÷ Σ(weights) × 20. Converted to 0-100 scale.' },
+          { title: 'Apply ceiling if triggered', desc: 'Post-scoring check: if a hard ceiling condition is met, the overall score is capped. Dimension scores preserved.' },
+        ]} />
+        <FormulaBlock label="Overall Score Formula">
+          {'Overall = (Σ dimension_score × dimension_weight) ÷ (Σ weights) × 20'}
+        </FormulaBlock>
+      </Card>
+
+      <Card>
+        <h3>Hard Score Ceilings</h3>
+        <p className="dc-text-muted">7 rules from the Master Brief. Applied post-scoring. Principle: score what the org DOES, not how well the respondent describes it.</p>
+        <DataTable
+          headers={['Q', 'Ceiling', 'Condition', 'Metric Affected']}
+          rows={[
+            ['S1', '≤ 60', 'Fewer than 4 of 5 signal types mentioned', 'Market Radar'],
+            ['I1', '≤ 65', 'Change compliance-driven/reactive, timeline >3 months', '5 metrics'],
+            ['R1', '≤ 55', 'Workarounds, friction, or manual processes described', 'Capacity & Tools'],
+            ['C2', '≤ 55', 'Under 4 sentences, no specific examples', 'Change Readiness'],
+            ['OL1', '≤ 45', 'Ownership delay >2 weeks in example', 'Accountability Speed'],
+            ['I2', '≤ 55', 'Barriers >> enablers, approvals/bureaucracy cited', 'Impl. Speed'],
+            ['C1', '≤ 60', 'Any blame/finger-pointing, even if learning followed', 'Change Readiness'],
+          ]}
+        />
+      </Card>
+
+      <InfoBlock type="danger" title="Critical Principle">
+        A respondent who clearly explains why their organisation fails at something scores LOW on that capability, even if the explanation is detailed and insightful. Eloquence ≠ capability.
+      </InfoBlock>
+    </div>
+  );
+}
+
+// ─── PAGE: METRICS ───
+function PageMetrics() {
+  return (
+    <div className="dc-page">
+      <div className="dc-page-hero">
+        <Badge>Scoring</Badge>
+        <h1>Metric Definitions</h1>
+        <p>14 core metrics + 2 derived metrics. Each metric is a weighted aggregation of specific question scores, measuring a distinct dimension of organisational health.</p>
+      </div>
+
+      <Card>
+        <h3>Core Metrics (M1–M14)</h3>
+        <DataTable
+          headers={['Code', 'Client Name', 'Formula (Question Weights)']}
+          rows={[
+            ['M1', 'Operational Strength', 'I1(25%) + I4(30%) + X3a(20%) + R1(10%) + B5(15%CL)'],
+            ['M2', 'Future Readiness', 'S5(25%) + I1(15%) + X4(15%) + B6(10%) + X3b(10%) + R2(10%) + S3a(10%)'],
+            ['M3', 'Insight-to-Action', 'M1(30%) + I1(25%) + C2(25%) + S1(20%)'],
+            ['M4', 'Implementation Speed', 'M4scale(50%) + I2(30%) + X4(20%)'],
+            ['M5', 'Market Radar', 'S1(50%) + S5(30%) + B6(20%)'],
+            ['M6', 'Decision Flow', 'M1(35%) + M4scale(50%) + R1(15%)'],
+            ['M7', 'Knowledge Leverage', 'I1(100%) with per-metric dimension weights'],
+            ['M8', 'Accountability Speed', 'OL1(40%) + OL2(40%) + I2(10%) + M4(10%)'],
+            ['M9', 'Run/Transform Balance', 'X3a + X3b (distance-from-ideal with B6 context)'],
+            ['M10', 'Change Readiness', 'C3(20%) + C1(20%) + S3a(15%) + I1(15%) + C2(15%) + I4(15%)'],
+            ['M11', 'Structure Fitness', 'M4(30%) + C4(25%) + I4(20%) + I2(15%) + B5(10%CL)'],
+            ['M12', 'Capacity & Tools', 'R1(60%) + R2(25%) + R3(15%)'],
+            ['M13', 'Defensible Strengths', 'B2(20%) + B5(30%) + I1(25%) + R2(10%) + C1(15%)'],
+            ['M14', 'Risk Tolerance', 'RA1(50%) + RA2(30%) + C3(20%)'],
+          ]}
+        />
+      </Card>
+
+      <Card>
+        <h3>Derived Metrics</h3>
+        <FormulaBlock label="D1 — OODA Velocity">{'(M5 Market Radar + M6 Decision Flow + M8 Accountability Speed + M4 Implementation Speed) ÷ 4'}</FormulaBlock>
+        <FormulaBlock label="D2 — Resilience Index">{'(M12 Capacity & Tools + M10 Change Readiness + M3 Insight-to-Action) ÷ 3'}</FormulaBlock>
+        <p className="dc-text-muted">Derived metrics are simple averages. No LLM calls — calculated directly from core metric scores.</p>
+      </Card>
+
+      <InfoBlock type="note" title="CL = Cross-Level">
+        Questions marked CL require multi-respondent data. For N=1, the weight is redistributed to other contributing questions.
+      </InfoBlock>
+    </div>
+  );
+}
+
+// ─── PAGE: PATHOLOGY DETECTION ───
+function PagePathologies() {
+  return (
+    <div className="dc-page">
+      <div className="dc-page-hero">
+        <Badge variant="red">Analysis</Badge>
+        <h1>Pathology Detection</h1>
+        <p>7 organisational pathologies with precise detection logic. Each requires ALL conditions to be met (AND logic). Partial matches (2 of 3) display as "Indicators".</p>
+      </div>
+
+      <Card>
+        <h3>Detection Logic</h3>
+        <DataTable
+          headers={['#', 'Pathology', 'Risk', 'Conditions (ALL must met)', 'Questions']}
+          rows={[
+            ['1', 'Safety Crisis', <Badge variant="red">CRITICAL</Badge>, 'C1=BLAME AND C3<3 AND S3a<3', 'C1, C3, S3a'],
+            ['2', 'Power Block', <Badge variant="red">CRITICAL</Badge>, 'PB1=repeated veto AND C3<4 AND I4<3', 'PB1, C3, I4'],
+            ['3', 'Implementation Gap', <Badge variant="red">CRITICAL</Badge>, 'Leader-frontline gap >1.5 on C3 OR I4', 'B1, C3, I4'],
+            ['4', 'Risk Paralysis', <Badge variant="amber">HIGH</Badge>, 'RA1<30 AND RA2=punish AND I2=approvals AND C3<4', 'RA1, RA2, I2, C3'],
+            ['5', 'Accountability Vacuum', <Badge variant="amber">HIGH</Badge>, 'OL1=falls through AND OL2>1wk AND I2=unclear ownership', 'OL1, OL2, I2'],
+            ['6', 'Optimization Lock', <Badge variant="amber">HIGH</Badge>, 'X3a>80% AND X3b<10% AND B6≥Fast', 'X3a, X3b, B6'],
+            ['7', 'Activity Without Impact', <Badge variant="amber">HIGH</Badge>, 'X3b>20% AND I4<3', 'X3b, I4'],
+          ]}
+        />
+      </Card>
+
+      <Card>
+        <h3>Historical Case Anchors</h3>
+        <p className="dc-text-muted">Each pathology is anchored to a recognisable real-world case for calibration and client communication.</p>
+        <DataTable
+          compact
+          headers={['Case', 'Year', 'Pathology', 'Key Lesson']}
+          rows={[
+            ['Challenger', '1986', 'Safety Crisis', 'Information present, structure made it impossible to act'],
+            ['Nokia', '2007', 'Implementation Gap', 'Middle management filtered signals before reaching the top'],
+            ['Kodak', '1975–2012', 'Optimization Lock', 'Success made reallocation feel irrational'],
+            ['Columbia', '2003', 'Activity Without Impact', 'More safety processes ≠ better decisions'],
+            ['Bay of Pigs', '1961', 'Risk Paralysis', 'Unanimous support for a plan nobody believed would work'],
+            ['Titanic', '1912', 'Accountability Vacuum', '6 warnings received, 0 converted to action'],
+            ['Enron', '2001', 'Power Block', 'Formal governance existed but couldn\'t override informal power'],
+          ]}
+        />
+      </Card>
+    </div>
+  );
+}
+
+// ─── PAGE: SAY-DO CHECKS ───
+function PageSayDo() {
+  return (
+    <div className="dc-page">
+      <div className="dc-page-hero">
+        <Badge variant="amber">Analysis</Badge>
+        <h1>Say-Do Contradiction Checks</h1>
+        <p>Detecting gaps between what people say (scale ratings) and what the data shows (narrative evidence). The core differentiator that justifies CABAS's diagnostic value.</p>
+      </div>
+
+      <Card>
+        <h3>Pattern Checks (SAYDO-01 to SAYDO-10)</h3>
+        <p className="dc-text-muted">Each check compares a scale rating ≥4 against narrative content that contradicts it.</p>
+        <DataTable
+          headers={['Flag', 'Trigger', 'Pathology Link', 'N=1?']}
+          rows={[
+            ['SAYDO-01', 'C3≥4 + C1=BLAME', 'Safety Crisis', <Badge variant="green">YES</Badge>],
+            ['SAYDO-02', 'S3a≥4 + C1=BLAME', 'Overconfidence', <Badge variant="green">YES</Badge>],
+            ['SAYDO-03', 'M4≥4 + M1=isolated', 'Frozen Middle', <Badge variant="green">YES</Badge>],
+            ['SAYDO-04', 'I4≥4 + I1=stalled', 'Activity w/o Impact', <Badge variant="green">YES</Badge>],
+            ['SAYDO-05', 'X4≥4 + I1/I2=slow', 'Execution Barrier', <Badge variant="green">YES</Badge>],
+            ['SAYDO-06', 'R3≥4 + R1=friction', 'Resource Gap', <Badge variant="green">YES</Badge>],
+            ['SAYDO-07', 'P4 > FR by >1.5', 'Overconfidence', <Badge variant="green">YES</Badge>],
+            ['SAYDO-08', 'C3 level gap >1.5', 'Impl. Gap', <Badge variant="red">NO (N&gt;1)</Badge>],
+            ['SAYDO-09', 'I4 level gap >1.5', 'Frozen Middle', <Badge variant="red">NO (N&gt;1)</Badge>],
+            ['SAYDO-10', 'RA1<30 + RA2=punitive', 'Risk Paralysis', <Badge variant="green">YES</Badge>],
+          ]}
+        />
+      </Card>
+
+      <Card>
+        <h3>Cross-Question Consistency Checks</h3>
+        <p className="dc-text-muted">6 checks comparing related questions. All active for single-respondent assessments.</p>
+        <DataTable
+          headers={['Pair', 'Expected Alignment', 'Flag Condition']}
+          rows={[
+            ['S3a vs C3', 'Both measure psychological safety', 'Difference > 1 point (>20 on 0-100)'],
+            ['C1 vs RA2', 'Both about response to failure', 'C1 shows blame but RA2 denies punishment'],
+            ['X3b vs R2', 'Both about exploration activity', 'X3b >20% but R2 shows limited pilots'],
+            ['M1 vs M4', 'Process vs effectiveness', 'M1 isolated but M4 ≥4'],
+            ['I2 vs P2', 'Barriers should overlap', 'Completely different barriers cited'],
+            ['OL1 vs OL2', 'Orphan handling vs speed', 'OL1 shows long delay, OL2 claims fast'],
+          ]}
+        />
+      </Card>
+
+      <InfoBlock type="warning" title="Single-Respondent Rule">
+        Only SAYDO-08 and SAYDO-09 (level-based triangulation) are suppressed for N=1. Everything else fires normally.
+      </InfoBlock>
+    </div>
+  );
+}
+
+// ─── PAGE: QUADRANT ───
+function PageQuadrant() {
+  return (
+    <div className="dc-page">
+      <div className="dc-page-hero">
+        <Badge variant="green">Analysis</Badge>
+        <h1>Quadrant Classification</h1>
+        <p>A 2×2 matrix based on Operational Strength (M1) and Future Readiness (M2) determines the organisation's strategic position and the report's tone.</p>
+      </div>
+
+      <Card>
+        <h3>Classification Grid</h3>
+        <div className="dc-quadrant-grid">
+          <div className="dc-quadrant dc-quadrant--tl">
+            <div className="dc-quadrant-label">Scattered Experimenter</div>
+            <div className="dc-quadrant-cond">Low OS + High FR</div>
+            <div className="dc-quadrant-tone">Validating but grounding</div>
+          </div>
+          <div className="dc-quadrant dc-quadrant--tr">
+            <div className="dc-quadrant-label">Adaptive Leader</div>
+            <div className="dc-quadrant-cond">High OS + High FR</div>
+            <div className="dc-quadrant-tone">Respectful, nuanced</div>
+          </div>
+          <div className="dc-quadrant dc-quadrant--bl">
+            <div className="dc-quadrant-label">At-Risk</div>
+            <div className="dc-quadrant-cond">Low OS + Low FR</div>
+            <div className="dc-quadrant-tone">Compassionate, unflinching</div>
+          </div>
+          <div className="dc-quadrant dc-quadrant--br">
+            <div className="dc-quadrant-label">Solid Performer</div>
+            <div className="dc-quadrant-cond">High OS + Low FR</div>
+            <div className="dc-quadrant-tone">Direct, urgent</div>
+          </div>
+        </div>
+        <FormulaBlock label="Threshold">{'High ≥ configurable threshold | Low < threshold'}</FormulaBlock>
+      </Card>
+    </div>
+  );
+}
+
+// ─── PAGE: TRAINING DATA ───
+function PageTrainingData() {
+  return (
+    <div className="dc-page">
+      <div className="dc-page-hero">
+        <Badge>Reference</Badge>
+        <h1>Training Data Bank</h1>
+        <p>10 structured JSON files provide reference data for AI calibration. All stored in <code>data/training/</code> and cached after first load.</p>
+      </div>
+
+      <Card>
+        <h3>File Inventory</h3>
+        <DataTable
+          headers={['File', 'Content', 'Used By']}
+          rows={[
+            ['historical_cases.json', '10 real-world pathology cases', 'Pathology checker + refinement prompt'],
+            ['scoring_signals.json', 'Per-dimension keywords per level', 'Question scoring prompt'],
+            ['calibration_examples.json', 'Good/bad scoring examples', 'Question scoring prompt'],
+            ['sector_norms.json', '6 industry profiles', 'Refinement context injection'],
+            ['executive_summary_examples.json', '8 quadrant examples + 10 golden rules + 8 pathology templates', 'Report summary prompt'],
+            ['say_do_gap_examples.json', 'Good/bad contradiction narratives', 'Quality gate reviewer'],
+            ['recommendation_examples.json', 'Monday Morning Test per quadrant', 'Quality gate reviewer'],
+            ['pathology_roadmaps.json', '8 phased 1/2/3 month plans', 'Refinement + dashboard UI'],
+            ['label_translations.json', '45 academic → plain-language', 'All output generation'],
+            ['score_ceilings.json', '7 hard ceiling rules', 'Post-scoring enforcement'],
+          ]}
+        />
+      </Card>
+    </div>
+  );
+}
+
+// ─── PAGE: REFINEMENT ───
+function PageRefinement() {
+  return (
+    <div className="dc-page">
+      <div className="dc-page-hero">
+        <Badge variant="blue">Output</Badge>
+        <h1>Refinement Pipeline</h1>
+        <p>Stage 4 generates all client-facing narrative text. 28 LLM calls for metrics + 1 for executive summary + 1 for VRIN assessment.</p>
+      </div>
+
+      <Card>
+        <h3>Per-Metric Generation (×14)</h3>
+        <StepList steps={[
+          { title: 'Phase 1: Observation Mining', desc: 'Extract structured findings through analytical lenses. Each observation has verbatim evidence quotes, sentiment, and severity. Every quote must be copied EXACTLY from responses.' },
+          { title: 'Phase 2: Reasoning & Recommendations', desc: 'Business impact analysis, 1-3 concrete recommendations per metric, synthesised summary. Every recommendation must pass the Monday Morning Test.' },
+        ]} />
+      </Card>
+
+      <Card>
+        <h3>Executive Summary — 10 Golden Rules</h3>
+        <CodeBlock title="Rules">
 {`1. Lead with single most important finding + concrete number
 2. Name the quadrant + explain in plain business language
 3. State gap between strongest and weakest metric
@@ -630,88 +488,198 @@ function RefinementPipeline() {
 5. End with commercial consequence of action vs inaction
 6. SME role titles only (MD, Operations Manager — never COO/CIO)
 7. Single-respondent caveat when N=1
-8. Differentiate metric statuses (never same colour)
+8. Differentiate metric statuses (never paint all same colour)
 9. Every quote must be real respondent answer
 10. 150-250 words — every word earns its place`}
         </CodeBlock>
-      </SubSection>
-      <SubSection id="refinement-actions" title="Recommendations">
-        <p className="docs-text">3-5 prioritised actions. Every recommendation must pass the Monday Morning Test: could an SME leader start acting on it next Monday?</p>
-      </SubSection>
-    </Section>
+      </Card>
+    </div>
   );
 }
 
-// ─── QUALITY GATE ───
-function QualityGate() {
+// ─── PAGE: QUALITY GATE ───
+function PageQualityGate() {
   return (
-    <Section id="quality" title="Quality Gate" subtitle="Stage 5: Automated writing quality review — checks tone, not substance">
-      <Callout type="critical">
-        Quality reviewers NEVER change scores, pathology detections, metric values, or analytical findings. They only fix writing quality — tone, structure, terminology, specificity.
-      </Callout>
-      <SubSection id="quality-reviewers" title="Parallel Reviewers (5)">
-        <Table
-          headers={['Reviewer', 'Checks', 'Reference Data']}
+    <div className="dc-page">
+      <div className="dc-page-hero">
+        <Badge variant="blue">Output</Badge>
+        <h1>Quality Gate</h1>
+        <p>Stage 5 validates all LLM-generated text against writing quality standards. Reviewers NEVER change scores or findings — only writing quality.</p>
+      </div>
+
+      <Card>
+        <h3>5 Parallel Reviewers</h3>
+        <DataTable
+          headers={['Reviewer', 'Checks Against', 'Reference Data']}
           rows={[
-            ['Executive Summary', '10 golden rules, quadrant tone, structure', 'executive_summary_examples.json'],
-            ['Metric Narratives', 'Lead with insight, cite evidence, no filler', 'Rules-based (MN-1 to MN-5)'],
-            ['Pathology Descriptions', 'Template compliance, data fill, evidence', 'Pathology statement templates'],
-            ['Recommendations', 'Monday Morning Test, SME titles, actionability', 'recommendation_examples.json'],
-            ['Say-Do Narratives', 'Quote quality, score connection, consequence', 'say_do_gap_examples.json'],
+            ['Executive Summary', '10 golden rules + quadrant tone', 'executive_summary_examples.json'],
+            ['Metric Narratives', 'Lead with insight, cite evidence, no filler', 'Rules MN-1 to MN-5'],
+            ['Pathology Descriptions', 'Template compliance, data fill', 'Pathology statement templates'],
+            ['Recommendations', 'Monday Morning Test, SME titles', 'recommendation_examples.json'],
+            ['Say-Do Narratives', 'Quote quality, score connection', 'say_do_gap_examples.json'],
           ]}
         />
-      </SubSection>
-      <SubSection id="quality-rules" title="Rules Checker (Instant)">
-        <p className="docs-text">Regex/string-based checks run before LLM reviewers. Zero latency, deterministic.</p>
-        <Table
-          headers={['Check', 'What it catches']}
+      </Card>
+
+      <Card>
+        <h3>Rules Checker (Instant)</h3>
+        <p className="dc-text-muted">Deterministic checks. No LLM needed.</p>
+        <DataTable
+          compact
+          headers={['Check', 'Catches']}
           rows={[
-            ['Banned terminology', '15+ academic terms that must never appear in output'],
-            ['C-suite titles', 'COO, CIO, CLO, VP — must be SME titles'],
-            ['Unfilled placeholders', '[X], [Y], [Z] template variables not replaced'],
+            ['Banned terminology', '15+ academic terms (VRIN, Ambidexterity, etc.)'],
+            ['C-suite titles', 'COO, CIO, CLO, VP → must be SME titles'],
+            ['Unfilled placeholders', '[X], [Y], [Z] not replaced with data'],
             ['Voice artifacts', 'Transcription phrases cited as quotes'],
             ['Filler phrases', '"dynamic landscape", "it is important to note"'],
             ['Word count', 'Executive summary 150-250 words'],
-            ['Single-respondent caveat', 'Missing N=1 disclosure'],
+            ['N=1 caveat', 'Missing single-respondent disclosure'],
           ]}
         />
-      </SubSection>
-      <SubSection id="quality-fixer" title="Fix Loop">
-        <p className="docs-text">When a reviewer returns NEEDS_FIX, a fixer agent rewrites only the failing section while preserving all analytical content. Max 2 iterations. Pre/post snapshots saved for comparison.</p>
-      </SubSection>
-    </Section>
+      </Card>
+    </div>
   );
 }
 
-// ─── TERMINOLOGY MAP ───
-function TerminologyMap() {
-  const terms = [
-    ['Technical Fitness', 'Operational Strength', 'Helfat & Peteraf'],
-    ['Evolutionary Fitness', 'Future Readiness', 'Helfat & Peteraf'],
-    ['Ambidexterity Balance', 'Run/Transform Balance', 'March (1991)'],
-    ['Sensing', 'Market Radar', 'Teece (2007)'],
-    ['Learning Effectiveness', 'Insight-to-Action', 'Argyris & Senge'],
-    ['VRIN Competitive Advantage', 'Defensible Strengths', 'Barney RBV'],
-    ['Execution Agility', 'Implementation Speed', 'Generic'],
-    ['Information Flow Quality', 'Decision Flow', 'Generic'],
-    ['Integration & Reuse', 'Knowledge Leverage', 'Generic'],
-    ['Ownership Latency', 'Accountability Speed', 'Generic'],
-    ['Organizational Readiness', 'Change Readiness', 'Generic'],
-    ['Organizational Design', 'Structure Fitness', 'Generic'],
-    ['Resource Availability', 'Capacity & Tools', 'Generic'],
-    ['Risk Appetite', 'Risk Tolerance', 'Mission Command'],
-    ['MIATM', '[Never mention]', 'Internal framework'],
-  ];
+// ─── PAGE: TERMINOLOGY ───
+function PageTerminology() {
+  return (
+    <div className="dc-page">
+      <div className="dc-page-hero">
+        <Badge variant="red">Reference</Badge>
+        <h1>Terminology Map</h1>
+        <p>No academic term may appear in ANY client-facing output. The quality gate enforces this automatically.</p>
+      </div>
+
+      <Card>
+        <DataTable
+          headers={['Prohibited (Academic)', 'Use This (Client-Facing)', 'Source']}
+          rows={[
+            ['Technical Fitness', 'Operational Strength', 'Helfat & Peteraf'],
+            ['Evolutionary Fitness', 'Future Readiness', 'Helfat & Peteraf'],
+            ['Ambidexterity Balance', 'Run/Transform Balance', 'March (1991)'],
+            ['Sensing', 'Market Radar', 'Teece (2007)'],
+            ['Learning Effectiveness', 'Insight-to-Action', 'Argyris & Senge'],
+            ['VRIN Competitive Advantage', 'Defensible Strengths', 'Barney RBV'],
+            ['Execution Agility', 'Implementation Speed', 'Generic'],
+            ['Information Flow Quality', 'Decision Flow', 'Generic'],
+            ['Integration & Reuse', 'Knowledge Leverage', 'Generic'],
+            ['Ownership Latency', 'Accountability Speed', 'Generic'],
+            ['Organizational Readiness', 'Change Readiness', 'Generic'],
+            ['Organizational Design', 'Structure Fitness', 'Generic'],
+            ['Resource Availability', 'Capacity & Tools', 'Generic'],
+            ['Risk Appetite', 'Risk Tolerance', 'Mission Command'],
+            ['MIATM', '[Never mention]', 'Internal only'],
+          ]}
+        />
+      </Card>
+    </div>
+  );
+}
+
+// ─── PAGES REGISTRY ───
+const PAGES: DocPage[] = [
+  { id: 'overview', label: 'Pipeline Overview', group: 'getting-started', content: PageOverview },
+  { id: 'questions', label: 'Question Bank', group: 'getting-started', content: PageQuestions },
+  { id: 'rubrics', label: 'Rubrics & Ceilings', group: 'scoring', content: PageRubrics },
+  { id: 'metrics', label: 'Metric Definitions', group: 'scoring', content: PageMetrics },
+  { id: 'pathologies', label: 'Pathology Detection', group: 'analysis', content: PagePathologies },
+  { id: 'saydo', label: 'Say-Do Checks', group: 'analysis', content: PageSayDo },
+  { id: 'quadrant', label: 'Quadrant Classification', group: 'analysis', content: PageQuadrant },
+  { id: 'training', label: 'Training Data Bank', group: 'reference', content: PageTrainingData },
+  { id: 'refinement', label: 'Refinement Pipeline', group: 'output', content: PageRefinement },
+  { id: 'quality', label: 'Quality Gate', group: 'output', content: PageQualityGate },
+  { id: 'terminology', label: 'Terminology Map', group: 'reference', content: PageTerminology },
+];
+
+// ─── MAIN DOCS COMPONENT ───
+export function DocsPage() {
+  const [theme, setTheme] = useState<'light' | 'dark'>(() =>
+    (localStorage.getItem('docs-theme') as 'light' | 'dark') || 'light'
+  );
+  const [activePage, setActivePage] = useState('overview');
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+
+  useEffect(() => {
+    localStorage.setItem('docs-theme', theme);
+  }, [theme]);
+
+  const currentIndex = PAGES.findIndex(p => p.id === activePage);
+  const prevPage = currentIndex > 0 ? PAGES[currentIndex - 1] : null;
+  const nextPage = currentIndex < PAGES.length - 1 ? PAGES[currentIndex + 1] : null;
+  const CurrentContent = PAGES[currentIndex]?.content || PageOverview;
+
+  const navigate = (id: string) => {
+    setActivePage(id);
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
 
   return (
-    <Section id="terminology" title="Terminology Map" subtitle="No academic term may appear in ANY client-facing output">
-      <Callout type="critical">
-        This is a hard rule. The quality gate checks for banned terms automatically. Any violation is flagged as critical.
-      </Callout>
-      <Table
-        headers={['Prohibited (Academic)', 'Use This (Client-Facing)', 'Source Theory']}
-        rows={terms}
-      />
-    </Section>
+    <div className={`dc ${theme}`} data-theme={theme}>
+      {/* ─── Header ─── */}
+      <header className="dc-header">
+        <div className="dc-header-left">
+          <button className="dc-icon-btn" onClick={() => setSidebarOpen(!sidebarOpen)} aria-label="Toggle sidebar">
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+          </button>
+          <div className="dc-brand">
+            <span className="dc-brand-mark">C</span>
+            <span className="dc-brand-text">CABAS<sup>®</sup></span>
+            <span className="dc-brand-sep">/</span>
+            <span className="dc-brand-sub">Docs</span>
+          </div>
+        </div>
+        <div className="dc-header-right">
+          <span className="dc-badge dc-badge--default">v2.2</span>
+          <button className="dc-icon-btn" onClick={() => setTheme(t => t === 'light' ? 'dark' : 'light')} aria-label="Toggle theme">
+            {theme === 'light' ? '🌙' : '☀️'}
+          </button>
+        </div>
+      </header>
+
+      <div className="dc-layout">
+        {/* ─── Sidebar ─── */}
+        <aside className={`dc-sidebar ${sidebarOpen ? '' : 'dc-sidebar--closed'}`}>
+          <nav>
+            {GROUPS.map(group => (
+              <div key={group.id} className="dc-nav-group">
+                <div className="dc-nav-group-label">{group.label}</div>
+                {PAGES.filter(p => p.group === group.id).map(page => (
+                  <button
+                    key={page.id}
+                    className={`dc-nav-link ${activePage === page.id ? 'dc-nav-link--active' : ''}`}
+                    onClick={() => navigate(page.id)}
+                  >
+                    {page.label}
+                  </button>
+                ))}
+              </div>
+            ))}
+          </nav>
+        </aside>
+
+        {/* ─── Main Content ─── */}
+        <main className={`dc-main ${sidebarOpen ? '' : 'dc-main--full'}`}>
+          <CurrentContent />
+
+          {/* ─── Prev / Next Navigation ─── */}
+          <div className="dc-page-nav">
+            {prevPage ? (
+              <button className="dc-page-nav-btn dc-page-nav-btn--prev" onClick={() => navigate(prevPage.id)}>
+                <span className="dc-page-nav-dir">← Previous</span>
+                <span className="dc-page-nav-label">{prevPage.label}</span>
+              </button>
+            ) : <div />}
+            {nextPage ? (
+              <button className="dc-page-nav-btn dc-page-nav-btn--next" onClick={() => navigate(nextPage.id)}>
+                <span className="dc-page-nav-dir">Next →</span>
+                <span className="dc-page-nav-label">{nextPage.label}</span>
+              </button>
+            ) : <div />}
+          </div>
+        </main>
+      </div>
+    </div>
   );
 }
