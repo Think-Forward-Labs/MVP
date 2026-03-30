@@ -286,6 +286,29 @@ export function AdminSidebar({
         )}
 
         <button
+          onClick={() => window.open('/docs', '_blank')}
+          title={collapsed ? 'Documentation' : undefined}
+          style={{
+            ...styles.logoutButton,
+            justifyContent: collapsed ? 'center' : 'flex-start',
+            padding: collapsed ? '10px' : '10px 12px',
+            color: isDark ? 'rgba(255,255,255,0.5)' : 'rgba(60, 60, 67, 0.6)',
+            marginBottom: '4px',
+          }}
+          onMouseEnter={(e) => {
+            e.currentTarget.style.background = isDark ? 'rgba(255,255,255,0.06)' : 'rgba(0,0,0,0.04)';
+          }}
+          onMouseLeave={(e) => {
+            e.currentTarget.style.background = 'transparent';
+          }}
+        >
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5">
+            <path d="M4 19.5A2.5 2.5 0 016.5 17H20"/><path d="M6.5 2H20v20H6.5A2.5 2.5 0 014 19.5v-15A2.5 2.5 0 016.5 2z"/>
+          </svg>
+          {!collapsed && <span>Documentation</span>}
+        </button>
+
+        <button
           onClick={onLogout}
           title={collapsed ? 'Sign out' : undefined}
           style={{

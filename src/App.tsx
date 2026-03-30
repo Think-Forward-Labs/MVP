@@ -8,6 +8,7 @@ import { ReviewDetailPanel } from './components/dashboard/ReviewDetailPanel';
 import { BusinessOnboardingModal } from './components/onboarding/BusinessOnboardingModal';
 import { AdminLogin } from './components/admin/AdminLogin';
 import { AdminDashboard } from './components/admin/AdminDashboard';
+import { DocsPage } from './components/docs/DocsPage';
 import { authApi, getAuthToken, clearAuthToken, reviewsApi } from './services/api';
 import { adminApi, getAdminAuthToken, clearAdminAuthToken } from './services/adminApi';
 import type { User, Business, AppView, DashboardSection, AuthMode, ReviewDetail } from './types/app';
@@ -58,6 +59,13 @@ function App() {
   // Session restoration on mount
   useEffect(() => {
     const restoreSession = async () => {
+      // Check if we're on docs path
+      if (window.location.pathname.startsWith('/docs')) {
+        setCurrentView('docs' as AppView);
+        setIsLoading(false);
+        return;
+      }
+
       // Check if we're on admin path
       if (window.location.pathname.startsWith('/admin')) {
         const adminToken = getAdminAuthToken();
@@ -285,6 +293,11 @@ function App() {
         )}
       </>
     );
+  }
+
+  // Documentation Page
+  if ((currentView as string) === 'docs') {
+    return <DocsPage />;
   }
 
   // Admin Login Page
