@@ -1,5 +1,21 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import './DocsPage.css';
+
+// ─── API BASE ───
+const DOCS_API = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+
+// ─── DATA HOOKS ───
+function useDocsData<T>(endpoint: string): { data: T | null; loading: boolean } {
+  const [data, setData] = useState<T | null>(null);
+  const [loading, setLoading] = useState(true);
+  useEffect(() => {
+    fetch(`${DOCS_API}/admin/docs/${endpoint}`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => { setData(d); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, [endpoint]);
+  return { data, loading };
+}
 
 // ─── PAGE DEFINITIONS ───
 interface DocPage {
@@ -196,6 +212,11 @@ function PageQuestions() {
 
 // ─── PAGE: SCORING RUBRICS ───
 function PageRubrics() {
+  const { data: rubrics, loading } = useDocsData<Record<string, any>>('scoring-rubrics');
+  const [expandedQ, setExpandedQ] = useState<string | null>(null);
+
+  const questionOrder = ['I1','R1','I2','M1','S1','C1','C2','C4','R2','B2','P2','RA1','RA2','OL1','OL2'];
+
   return (
     <div className="dc-page">
       <div className="dc-page-hero">
@@ -204,22 +225,111 @@ function PageRubrics() {
         <p>Each open-ended question is scored against 3-5 dimensions using Behaviourally Anchored Rating Scales (BARS). Hard ceilings cap scores when specific conditions are detected.</p>
       </div>
 
+      {/* Scoring Architecture */}
       <Card>
-        <h3>How Dimension Scoring Works</h3>
+        <h3>Scoring Architecture</h3>
+        <p className="dc-text-muted">The LLM receives the respondent's text alongside the full rubric for that question — dimensions, BARS anchors, and critical flags. It scores each dimension independently, then the platform computes the weighted overall.</p>
         <StepList steps={[
-          { title: 'LLM receives response + rubric', desc: 'The scoring prompt includes the respondent\'s text, the dimension definitions, and 5-level BARS anchors for each dimension.' },
-          { title: 'Score each dimension 1-5', desc: 'The LLM assigns a score (1-5) to each dimension with confidence level and reasoning.' },
-          { title: 'Weighted average → 0-100', desc: 'Overall score = Σ(dimension_score × weight) ÷ Σ(weights) × 20. Converted to 0-100 scale.' },
-          { title: 'Apply ceiling if triggered', desc: 'Post-scoring check: if a hard ceiling condition is met, the overall score is capped. Dimension scores preserved.' },
+          { title: 'Load rubric for question', desc: 'Each of the 15 open-ended questions has a unique rubric in scoring_rubrics.json with 3-5 dimensions, each with 5 BARS anchor levels.' },
+          { title: 'LLM scores each dimension 1-5', desc: 'The LLM matches the response to the closest BARS anchor for each dimension. Returns score, confidence (high/medium/low), and reasoning.' },
+          { title: 'Compute weighted average', desc: 'Overall = Σ(dimension_score × dimension_weight) ÷ Σ(weights). Level 1-5 maps to 20-100.' },
+          { title: 'Apply hard ceiling', desc: 'If a ceiling condition is met (e.g., blame detected in C1), the overall score is capped. Dimension scores are preserved for metric-level weighting.' },
         ]} />
         <FormulaBlock label="Overall Score Formula">
-          {'Overall = (Σ dimension_score × dimension_weight) ÷ (Σ weights) × 20'}
+          {'Overall = Σ (dimension_level × dimension_weight%) ÷ 100 × 20  →  0-100 scale'}
         </FormulaBlock>
       </Card>
 
+      {/* Live Rubrics */}
+      <Card>
+        <h3>Question Rubrics</h3>
+        <p className="dc-text-muted">
+          {loading ? 'Loading rubrics from backend...' : `${Object.keys(rubrics || {}).length} rubrics loaded live from scoring_rubrics.json. Click any question to view its full dimension rubric.`}
+        </p>
+
+        {!loading && rubrics && (
+          <div className="dc-rubric-list">
+            {questionOrder.map(code => {
+              const key = `q_cabas_${code.toLowerCase()}`;
+              const r = rubrics[key];
+              if (!r) return null;
+              const qCode = r.question_code || code;
+              const dims = r.dimensions || [];
+              const isOpen = expandedQ === qCode;
+              const totalWeight = dims.reduce((s: number, d: any) => s + (d.weight || 0), 0);
+
+              return (
+                <div key={qCode} className={`dc-rubric ${isOpen ? 'dc-rubric--open' : ''}`}>
+                  <button className="dc-rubric-header" onClick={() => setExpandedQ(isOpen ? null : qCode)}>
+                    <div className="dc-rubric-code">{qCode}</div>
+                    <div className="dc-rubric-meta">
+                      <span className="dc-rubric-dims">{dims.length} dimensions</span>
+                      <span className="dc-rubric-type">{r.scoring_type || 'dimensional'}</span>
+                    </div>
+                    <svg className={`dc-rubric-chevron ${isOpen ? 'dc-rubric-chevron--open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <polyline points="6 9 12 15 18 9"/>
+                    </svg>
+                  </button>
+
+                  {isOpen && (
+                    <div className="dc-rubric-body">
+                      {/* Formula */}
+                      <div className="dc-rubric-formula">
+                        <span className="dc-rubric-formula-label">Formula</span>
+                        <span className="dc-rubric-formula-text">
+                          {dims.map((d: any) => `${d.id}(${d.weight}%)`).join(' + ')}
+                          {totalWeight !== 100 && ` — normalised from ${totalWeight}%`}
+                        </span>
+                      </div>
+
+                      {/* Critical Flags */}
+                      {r.critical_flags && typeof r.critical_flags === 'object' && !Array.isArray(r.critical_flags) && Object.keys(r.critical_flags).length > 0 && (
+                        <div className="dc-rubric-flags">
+                          <div className="dc-rubric-flags-label">Critical Flags</div>
+                          {Object.entries(r.critical_flags).map(([flagId, flag]: [string, any]) => (
+                            <div key={flagId} className="dc-rubric-flag">
+                              <Badge variant="red">{flagId}</Badge>
+                              <span>{flag.condition || flag}</span>
+                              {flag.max_score && <Badge variant="amber">max: {flag.max_score}</Badge>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Dimensions */}
+                      {dims.map((dim: any) => (
+                        <div key={dim.id} className="dc-dimension">
+                          <div className="dc-dimension-header">
+                            <div className="dc-dimension-name">{dim.name}</div>
+                            <Badge variant="blue">{dim.weight}%</Badge>
+                          </div>
+                          {dim.description && (
+                            <p className="dc-dimension-desc">{dim.description}</p>
+                          )}
+                          <div className="dc-anchors">
+                            {(dim.anchors || []).map((a: any) => (
+                              <div key={a.level} className="dc-anchor">
+                                <div className={`dc-anchor-level dc-anchor-level--${a.level}`}>{a.level}</div>
+                                <div className="dc-anchor-range">{a.score_range}</div>
+                                <div className="dc-anchor-behavior">{a.behavior}</div>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      {/* Hard Score Ceilings */}
       <Card>
         <h3>Hard Score Ceilings</h3>
-        <p className="dc-text-muted">7 rules from the Master Brief. Applied post-scoring. Principle: score what the org DOES, not how well the respondent describes it.</p>
+        <p className="dc-text-muted">7 rules from the Master Brief. Applied post-scoring, before metric calculation. Principle: score what the org DOES, not how well the respondent describes it.</p>
         <DataTable
           headers={['Q', 'Ceiling', 'Condition', 'Metric Affected']}
           rows={[
