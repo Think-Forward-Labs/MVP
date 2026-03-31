@@ -37,6 +37,8 @@ const PAGES: PageDef[] = [
   { id: 'architecture', label: 'Pipeline & Architecture', group: 'intro' },
   { id: 'q-data', label: 'Question Data', group: 'questions' },
   { id: 'q-scoring', label: 'Scoring', group: 'questions' },
+  { id: 'q-signals', label: 'Scoring Signals', group: 'questions' },
+  { id: 'q-calibration', label: 'Calibration Examples', group: 'questions' },
   { id: 'q-ceilings', label: 'Ceilings', group: 'questions' },
   { id: 'q-saydo', label: 'Say-Do Checks', group: 'questions' },
   { id: 'q-pathologies', label: 'Pathology Detection', group: 'questions' },
@@ -507,6 +509,155 @@ function PageScoring() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// PAGE: SCORING SIGNALS
+// ═══════════════════════════════════════════════════════════
+function PageSignals() {
+  const { data: signalsData, loading } = useDocsData<any>('training/scoring_signals.json');
+  const [expandedQ, setExpandedQ] = useState<string | null>(null);
+
+  const signals = signalsData?.signals || {};
+  const questionCodes = Object.keys(signals).sort();
+
+  return (
+    <div className="dc-page">
+      <Hero badge="Questions" badgeVariant="green" title="Scoring Signals" subtitle="Per-dimension keyword signals for each scoring level. These tell the AI what to look for when scoring." />
+
+      <Card>
+        <h3>What are Scoring Signals?</h3>
+        <p className="dc-text-muted">For each open-ended question, each dimension has level-specific signal keywords. When the AI scores a response, it looks for these signals to calibrate which BARS anchor to match. Signals are NOT deterministic — the AI uses them as guidance alongside the full response context.</p>
+      </Card>
+
+      <Card>
+        <h3>Signals by Question</h3>
+        <p className="dc-text-muted">{loading ? 'Loading...' : `${questionCodes.length} questions with signals.`}</p>
+        {!loading && (
+          <div className="dc-rubric-list">
+            {questionCodes.map(code => {
+              const isOpen = expandedQ === code;
+              const dims = signals[code] || {};
+              const dimKeys = Object.keys(dims);
+              return (
+                <div key={code} className={`dc-rubric ${isOpen ? 'dc-rubric--open' : ''}`}>
+                  <button className="dc-rubric-header" onClick={() => setExpandedQ(isOpen ? null : code)}>
+                    <div className="dc-rubric-code">{code}</div>
+                    <div className="dc-rubric-meta">
+                      <span className="dc-rubric-dims">{dimKeys.length} dimensions</span>
+                    </div>
+                    <svg className={`dc-rubric-chevron ${isOpen ? 'dc-rubric-chevron--open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  {isOpen && (
+                    <div className="dc-rubric-body">
+                      {dimKeys.map(dimId => {
+                        const levels = dims[dimId];
+                        return (
+                          <div key={dimId} className="dc-dimension">
+                            <div className="dc-dimension-header">
+                              <div className="dc-dimension-name">{dimId.replace(/_/g, ' ')}</div>
+                            </div>
+                            <div className="dc-anchors">
+                              {['5','4','3','2','1'].map(lvl => {
+                                const levelData = levels[lvl];
+                                if (!levelData) return null;
+                                const sigs = levelData.signals || [];
+                                return (
+                                  <div key={lvl} className="dc-anchor">
+                                    <div className={`dc-anchor-level dc-anchor-level--${lvl}`}>{lvl}</div>
+                                    <div className="dc-anchor-range">signals</div>
+                                    <div className="dc-anchor-behavior">
+                                      {sigs.length > 0 ? sigs.map((s: string, i: number) => (
+                                        <span key={i} className="dc-signal-tag">{s}</span>
+                                      )) : <span style={{color: 'var(--text-3)', fontStyle: 'italic'}}>No signals defined</span>}
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: CALIBRATION EXAMPLES
+// ═══════════════════════════════════════════════════════════
+function PageCalibration() {
+  const { data: calData, loading } = useDocsData<any>('training/calibration_examples.json');
+  const [expandedQ, setExpandedQ] = useState<string | null>(null);
+
+  const examples = calData?.examples || {};
+  const questionCodes = Object.keys(examples).sort();
+
+  return (
+    <div className="dc-page">
+      <Hero badge="Questions" badgeVariant="green" title="Calibration Examples" subtitle="Good, moderate, and poor scoring examples for AI calibration. These show the AI what correct scoring looks like." />
+
+      <Card>
+        <h3>How Calibration Works</h3>
+        <p className="dc-text-muted">Each open-ended question has 2-3 example responses with pre-scored dimensions. These are injected into the scoring prompt so the AI can see concrete examples of how to apply the rubric before scoring the actual response.</p>
+      </Card>
+
+      <Card>
+        <h3>Examples by Question</h3>
+        <p className="dc-text-muted">{loading ? 'Loading...' : `${questionCodes.length} questions with calibration examples.`}</p>
+        {!loading && (
+          <div className="dc-rubric-list">
+            {questionCodes.map(code => {
+              const isOpen = expandedQ === code;
+              const qExamples = examples[code] || [];
+              return (
+                <div key={code} className={`dc-rubric ${isOpen ? 'dc-rubric--open' : ''}`}>
+                  <button className="dc-rubric-header" onClick={() => setExpandedQ(isOpen ? null : code)}>
+                    <div className="dc-rubric-code">{code}</div>
+                    <div className="dc-rubric-meta">
+                      <span className="dc-rubric-dims">{qExamples.length} examples</span>
+                    </div>
+                    <svg className={`dc-rubric-chevron ${isOpen ? 'dc-rubric-chevron--open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  {isOpen && (
+                    <div className="dc-rubric-body">
+                      {qExamples.map((ex: any, i: number) => (
+                        <div key={i} className="dc-cal-example">
+                          <div className="dc-cal-header">
+                            <Badge variant={ex.overall_score >= 80 ? 'green' : ex.overall_score >= 50 ? 'amber' : 'red'}>
+                              Score: {ex.overall_score}
+                            </Badge>
+                            <span className="dc-cal-id">{ex.id}</span>
+                          </div>
+                          <div className="dc-cal-response">"{ex.response}"</div>
+                          <div className="dc-cal-scores">
+                            {Object.entries(ex.dimension_scores || {}).map(([dim, score]: [string, any]) => (
+                              <div key={dim} className="dc-cal-score">
+                                <span className="dc-cal-dim">{dim.replace(/_/g, ' ')}</span>
+                                <div className={`dc-anchor-level dc-anchor-level--${score}`} style={{width: 22, height: 22, fontSize: 11}}>{score}</div>
+                              </div>
+                            ))}
+                          </div>
+                          {ex.reasoning && <div className="dc-cal-reasoning">{ex.reasoning}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // PAGE: CEILINGS
 // ═══════════════════════════════════════════════════════════
 function PageCeilings() {
@@ -953,6 +1104,8 @@ const PAGE_COMPONENTS: Record<string, () => JSX.Element> = {
   'architecture': PageArchitecture,
   'q-data': PageQuestionData,
   'q-scoring': PageScoring,
+  'q-signals': PageSignals,
+  'q-calibration': PageCalibration,
   'q-ceilings': PageCeilings,
   'q-saydo': PageSayDo,
   'q-pathologies': PagePathologies,

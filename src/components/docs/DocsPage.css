@@ -883,3 +883,71 @@
   color: var(--text-2);
   line-height: 1.6;
 }
+
+/* ─── SIGNAL TAGS ─── */
+.dc-signal-tag {
+  display: inline-block;
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+  background: var(--bg-2);
+  border: 1px solid var(--border);
+  padding: 2px 8px;
+  border-radius: 4px;
+  margin: 2px 4px 2px 0;
+}
+
+/* ─── CALIBRATION EXAMPLES ─── */
+.dc-cal-example {
+  padding: 16px 0;
+  border-bottom: 1px solid var(--border);
+}
+.dc-cal-example:last-child { border-bottom: none; }
+.dc-cal-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-bottom: 10px;
+}
+.dc-cal-id {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+}
+.dc-cal-response {
+  font-size: 13px;
+  color: var(--text-1);
+  line-height: 1.65;
+  font-style: italic;
+  padding: 10px 14px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.dc-cal-scores {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 8px;
+}
+.dc-cal-score {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.dc-cal-dim {
+  font-size: 11px;
+  color: var(--text-3);
+  text-transform: capitalize;
+}
+.dc-cal-reasoning {
+  font-size: 12px;
+  color: var(--text-2);
+  line-height: 1.6;
+  padding: 8px 12px;
+  background: var(--bg-1);
+  border-left: 2px solid var(--border);
+  border-radius: 0 6px 6px 0;
+  margin-top: 8px;
+}
