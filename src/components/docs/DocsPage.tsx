@@ -84,7 +84,7 @@ function Info({ type = 'note', title, children }: { type?: 'note' | 'warning' | 
   );
 }
 
-function Table({ headers, rows, compact }: { headers: string[]; rows: (string | JSX.Element)[][]; compact?: boolean }) {
+function Table({ headers, rows, compact }: { headers: string[]; rows: (string | React.ReactNode)[][]; compact?: boolean }) {
   return (
     <div className="dc-table-wrap">
       <table className={`dc-table ${compact ? 'dc-table--compact' : ''}`}>
@@ -1296,7 +1296,7 @@ function ResearchBenchmarksTable() {
   }, []);
 
   // Hardcoded benchmarks from research_benchmarks.json since we know the data
-  const benchmarkRows: (string | JSX.Element)[][] = [
+  const benchmarkRows: (string | React.ReactNode)[][] = [
     ['M1', 'Operational Strength', '≥65', '45', 'Helfat & Peteraf (2003)'],
     ['M2', 'Future Readiness', '≥60', '40', 'Teece (2018)'],
     ['M3', 'Insight-to-Action', '≥65', '45', 'Argyris & Schön'],
@@ -1744,7 +1744,7 @@ function PageTerminology() {
 // ═══════════════════════════════════════════════════════════
 // PAGE REGISTRY
 // ═══════════════════════════════════════════════════════════
-const PAGE_COMPONENTS: Record<string, () => JSX.Element> = {
+const PAGE_COMPONENTS: Record<string, () => React.ReactElement> = {
   'welcome': PageWelcome,
   'architecture': PageArchitecture,
   'q-data': PageQuestionData,

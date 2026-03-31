@@ -132,8 +132,8 @@ export function DashboardV2({ runId, businessName, onBack }: DashboardV2Props) {
   const metricInsights = refinedReport?.metrics || [];
   const hasData = sortedMetrics.length > 0 || metricInsights.length > 0;
 
-  const opStrength = hasData ? calcOperationalStrength(sortedMetrics, metricInsights) : 0;
-  const futReady = hasData ? calcFutureReadiness(sortedMetrics, metricInsights) : 0;
+  const opStrength = hasData ? Math.round(getMetricScore('M1', sortedMetrics, metricInsights)) : 0;
+  const futReady = hasData ? Math.round(getMetricScore('M2', sortedMetrics, metricInsights)) : 0;
   const overall = hasData ? Math.round((opStrength + futReady) / 2) : 0;
   const quadrant = getQuadrant(sortedMetrics, metricInsights);
   const m1Score = getMetricScore('M1', sortedMetrics, metricInsights);
