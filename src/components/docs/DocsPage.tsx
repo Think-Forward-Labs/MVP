@@ -1084,7 +1084,7 @@ display as cards with respondent role and source question`}</Code>
 // PAGE: OBSERVATION LENSES
 // ═══════════════════════════════════════════════════════════
 function PageLenses() {
-  const { data: lensesData, loading } = useDocsData<Record<string, any>>('training/observation_lenses.json');
+  const { data: lensesData, loading } = useDocsData<Record<string, any>>('observation-lenses');
   const [expandedM, setExpandedM] = useState<string | null>(null);
 
   const metricNames: Record<string, string> = {
