@@ -44,6 +44,7 @@ const PAGES: PageDef[] = [
   { id: 'q-pathologies', label: 'Pathology Detection', group: 'questions' },
   { id: 'q-validation', label: 'Validation & Context', group: 'questions' },
   { id: 'm-formulas', label: 'Data & Formulas', group: 'metrics' },
+  { id: 'm-detail', label: 'Metric Detail', group: 'metrics' },
   { id: 'm-observations', label: 'Observations', group: 'metrics' },
   { id: 'm-narratives', label: 'Narratives', group: 'metrics' },
   { id: 'r-summary', label: 'Executive Summary', group: 'refinement' },
@@ -824,6 +825,247 @@ function PageMetricFormulas() {
 }
 
 // ═══════════════════════════════════════════════════════════
+// PAGE: METRIC DETAIL
+// ═══════════════════════════════════════════════════════════
+function PageMetricDetail() {
+  const { data: metricsData, loading } = useDocsData<Record<string, any>>('metrics');
+  const [expandedM, setExpandedM] = useState<string | null>(null);
+
+  const metricOrder = ['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12','M13','M14','D1','D2'];
+
+  // Research benchmarks
+  const benchmarks: Record<string, { target: number; critical: number; source: string }> = {
+    M1: { target: 65, critical: 45, source: 'Helfat & Peteraf (2003)' },
+    M2: { target: 60, critical: 40, source: 'Teece (2018)' },
+    M3: { target: 65, critical: 45, source: 'Argyris & Schön' },
+    M4: { target: 60, critical: 40, source: 'Generic' },
+    M5: { target: 65, critical: 45, source: 'Teece (2007)' },
+    M6: { target: 60, critical: 40, source: 'Generic' },
+    M7: { target: 60, critical: 40, source: 'Generic' },
+    M8: { target: 55, critical: 35, source: 'Generic' },
+    M9: { target: 75, critical: 45, source: 'March (1991)' },
+    M10: { target: 60, critical: 40, source: 'Generic' },
+    M11: { target: 60, critical: 40, source: 'Generic' },
+    M12: { target: 60, critical: 40, source: 'Generic' },
+    M13: { target: 65, critical: 45, source: 'Barney RBV' },
+    M14: { target: 55, critical: 35, source: 'Mission Command' },
+  };
+
+  return (
+    <div className="dc-page">
+      <Hero badge="Metrics" badgeVariant="blue" title="Metric Detail" subtitle="How every element of a metric detail page is computed — from raw scores to final output." />
+
+      {/* ─── GENERAL: SCORE & HEALTH STATUS ─── */}
+      <Card>
+        <h3>1. Score &amp; Health Status</h3>
+        <p className="dc-text-muted">Each metric's score is a weighted aggregation of contributing question scores. The health status is then derived from the score band.</p>
+        <Steps steps={[
+          { title: 'Collect question scores', desc: 'Each metric defines which questions contribute and at what weight (see per-metric detail below).' },
+          { title: 'Apply dimension weight overrides', desc: 'For open-ended questions feeding multiple metrics, each metric can emphasise different dimensions. E.g., I1 feeds M1 (emphasises sustainability) and M7 (emphasises organizational_reach) differently.' },
+          { title: 'Weighted aggregation', desc: 'Score = Σ(question_adjusted_score × question_weight) ÷ Σ(weights). If weights sum >100%, they are normalised proportionally.' },
+          { title: 'Health status classification', desc: 'Score maps to band: ≥85 Leading Strength, ≥70 Strong, ≥55 Adequate, ≥40 Watch Area, <40 Critical Gap.' },
+        ]} />
+        <Formula label="Metric Score">{'Σ (adjusted_question_score × question_weight%) ÷ Σ(weights%)  →  0-100'}</Formula>
+      </Card>
+
+      {/* ─── GENERAL: DIMENSION WEIGHT OVERRIDES ─── */}
+      <Card>
+        <h3>2. Dimension Weight Overrides</h3>
+        <p className="dc-text-muted">When an open-ended question feeds multiple metrics, each metric applies its own dimension weights to extract the most relevant signal. The question's overall score is recalculated using the metric-specific weights.</p>
+        <Code title="Example: I1 feeds M1 and M7 differently">{`M1 (Operational Strength) uses I1 with:
+  sustainability = 40%,  organizational_reach = 30%,
+  innovation_quality = 20%,  change_orientation = 10%
+
+M7 (Knowledge Leverage) uses I1 with:
+  organizational_reach = 40%,  sustainability = 30%,
+  innovation_quality = 20%,  change_orientation = 10%
+
+Same question, same dimension scores — different metric contribution
+because the weights emphasise what matters for each metric.`}</Code>
+        <Formula label="Adjusted Score">{'adjusted = Σ(dim_score × metric_dim_weight) ÷ Σ(metric_dim_weights) × 20'}</Formula>
+      </Card>
+
+      {/* ─── GENERAL: CROSS-LEVEL ─── */}
+      <Card>
+        <h3>3. Cross-Level Contributions</h3>
+        <p className="dc-text-muted">Some question weights are marked as cross-level (CL). These compare scores across organisational levels (leadership vs frontline). For single-respondent assessments (N=1), cross-level contributions are skipped and their weight is redistributed to other questions.</p>
+        <Table compact headers={['Scenario', 'Behaviour']} rows={[
+          ['N=1 (single respondent)', 'CL weights skipped. Remaining weights normalised to 100%.'],
+          ['N=2 (same level)', 'CL weights skipped. No level comparison possible.'],
+          ['N≥3 (multiple levels)', 'CL weights active. Cross-level gap computed.'],
+        ]} />
+        <Info type="note">When CL weights are skipped, the metric confidence is lowered from HIGH to MEDIUM.</Info>
+      </Card>
+
+      {/* ─── GENERAL: WEIGHT NORMALISATION ─── */}
+      <Card>
+        <h3>4. Weight Normalisation</h3>
+        <p className="dc-text-muted">Several metrics have question weights that sum to more than 100% (e.g., Implementation Speed = 125%, Change Readiness = 130%). The engine normalises automatically.</p>
+        <Formula label="Normalisation">{'If total_weight ≠ 100: final_score = weighted_sum × 100 ÷ total_weight'}</Formula>
+        <Table compact headers={['Metric', 'Raw Weight Sum', 'Normalised']} rows={[
+          ['M4 Implementation Speed', '125%', 'Each weight ÷ 1.25'],
+          ['M8 Accountability Speed', '100%', 'No normalisation needed'],
+          ['M10 Change Readiness', '130%', 'Each weight ÷ 1.30'],
+          ['M11 Structure Fitness', '100%', 'No normalisation needed'],
+        ]} />
+      </Card>
+
+      {/* ─── GENERAL: CONFIDENCE ─── */}
+      <Card>
+        <h3>5. Confidence Badges</h3>
+        <p className="dc-text-muted">Each observation gets a confidence rating during Phase 2 enrichment. This is displayed as LOW/MEDIUM/HIGH badges on the metric detail page.</p>
+        <Table compact headers={['Level', 'Criteria']} rows={[
+          [<Badge variant="green">HIGH</Badge>, 'All contributing questions have scores. Multiple evidence quotes. No cross-level skip.'],
+          [<Badge variant="amber">MEDIUM</Badge>, 'Some questions missing or cross-level skipped. Single respondent with hedging applied.'],
+          [<Badge variant="red">LOW</Badge>, 'Key contributing questions missing. Sparse evidence. Score based on partial data.'],
+        ]} />
+      </Card>
+
+      {/* ─── GENERAL: STRENGTH vs GAP ─── */}
+      <Card>
+        <h3>6. STRENGTH vs GAP Labels</h3>
+        <p className="dc-text-muted">Each observation on the metric detail page is labelled as STRENGTH or GAP. This is derived directly from the observation's sentiment field.</p>
+        <Table compact headers={['Sentiment', 'Label', 'Meaning']} rows={[
+          ['positive', <Badge variant="green">STRENGTH</Badge>, 'This aspect IS working well for the organisation'],
+          ['negative', <Badge variant="red">GAP</Badge>, 'This aspect needs improvement'],
+          ['neutral', <Badge>NEUTRAL</Badge>, 'Mixed evidence or insufficient data to classify'],
+        ]} />
+      </Card>
+
+      {/* ─── GENERAL: WHAT WE HEARD ─── */}
+      <Card>
+        <h3>7. "What We Heard" Section</h3>
+        <p className="dc-text-muted">The dashboard aggregates all verbatim evidence quotes from all observations for this metric into a single "What We Heard" section. This is a frontend aggregation — the backend returns quotes per observation, and the UI collects them.</p>
+        <Code title="Frontend Aggregation Logic">{`for each observation in metric.observations:
+  for each quote in observation.evidence:
+    collect { quote.text, quote.role, quote.question_code, observation.lens_id }
+display as cards with respondent role and source question`}</Code>
+      </Card>
+
+      {/* ─── GENERAL: PER-METRIC RECOMMENDATIONS ─── */}
+      <Card>
+        <h3>8. Per-Metric Recommendations</h3>
+        <p className="dc-text-muted">Phase 2 generates 1-3 recommendations per metric. These are different from the report-level "Key Actions" — they are scoped to the specific metric's findings and observations.</p>
+        <Table compact headers={['Field', 'Description']} rows={[
+          ['Action title', 'Verb-led, specific to the metric findings'],
+          ['First step', 'What to do THIS MONDAY (Monday Morning Test)'],
+          ['Owner', 'SME role title (Operations Manager, not COO)'],
+          ['Timeframe', 'Realistic for org size'],
+          ['Evidence anchor', 'Quote or data point justifying this recommendation'],
+          ['Linked lens IDs', 'Which observations this recommendation addresses'],
+        ]} />
+        <p className="dc-text-muted">These per-metric recommendations feed into the report-level Key Actions synthesis. See <strong>Refinement → Recommendations</strong> for the report-level process.</p>
+      </Card>
+
+      {/* ─── GENERAL: AI REASONING ─── */}
+      <Card>
+        <h3>9. AI Reasoning (Chain of Thought)</h3>
+        <p className="dc-text-muted">The expandable "AI Reasoning" section on the metric detail page shows the AI's internal analysis. This is the Phase 2 <code>analysis</code> field — a chain-of-thought reasoning that is NOT shown to clients but available for internal review.</p>
+        <Info type="warning" title="Internal Only">
+          AI reasoning is for developer/admin review. It is never included in client-facing reports or PDFs.
+        </Info>
+      </Card>
+
+      {/* ─── GENERAL: OBSERVATION LENSES ─── */}
+      <Card>
+        <h3>10. Observation Lenses</h3>
+        <p className="dc-text-muted">Each metric's observations are structured around analytical lenses (e.g., M1 might have: Execution Reliability, Exploitation Load, Change Stickiness). The platform supports defined lenses via <code>data/observation_lenses.json</code>. Currently, lenses are AI-generated per run — the file has not yet been populated.</p>
+        <p className="dc-text-muted">See <strong>Metrics → Observations</strong> for the full observation mining process.</p>
+      </Card>
+
+      {/* ─── PER-METRIC EXPANDABLES ─── */}
+      <Card>
+        <h3>Per-Metric Configuration</h3>
+        <p className="dc-text-muted">{loading ? 'Loading metrics...' : 'Click any metric to see its exact configuration — question weights, dimension overrides, benchmarks.'}</p>
+        {!loading && metricsData && (
+          <div className="dc-rubric-list">
+            {metricOrder.map(code => {
+              const key = Object.keys(metricsData).find(k => metricsData[k]?.code === code);
+              const m = key ? metricsData[key] : null;
+              if (!m) return null;
+              const isOpen = expandedM === code;
+              const qw = m.question_weights || [];
+              const sm = m.source_metrics || [];
+              const isDerived = sm.length > 0 && qw.length === 0;
+              const bm = benchmarks[code];
+
+              return (
+                <div key={code} className={`dc-rubric ${isOpen ? 'dc-rubric--open' : ''}`}>
+                  <button className="dc-rubric-header" onClick={() => setExpandedM(isOpen ? null : code)}>
+                    <div className="dc-rubric-code">{code}</div>
+                    <div className="dc-rubric-meta">
+                      <span className="dc-rubric-dims">{m.name}</span>
+                      {isDerived && <Badge variant="amber">Derived</Badge>}
+                      {bm && <span className="dc-rubric-type">Target: ≥{bm.target}</span>}
+                    </div>
+                    <svg className={`dc-rubric-chevron ${isOpen ? 'dc-rubric-chevron--open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  {isOpen && (
+                    <div className="dc-rubric-body">
+                      {/* Description */}
+                      {m.description && <p className="dc-dimension-desc">{m.description}</p>}
+
+                      {/* Research benchmark */}
+                      {bm && (
+                        <div className="dc-rubric-formula">
+                          <span className="dc-rubric-formula-label">Benchmark</span>
+                          <span className="dc-rubric-formula-text">Target ≥{bm.target} | Critical &lt;{bm.critical} | Source: {bm.source}</span>
+                        </div>
+                      )}
+
+                      {/* Derived metric formula */}
+                      {isDerived && (
+                        <>
+                          <div className="dc-rubric-formula">
+                            <span className="dc-rubric-formula-label">Derived From</span>
+                            <span className="dc-rubric-formula-text">{sm.map((s: any) => `${s.metric_code}(${s.weight}%)`).join(' + ')}</span>
+                          </div>
+                          <Info type="note">Simple weighted average of source metrics. No LLM calls — computed directly.</Info>
+                        </>
+                      )}
+
+                      {/* Question weights */}
+                      {qw.length > 0 && (
+                        <>
+                          <div className="dc-rubric-formula">
+                            <span className="dc-rubric-formula-label">Question Weights</span>
+                            <span className="dc-rubric-formula-text">
+                              {qw.map((q: any) => `${q.question_code}(${q.weight}%${q.contribution_type === 'cross_level' ? ' CL' : ''})`).join(' + ')}
+                            </span>
+                          </div>
+                          <Table compact headers={['Question', 'Weight', 'Type', 'Dimension Weights']} rows={
+                            qw.map((q: any) => [
+                              q.question_code,
+                              `${q.weight}%`,
+                              q.contribution_type || 'direct',
+                              q.dimension_weights
+                                ? Object.entries(q.dimension_weights).map(([d, w]) => `${d}: ${w}%`).join(', ')
+                                : '—'
+                            ])
+                          } />
+                        </>
+                      )}
+
+                      {/* Interpretation guide */}
+                      {m.interpretation_guide && (
+                        <div style={{ marginTop: 12 }}>
+                          <div className="dc-rubric-formula-label">Interpretation Guide</div>
+                          <p className="dc-text-muted" style={{ marginTop: 4 }}>{m.interpretation_guide}</p>
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // PAGE: OBSERVATIONS
 // ═══════════════════════════════════════════════════════════
 function PageObservations() {
@@ -1205,6 +1447,7 @@ const PAGE_COMPONENTS: Record<string, () => JSX.Element> = {
   'q-pathologies': PagePathologies,
   'q-validation': PageValidation,
   'm-formulas': PageMetricFormulas,
+  'm-detail': PageMetricDetail,
   'm-observations': PageObservations,
   'm-narratives': PageNarratives,
   'r-summary': PageExecSummary,
