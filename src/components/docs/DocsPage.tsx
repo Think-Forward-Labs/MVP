@@ -45,6 +45,7 @@ const PAGES: PageDef[] = [
   { id: 'q-validation', label: 'Validation & Context', group: 'questions' },
   { id: 'm-formulas', label: 'Data & Formulas', group: 'metrics' },
   { id: 'm-detail', label: 'Metric Detail', group: 'metrics' },
+  { id: 'm-lenses', label: 'Observation Lenses', group: 'metrics' },
   { id: 'm-observations', label: 'Observations', group: 'metrics' },
   { id: 'm-narratives', label: 'Narratives', group: 'metrics' },
   { id: 'r-summary', label: 'Executive Summary', group: 'refinement' },
@@ -1080,6 +1081,110 @@ display as cards with respondent role and source question`}</Code>
 }
 
 // ═══════════════════════════════════════════════════════════
+// PAGE: OBSERVATION LENSES
+// ═══════════════════════════════════════════════════════════
+function PageLenses() {
+  const { data: lensesData, loading } = useDocsData<Record<string, any>>('training/observation_lenses.json');
+  const [expandedM, setExpandedM] = useState<string | null>(null);
+
+  const metricNames: Record<string, string> = {
+    M1: 'Operational Strength', M2: 'Future Readiness', M3: 'Insight-to-Action',
+    M4: 'Implementation Speed', M5: 'Market Radar', M6: 'Decision Flow',
+    M7: 'Knowledge Leverage', M8: 'Accountability Speed', M9: 'Run/Transform Balance',
+    M10: 'Change Readiness', M11: 'Structure Fitness', M12: 'Capacity & Tools',
+    M13: 'Defensible Strengths', M14: 'Risk Tolerance',
+  };
+
+  const metricOrder = ['M1','M2','M3','M4','M5','M6','M7','M8','M9','M10','M11','M12','M13','M14'];
+
+  // Count totals
+  let totalLenses = 0;
+  if (lensesData) {
+    for (const code of metricOrder) {
+      totalLenses += (lensesData[code]?.lenses || []).length;
+    }
+  }
+
+  return (
+    <div className="dc-page">
+      <Hero badge="Metrics" badgeVariant="green" title="Observation Lenses" subtitle="Analytical frameworks that structure how the AI mines observations from assessment data. Each metric has 3-5 defined lenses." />
+
+      <Card>
+        <h3>How Lenses Work</h3>
+        <p className="dc-text-muted">When the AI generates observations for a metric, it analyses the data through each defined lens. Each lens produces exactly ONE structured observation with verbatim evidence. This ensures consistent, comparable findings across assessments.</p>
+        <Steps steps={[
+          { title: 'Lenses loaded from observation_lenses.json', desc: 'Each metric has 3-5 predefined lenses with specific guidance on what to look for and which questions to examine.' },
+          { title: 'AI analyses data through each lens', desc: 'For each lens, the AI reads the relevant question responses and produces a structured finding with sentiment, severity, and evidence.' },
+          { title: 'Cross-level lenses skipped for N=1', desc: 'Lenses that require multi-respondent data (e.g., cross-level capability alignment) are automatically filtered out for single-respondent assessments.' },
+          { title: 'Emergent observations allowed', desc: 'Each metric allows 1 emergent observation for genuinely surprising findings not covered by the defined lenses.' },
+        ]} />
+      </Card>
+
+      <Card>
+        <h3>All Lenses by Metric</h3>
+        <p className="dc-text-muted">{loading ? 'Loading...' : `${totalLenses} lenses across ${metricOrder.length} metrics. Click to expand.`}</p>
+        {!loading && lensesData && (
+          <div className="dc-rubric-list">
+            {metricOrder.map(code => {
+              const m = lensesData[code];
+              if (!m) return null;
+              const lenses = m.lenses || [];
+              const isOpen = expandedM === code;
+
+              return (
+                <div key={code} className={`dc-rubric ${isOpen ? 'dc-rubric--open' : ''}`}>
+                  <button className="dc-rubric-header" onClick={() => setExpandedM(isOpen ? null : code)}>
+                    <div className="dc-rubric-code">{code}</div>
+                    <div className="dc-rubric-meta">
+                      <span className="dc-rubric-dims">{metricNames[code]}</span>
+                      <Badge variant="blue">{lenses.length} lenses</Badge>
+                    </div>
+                    <svg className={`dc-rubric-chevron ${isOpen ? 'dc-rubric-chevron--open' : ''}`} width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><polyline points="6 9 12 15 18 9"/></svg>
+                  </button>
+                  {isOpen && (
+                    <div className="dc-rubric-body">
+                      {lenses.map((lens: any, i: number) => {
+                        const isCrossLevel = (lens.key_questions || []).every((q: string) => ['B5', 'B1'].includes(q));
+                        return (
+                          <div key={lens.id} className="dc-lens">
+                            <div className="dc-lens-header">
+                              <div className="dc-lens-num">{i + 1}</div>
+                              <div className="dc-lens-info">
+                                <div className="dc-lens-name">{lens.name}</div>
+                                <div className="dc-lens-id">{lens.id}</div>
+                              </div>
+                              <div className="dc-lens-tags">
+                                {(lens.key_questions || []).map((q: string) => (
+                                  <Badge key={q} variant="default">{q}</Badge>
+                                ))}
+                                {isCrossLevel && <Badge variant="amber">N&gt;1 only</Badge>}
+                              </div>
+                            </div>
+                            <div className="dc-lens-guidance">{lens.guidance}</div>
+                          </div>
+                        );
+                      })}
+                      <div className="dc-lens-emergent">
+                        <Badge variant="green">+{m.max_emergent || 1} emergent</Badge>
+                        <span>The AI may add up to {m.max_emergent || 1} emergent observation for surprising findings not covered by the defined lenses.</span>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </Card>
+
+      <Info type="note" title="Single-Respondent Filtering">
+        For N=1 assessments, lenses whose key questions are all cross-level (B5, B1) are automatically removed. Currently affects M1 (Capability Alignment Across Levels) and M13 (Capability Agreement Across Levels).
+      </Info>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
 // PAGE: OBSERVATIONS
 // ═══════════════════════════════════════════════════════════
 function PageObservations() {
@@ -1462,6 +1567,7 @@ const PAGE_COMPONENTS: Record<string, () => JSX.Element> = {
   'q-validation': PageValidation,
   'm-formulas': PageMetricFormulas,
   'm-detail': PageMetricDetail,
+  'm-lenses': PageLenses,
   'm-observations': PageObservations,
   'm-narratives': PageNarratives,
   'r-summary': PageExecSummary,
