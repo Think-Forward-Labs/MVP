@@ -39,6 +39,7 @@ const PAGES: PageDef[] = [
   { id: 'q-scoring', label: 'Scoring', group: 'questions' },
   { id: 'q-signals', label: 'Scoring Signals', group: 'questions' },
   { id: 'q-calibration', label: 'Calibration Examples', group: 'questions' },
+  { id: 'q-playground', label: '✨ Playground', group: 'questions' },
   { id: 'q-ceilings', label: 'Ceilings', group: 'questions' },
   { id: 'q-saydo', label: 'Say-Do Checks', group: 'questions' },
   { id: 'q-pathologies', label: 'Pathology Detection', group: 'questions' },
@@ -659,6 +660,200 @@ function PageCalibration() {
           </div>
         )}
       </Card>
+    </div>
+  );
+}
+
+// ═══════════════════════════════════════════════════════════
+// PAGE: PLAYGROUND
+// ═══════════════════════════════════════════════════════════
+function PagePlayground() {
+  const { data: questions } = useDocsData<any[]>('questions');
+  const [selectedCode, setSelectedCode] = useState<string>('');
+  const [responseText, setResponseText] = useState('');
+  const [scoring, setScoring] = useState(false);
+  const [result, setResult] = useState<any>(null);
+
+  const selectedQ = questions?.find((q: any) => q.code === selectedCode);
+
+  const handleScore = async () => {
+    if (!selectedCode || !responseText) return;
+    setScoring(true);
+    setResult(null);
+    try {
+      const r = await fetch(`${DOCS_API}/admin/docs/playground/score`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question_code: selectedCode,
+          response_text: responseText,
+          question_type: selectedQ?.type || 'open',
+        }),
+      });
+      if (r.ok) setResult(await r.json());
+      else setResult({ error: `Failed: ${r.status}` });
+    } catch (e: any) {
+      setResult({ error: e.message });
+    }
+    setScoring(false);
+  };
+
+  return (
+    <div className="dc-page">
+      <Hero badge="✨ Interactive" badgeVariant="green" title="Scoring Playground" subtitle="Test the scoring engine live. Select a question, provide an answer, and see exactly how the pipeline scores it." />
+
+      {/* Question selector */}
+      <Card>
+        <h3>Select a Question</h3>
+        <div className="pg-question-scroll">
+          {questions?.map((q: any) => (
+            <button
+              key={q.code}
+              className={`pg-question-chip ${selectedCode === q.code ? 'pg-question-chip--active' : ''}`}
+              onClick={() => { setSelectedCode(q.code); setResult(null); }}
+            >
+              <span className="pg-chip-code">{q.code}</span>
+              <span className="pg-chip-type">{q.type}</span>
+            </button>
+          ))}
+        </div>
+        {selectedQ && (
+          <div className="pg-selected-question">
+            <div className="pg-selected-code">{selectedQ.code}</div>
+            <div className="pg-selected-text">{selectedQ.text}</div>
+            <Badge variant={selectedQ.type === 'open' ? 'blue' : selectedQ.type === 'scale' ? 'green' : 'amber'}>{selectedQ.type}</Badge>
+          </div>
+        )}
+      </Card>
+
+      {/* Response input */}
+      {selectedCode && (
+        <Card>
+          <h3>Your Response</h3>
+          {(selectedQ?.type === 'scale') ? (
+            <div className="pg-scale-input">
+              {[1,2,3,4,5].map(v => (
+                <button key={v} className={`pg-scale-btn ${responseText === String(v) ? 'pg-scale-btn--active' : ''}`}
+                  onClick={() => setResponseText(String(v))}>{v}</button>
+              ))}
+            </div>
+          ) : (selectedQ?.type === 'percentage') ? (
+            <div className="pg-pct-input">
+              <input type="number" min="0" max="100" placeholder="0-100%" value={responseText}
+                onChange={e => setResponseText(e.target.value)} className="pg-input pg-input--short" />
+              <span className="pg-pct-label">%</span>
+            </div>
+          ) : (
+            <textarea className="pg-textarea" rows={5} placeholder="Type your response here..."
+              value={responseText} onChange={e => setResponseText(e.target.value)} />
+          )}
+          <button className="pg-score-btn" onClick={handleScore} disabled={scoring || !responseText}>
+            {scoring ? 'Scoring...' : '⚡ Score This Response'}
+          </button>
+        </Card>
+      )}
+
+      {/* Results */}
+      {result && !result.error && (
+        <>
+          {/* Overall Score */}
+          <Card className="pg-result-card">
+            <div className="pg-score-hero">
+              <div className="pg-score-big">{Math.round(result.overall_score)}</div>
+              <div className="pg-score-label">/100</div>
+              <Badge variant={result.overall_score >= 70 ? 'green' : result.overall_score >= 40 ? 'amber' : 'red'}>
+                {result.confidence}
+              </Badge>
+            </div>
+
+            {/* Ceiling */}
+            {result.ceiling_applied && (
+              <div className="pg-ceiling">
+                <Badge variant="amber">CEILING APPLIED</Badge>
+                <span>Original: {Math.round(result.original_score_before_ceiling)} → Capped: {Math.round(result.overall_score)}</span>
+                <p className="dc-text-muted">{result.ceiling_reason}</p>
+              </div>
+            )}
+            {!result.ceiling_applied && result.original_score_before_ceiling !== result.overall_score && (
+              <Info type="note">No ceiling condition detected. Score unchanged.</Info>
+            )}
+          </Card>
+
+          {/* Dimension Breakdown */}
+          {result.dimension_scores?.length > 0 && (
+            <Card>
+              <h3>Dimension Breakdown</h3>
+              <p className="dc-text-muted">Each dimension scored 1-5 by the AI. Weighted average → overall score.</p>
+              <div className="pg-dimensions">
+                {result.dimension_scores.map((ds: any, i: number) => {
+                  const rubricDim = result.rubric_used?.dimensions?.find((d: any) => d.id === ds.dimension_id);
+                  const weight = ds.weight || rubricDim?.weight || 0;
+                  return (
+                    <div key={i} className="pg-dim">
+                      <div className="pg-dim-header">
+                        <div className="pg-dim-name">{ds.dimension_name}</div>
+                        <div className="pg-dim-scores">
+                          <div className={`dc-anchor-level dc-anchor-level--${ds.score}`}>{ds.score}</div>
+                          <Badge variant="default">{weight}%</Badge>
+                        </div>
+                      </div>
+                      {ds.reasoning && <div className="pg-dim-reasoning">{ds.reasoning}</div>}
+                      {/* Show matched BARS anchor */}
+                      {rubricDim?.anchors && (
+                        <div className="pg-dim-anchor">
+                          <span className="pg-dim-anchor-label">Matched Anchor:</span>
+                          <span>{rubricDim.anchors.find((a: any) => a.level === ds.score)?.behavior || '—'}</span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+
+              {/* Formula */}
+              <div className="pg-formula">
+                <div className="dc-formula-label">Calculation</div>
+                <div className="dc-formula-expr">
+                  {result.dimension_scores.map((ds: any, i: number) => {
+                    const rubricDim = result.rubric_used?.dimensions?.find((d: any) => d.id === ds.dimension_id);
+                    const weight = ds.weight || rubricDim?.weight || 0;
+                    return `${ds.score}×${weight}%`;
+                  }).join(' + ')}
+                  {' = '}{Math.round(result.original_score_before_ceiling)}
+                </div>
+              </div>
+            </Card>
+          )}
+
+          {/* Critical Flags */}
+          {result.rubric_used?.critical_flags && Object.keys(result.rubric_used.critical_flags).length > 0 && (
+            <Card>
+              <h3>Critical Flags</h3>
+              {Object.entries(result.rubric_used.critical_flags).map(([fid, f]: [string, any]) => (
+                <div key={fid} className="dc-rubric-flag" style={{ marginBottom: 8 }}>
+                  <Badge variant="red">{fid}</Badge>
+                  <span>{f.condition || String(f)}</span>
+                  {f.max_score && <Badge variant="amber">max: {f.max_score}</Badge>}
+                </div>
+              ))}
+            </Card>
+          )}
+
+          {/* AI Reasoning */}
+          {result.scoring_reasoning && (
+            <Card>
+              <h3>AI Reasoning</h3>
+              <div className="pg-reasoning">{result.scoring_reasoning}</div>
+            </Card>
+          )}
+        </>
+      )}
+
+      {result?.error && (
+        <Card>
+          <Info type="danger" title="Scoring Error">{result.error}</Info>
+        </Card>
+      )}
     </div>
   );
 }
@@ -1751,6 +1946,7 @@ const PAGE_COMPONENTS: Record<string, () => React.ReactElement> = {
   'q-scoring': PageScoring,
   'q-signals': PageSignals,
   'q-calibration': PageCalibration,
+  'q-playground': PagePlayground,
   'q-ceilings': PageCeilings,
   'q-saydo': PageSayDo,
   'q-pathologies': PagePathologies,
