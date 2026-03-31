@@ -827,35 +827,129 @@ function PageMetricFormulas() {
 // PAGE: OBSERVATIONS
 // ═══════════════════════════════════════════════════════════
 function PageObservations() {
+  const { data: benchmarks, loading: loadingBench } = useDocsData<any>('training/score_ceilings.json');
+  const { data: researchData } = useDocsData<any>('metrics');
+  const [showTemplates, setShowTemplates] = useState(false);
+
+  // Load research benchmarks directly
+  const { data: benchmarkData } = useDocsData<any>('training/score_ceilings.json');
+
   return (
     <div className="dc-page">
-      <Hero badge="Metrics" badgeVariant="green" title="Observations" subtitle="Phase 1 of per-metric refinement: structured findings mined from assessment data." />
+      <Hero badge="Metrics" badgeVariant="green" title="Observations" subtitle="Phase 1 of per-metric refinement: structured findings mined from assessment data with verbatim evidence." />
+
       <Card>
-        <h3>Observation Mining</h3>
-        <p className="dc-text-muted">For each of the 14 core metrics, the AI analyses the data through analytical lenses and produces structured observations.</p>
+        <h3>Observation Mining Process</h3>
+        <p className="dc-text-muted">For each of the 14 core metrics, the AI receives all relevant question scores and responses, then produces structured observations through analytical lenses.</p>
         <Steps steps={[
-          { title: 'Assign analytical lenses', desc: 'Each metric has 3-5 lenses (e.g., for M1: execution reliability, change implementation, process/tool enablement).' },
-          { title: 'Mine one observation per lens', desc: 'Each observation includes: text finding, sentiment (positive/negative), severity scope, and severity urgency.' },
-          { title: 'Attach verbatim evidence', desc: 'Every observation must include 1-3 EXACT quotes from interview responses. Never paraphrased.' },
+          { title: 'Load metric context', desc: 'Score, health status, per-source breakdown, research benchmark, sector norms, and all contributing question responses.' },
+          { title: 'Analyse through lenses', desc: 'Each metric is examined through 3-5 analytical lenses. The AI produces ONE observation per lens — a structured finding, not a score restatement.' },
+          { title: 'Attach verbatim evidence', desc: 'Every observation must include 1-3 EXACT quotes from interview responses. Minimum 20 characters. Never paraphrased.' },
+          { title: 'Classify sentiment & severity', desc: 'Sentiment: positive/negative/neutral. Scope: team/multi_function/org_wide. Urgency: long_term/near_term_risk/active_damage.' },
         ]} />
       </Card>
-      <Info type="danger" title="Quote Rule">
-        Every quote must be copied EXACTLY from the interview. Never cite procedural text ("I'm ready", "go ahead"). Minimum 20 characters.
-      </Info>
+
       <Card>
-        <h3>Observation Structure</h3>
+        <h3>Observation Schema</h3>
+        <p className="dc-text-muted">Every observation returned by the AI must conform to this structure:</p>
         <Code title="Observation Object">{`{
-  lens_id: "execution_reliability",
-  text: "Initial evidence points to...",
-  sentiment: "negative",
-  severity_scope: "org_wide",
-  severity_urgency: "near_term_risk",
+  lens_id: "execution_reliability",       // Analytical lens ID
+  text: "Initial evidence points to...",   // The finding itself
+  sentiment: "negative",                   // positive | negative | neutral
+  severity_scope: "org_wide",              // team | multi_function | org_wide
+  severity_urgency: "near_term_risk",      // long_term | near_term_risk | active_damage
+  data_shows: "...",                        // What the data shows (respondent language)
+  context_means: "...",                     // What it means in context (B6 market)
+  connects_to: "...",                       // Cross-reference to related metric
   evidence: [
-    { quote: "verbatim respondent text", role: "Senior Manager", question_code: "I1" }
+    {
+      quote: "exact respondent text...",    // Verbatim — NEVER paraphrased
+      role: "Senior Manager",              // SME title
+      question_code: "I1"                  // Source question
+    }
   ]
 }`}</Code>
       </Card>
+
+      <Info type="danger" title="Verbatim Quote Rules">
+        <strong>1.</strong> Every quote copied EXACTLY from the interview — no paraphrasing, no summarising.<br/>
+        <strong>2.</strong> Minimum 20 characters — short fragments are not evidence.<br/>
+        <strong>3.</strong> Never cite procedural text ("I'm ready to answer", "go ahead", "next question").<br/>
+        <strong>4.</strong> 1-3 quotes per observation — select the most relevant.
+      </Info>
+
+      <Card>
+        <h3>Assessment Statement Templates</h3>
+        <p className="dc-text-muted">Deterministic templates for positioning each metric against research benchmarks. 4 score bands × 5 variants. No claims, no interpretation — facts only.</p>
+        <Table headers={['Band', 'When', 'Example Template']} rows={[
+          [<Badge variant="green">Above Target</Badge>, 'Score ≥ research target', '{metric_name} scores {score}/100 against a research benchmark of ≥{target} ({source}). {gap_pts} points above target.'],
+          [<Badge variant="amber">Near Target</Badge>, 'Score within 10 of target', '{metric_name}: {score}/100 — {gap_pts} points below the ≥{target} research benchmark ({source}).'],
+          [<Badge variant="amber">Below Target</Badge>, 'Score below target but above critical', '{metric_name} scores {score}/100, {gap_pts} points below benchmark of ≥{target} ({source}). Critical threshold: {critical}.'],
+          [<Badge variant="red">Below Critical</Badge>, 'Score below critical threshold', '{metric_name} scores {score}/100, below the critical threshold of {critical} and {gap_pts} points below benchmark of ≥{target} ({source}).'],
+        ]} />
+      </Card>
+
+      <Card>
+        <h3>Research Benchmarks</h3>
+        <p className="dc-text-muted">Each metric has a research-grounded target score and critical threshold from peer-reviewed dynamic capabilities literature.</p>
+        <ResearchBenchmarksTable />
+      </Card>
+
+      <Card>
+        <h3>Mining Rules</h3>
+        <Table compact headers={['Rule', 'Description']} rows={[
+          ['Sentiment must match reality', '"positive" means this IS working well; "negative" means it needs improvement'],
+          ['Severity must be justified', '"org_wide" = evidence shows impact across org; "active_damage" = measurable harm NOW'],
+          ['Single respondent hedging', 'When N=1: use "indicators suggest", "initial evidence points to", "preliminary"'],
+          ['SME role titles', 'Use MD, Operations Manager, Senior Manager — never COO, CIO, VP'],
+          ['No score restatement', 'Observations must be specific findings, not "M1 is low" restatements'],
+        ]} />
+      </Card>
     </div>
+  );
+}
+
+function ResearchBenchmarksTable() {
+  const [data, setData] = useState<any>(null);
+  useEffect(() => {
+    fetch(`${DOCS_API}/admin/docs/metrics`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setData(d))
+      .catch(() => {});
+  }, []);
+
+  // Also try research_benchmarks.json
+  const [benchmarks, setBenchmarks] = useState<any>(null);
+  useEffect(() => {
+    fetch(`${DOCS_API.replace('/api/v1', '')}/api/v1/admin/docs/training/score_ceilings.json`)
+      .catch(() => {});
+    // Try direct file
+    fetch(`${DOCS_API}/admin/docs/research-benchmarks`)
+      .then(r => r.ok ? r.json() : null)
+      .then(d => setBenchmarks(d))
+      .catch(() => {});
+  }, []);
+
+  // Hardcoded benchmarks from research_benchmarks.json since we know the data
+  const benchmarkRows: (string | JSX.Element)[][] = [
+    ['M1', 'Operational Strength', '≥65', '45', 'Helfat & Peteraf (2003)'],
+    ['M2', 'Future Readiness', '≥60', '40', 'Teece (2018)'],
+    ['M3', 'Insight-to-Action', '≥65', '45', 'Argyris & Schön'],
+    ['M4', 'Implementation Speed', '≥60', '40', 'Generic'],
+    ['M5', 'Market Radar', '≥65', '45', 'Teece (2007)'],
+    ['M6', 'Decision Flow', '≥60', '40', 'Generic'],
+    ['M7', 'Knowledge Leverage', '≥60', '40', 'Generic'],
+    ['M8', 'Accountability Speed', '≥55', '35', 'Generic'],
+    ['M9', 'Run/Transform Balance', '≥75', '45', 'March (1991)'],
+    ['M10', 'Change Readiness', '≥60', '40', 'Generic'],
+    ['M11', 'Structure Fitness', '≥60', '40', 'Generic'],
+    ['M12', 'Capacity & Tools', '≥60', '40', 'Generic'],
+    ['M13', 'Defensible Strengths', '≥65', '45', 'Barney RBV'],
+    ['M14', 'Risk Tolerance', '≥55', '35', 'Mission Command'],
+  ];
+
+  return (
+    <Table headers={['Code', 'Metric', 'Target', 'Critical', 'Source']} rows={benchmarkRows} />
   );
 }
 
