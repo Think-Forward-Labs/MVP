@@ -871,18 +871,32 @@ function PageMetricDetail() {
       {/* ─── GENERAL: DIMENSION WEIGHT OVERRIDES ─── */}
       <Card>
         <h3>2. Dimension Weight Overrides</h3>
-        <p className="dc-text-muted">When an open-ended question feeds multiple metrics, each metric applies its own dimension weights to extract the most relevant signal. The question's overall score is recalculated using the metric-specific weights.</p>
-        <Code title="Example: I1 feeds M1 and M7 differently">{`M1 (Operational Strength) uses I1 with:
-  sustainability = 40%,  organizational_reach = 30%,
-  innovation_quality = 20%,  change_orientation = 10%
+        <p className="dc-text-muted">When the AI scores an open-ended question like I1, it produces dimension scores (e.g., change_orientation=3, innovation_quality=3, organizational_reach=4, sustainability=4). The rubric's default weights produce one overall score. But each metric that uses I1 can apply its OWN weights to extract what matters most for that metric.</p>
 
-M7 (Knowledge Leverage) uses I1 with:
-  organizational_reach = 40%,  sustainability = 30%,
-  innovation_quality = 20%,  change_orientation = 10%
+        <Code title="Worked Example: I1 dimension scores = change_orientation: 3, innovation_quality: 3, organizational_reach: 4, sustainability: 5">{`DEFAULT rubric weights (used for the raw question score):
+  change_orientation(25%) + innovation_quality(25%) + organizational_reach(20%) + sustainability(30%)
+  = (3×25 + 3×25 + 4×20 + 5×30) ÷ 100 = 3.8 → × 20 = 76
 
-Same question, same dimension scores — different metric contribution
-because the weights emphasise what matters for each metric.`}</Code>
-        <Formula label="Adjusted Score">{'adjusted = Σ(dim_score × metric_dim_weight) ÷ Σ(metric_dim_weights) × 20'}</Formula>
+M1 (Op. Strength) OVERRIDE — cares most about sustainability:
+  sustainability(40%) + innovation_quality(30%) + organizational_reach(20%) + change_orientation(10%)
+  = (5×40 + 3×30 + 4×20 + 3×10) ÷ 100 = 4.0 → × 20 = 80
+
+M7 (Knowledge Leverage) OVERRIDE — cares most about organizational_reach:
+  organizational_reach(40%) + sustainability(30%) + innovation_quality(20%) + change_orientation(10%)
+  = (4×40 + 5×30 + 3×20 + 3×10) ÷ 100 = 4.0 → × 20 = 80
+
+M2 (Future Readiness) OVERRIDE — balanced:
+  change_orientation(30%) + sustainability(30%) + innovation_quality(25%) + organizational_reach(15%)
+  = (3×30 + 5×30 + 3×25 + 4×15) ÷ 100 = 3.75 → × 20 = 75
+
+Same AI scores. Three different contributions to three different metrics.
+If NO override is specified, the default rubric weights are used.`}</Code>
+
+        <Formula label="Adjusted Score Formula">{'adjusted = Σ(dim_score × metric_dim_weight) ÷ Σ(metric_dim_weights) × 20'}</Formula>
+
+        <Info type="note" title="Not all questions have overrides">
+          Scale questions (M4, C3, S3a, etc.) have no dimensions — they contribute their raw score directly. Open-ended questions marked "default rubric weights" in the per-metric detail below use the rubric's own weights, not a metric-specific override.
+        </Info>
       </Card>
 
       {/* ─── GENERAL: CROSS-LEVEL ─── */}
