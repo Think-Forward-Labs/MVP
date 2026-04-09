@@ -742,11 +742,48 @@ function PagePlayground() {
         <Card>
           <h3>Your Response</h3>
           {(selectedQ?.type === 'scale') ? (
-            <div className="pg-scale-input">
-              {[1,2,3,4,5].map(v => (
-                <button key={v} className={`pg-scale-btn ${responseText === String(v) ? 'pg-scale-btn--active' : ''}`}
-                  onClick={() => setResponseText(String(v))}>{v}</button>
+            <div className="pg-scale-group">
+              <div className="pg-scale-labels">
+                <span className="pg-scale-label-min">{selectedQ.scale?.min_label || 'Low'}</span>
+                <span className="pg-scale-label-max">{selectedQ.scale?.max_label || 'High'}</span>
+              </div>
+              <div className="pg-scale-input">
+                {[1,2,3,4,5].map(v => (
+                  <button key={v} className={`pg-scale-btn ${responseText === String(v) ? 'pg-scale-btn--active' : ''}`}
+                    onClick={() => setResponseText(String(v))}>{v}</button>
+                ))}
+              </div>
+            </div>
+          ) : (selectedQ?.type === 'single_select') ? (
+            <div className="pg-select-group">
+              {(selectedQ.options || []).map((opt: string, i: number) => (
+                <button key={i}
+                  className={`pg-select-option ${responseText === opt ? 'pg-select-option--active' : ''}`}
+                  onClick={() => setResponseText(opt)}>
+                  <span className="pg-select-radio">{responseText === opt ? '●' : '○'}</span>
+                  <span>{opt}</span>
+                </button>
               ))}
+            </div>
+          ) : (selectedQ?.type === 'multi_select') ? (
+            <div className="pg-select-group">
+              <p className="pg-select-hint">Select all that apply:</p>
+              {(selectedQ.options || []).map((opt: string, i: number) => {
+                const selected = responseText.split('|||').filter(Boolean);
+                const isSelected = selected.includes(opt);
+                const toggle = () => {
+                  const next = isSelected ? selected.filter(s => s !== opt) : [...selected, opt];
+                  setResponseText(next.join('|||'));
+                };
+                return (
+                  <button key={i}
+                    className={`pg-select-option ${isSelected ? 'pg-select-option--active' : ''}`}
+                    onClick={toggle}>
+                    <span className="pg-select-check">{isSelected ? '☑' : '☐'}</span>
+                    <span>{opt}</span>
+                  </button>
+                );
+              })}
             </div>
           ) : (selectedQ?.type === 'percentage') ? (
             <div className="pg-pct-input">
