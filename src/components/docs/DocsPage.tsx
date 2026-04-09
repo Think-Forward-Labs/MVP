@@ -1,5 +1,7 @@
 import { useState, useEffect } from 'react';
 import './DocsPage.css';
+import { RubricEditor } from './RubricEditor';
+import './RubricEditor.css';
 
 // ─── API ───
 const DOCS_API = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -673,8 +675,16 @@ function PagePlayground() {
   const [responseText, setResponseText] = useState('');
   const [scoring, setScoring] = useState(false);
   const [result, setResult] = useState<any>(null);
+  const [showAdvanced, setShowAdvanced] = useState(false);
+  const [rubricOverride, setRubricOverride] = useState<any>(null);
+  const [rubricDirty, setRubricDirty] = useState(false);
 
   const selectedQ = questions?.find((q: any) => q.code === selectedCode);
+
+  const handleRubricChange = (rubric: any, isDirty: boolean) => {
+    setRubricOverride(rubric);
+    setRubricDirty(isDirty);
+  };
 
   const handleScore = async () => {
     if (!selectedCode || !responseText) return;
@@ -688,6 +698,7 @@ function PagePlayground() {
           question_code: selectedCode,
           response_text: responseText,
           question_type: selectedQ?.type || 'open',
+          ...(rubricDirty && rubricOverride ? { rubric_override: rubricOverride } : {}),
         }),
       });
       if (r.ok) setResult(await r.json());
@@ -747,9 +758,22 @@ function PagePlayground() {
             <textarea className="pg-textarea" rows={5} placeholder="Type your response here..."
               value={responseText} onChange={e => setResponseText(e.target.value)} />
           )}
+          {rubricDirty && (
+            <div className="pg-override-badge">⚙️ Using modified rubric — changes are not saved to production</div>
+          )}
           <button className="pg-score-btn" onClick={handleScore} disabled={scoring || !responseText}>
             {scoring ? 'Scoring...' : '⚡ Score This Response'}
           </button>
+
+          {selectedQ?.type === 'open' && (
+            <button className="pg-advanced-toggle" onClick={() => setShowAdvanced(!showAdvanced)}>
+              {showAdvanced ? '▲ Hide' : '▼ Show'} Advanced Settings — Tune Rubric
+            </button>
+          )}
+
+          {showAdvanced && selectedQ?.type === 'open' && (
+            <RubricEditor questionCode={selectedCode} onRubricChange={handleRubricChange} />
+          )}
         </Card>
       )}
 

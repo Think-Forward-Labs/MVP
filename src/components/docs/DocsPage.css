@@ -1237,3 +1237,33 @@
   line-height: 1.7;
   white-space: pre-wrap;
 }
+
+/* ─── PLAYGROUND ADVANCED ─── */
+.pg-override-badge {
+  font-size: 12px;
+  color: var(--amber);
+  background: var(--amber-bg);
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 8px;
+  border: 1px solid rgba(217,119,6,.15);
+}
+.pg-advanced-toggle {
+  width: 100%;
+  padding: 10px;
+  margin-top: 8px;
+  border: 1px dashed var(--border);
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-3);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.pg-advanced-toggle:hover {
+  color: var(--text-0);
+  border-color: var(--text-3);
+  background: var(--bg-1);
+}
