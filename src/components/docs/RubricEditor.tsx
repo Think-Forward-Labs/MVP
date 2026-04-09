@@ -1,13 +1,11 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 const DOCS_API = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
 interface Anchor { level: number; score_range: string; behavior: string; }
 interface Dimension { id: string; name: string; description?: string; weight: number; anchors: Anchor[]; }
-interface CriticalFlag { condition: string; signals?: string[]; action?: string; max_score?: number; }
-interface Rubric { dimensions: Dimension[]; critical_flags?: Record<string, CriticalFlag>; scoring_type?: string; scoring_formula?: any; question_code?: string; question_id?: string; question_text?: string; }
+interface Rubric { dimensions: Dimension[]; critical_flags?: Record<string, any>; scoring_type?: string; scoring_formula?: any; question_code?: string; question_id?: string; question_text?: string; }
 interface CeilingRule { question_code: string; ceiling: number; condition: string; }
-interface Draft { filename: string; question_code: string; notes: string; saved_at: string; }
 
 interface Props {
   questionCode: string;
@@ -15,73 +13,76 @@ interface Props {
 }
 
 export function RubricEditor({ questionCode, onRubricChange }: Props) {
-  const [liveRubric, setLiveRubric] = useState<Rubric | null>(null);
-  const [editedRubric, setEditedRubric] = useState<Rubric | null>(null);
+  const [rubric, setRubric] = useState<Rubric | null>(null);
   const [ceilingRule, setCeilingRule] = useState<CeilingRule | null>(null);
-  const [drafts, setDrafts] = useState<Draft[]>([]);
-  const [isDirty, setIsDirty] = useState(false);
-  const [saving, setSaving] = useState(false);
+  const [source, setSource] = useState<'live' | 'playground'>('live');
   const [publishing, setPublishing] = useState(false);
-  const [draftNotes, setDraftNotes] = useState('');
-  const [showDrafts, setShowDrafts] = useState(false);
-  const [showPublishConfirm, setShowPublishConfirm] = useState(false);
   const [message, setMessage] = useState('');
+  const saveTimer = useRef<any>(null);
 
-  // Load rubric when question changes
+  // Load playground state (or live as fallback) when question changes
   useEffect(() => {
     if (!questionCode) return;
-    fetch(`${DOCS_API}/admin/docs/playground/rubric/${questionCode}`)
+    fetch(`${DOCS_API}/admin/docs/playground/state/${questionCode}`)
       .then(r => r.json())
       .then(d => {
-        const r = d.rubric || {};
-        setLiveRubric(JSON.parse(JSON.stringify(r)));
-        setEditedRubric(JSON.parse(JSON.stringify(r)));
+        setRubric(d.rubric || {});
         setCeilingRule(d.ceiling_rule || null);
-        setIsDirty(false);
-        onRubricChange(null, false);
+        setSource(d.source || 'live');
+        if (d.source === 'playground') {
+          onRubricChange(d.rubric, true);
+        } else {
+          onRubricChange(null, false);
+        }
       })
       .catch(() => {});
-
-    // Load drafts
-    fetch(`${DOCS_API}/admin/docs/playground/rubric-drafts/${questionCode}`)
-      .then(r => r.json())
-      .then(d => setDrafts(Array.isArray(d) ? d : []))
-      .catch(() => setDrafts([]));
   }, [questionCode]);
 
-  if (!editedRubric || !editedRubric.dimensions?.length) {
+  if (!rubric || !rubric.dimensions?.length) {
     return <div className="re-empty">No rubric data available for this question type.</div>;
   }
 
-  const totalWeight = editedRubric.dimensions.reduce((s, d) => s + (d.weight || 0), 0);
+  const totalWeight = rubric.dimensions.reduce((s, d) => s + (d.weight || 0), 0);
   const weightValid = Math.abs(totalWeight - 100) <= 1;
 
-  const updateDimension = (idx: number, field: string, value: any) => {
-    const updated = JSON.parse(JSON.stringify(editedRubric));
-    (updated.dimensions[idx] as any)[field] = value;
-    setEditedRubric(updated);
-    setIsDirty(true);
+  // Auto-save to playground state after each change (debounced)
+  const autoSave = (updatedRubric: Rubric, updatedCeiling?: CeilingRule | null) => {
+    if (saveTimer.current) clearTimeout(saveTimer.current);
+    saveTimer.current = setTimeout(() => {
+      fetch(`${DOCS_API}/admin/docs/playground/state/${questionCode}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rubric: updatedRubric, ceiling_rule: updatedCeiling ?? ceilingRule }),
+      }).then(() => setSource('playground')).catch(() => {});
+    }, 500);
+  };
+
+  const updateRubric = (updated: Rubric) => {
+    setRubric(updated);
     onRubricChange(updated, true);
+    autoSave(updated);
+  };
+
+  const updateDimension = (idx: number, field: string, value: any) => {
+    const updated = JSON.parse(JSON.stringify(rubric));
+    (updated.dimensions[idx] as any)[field] = value;
+    updateRubric(updated);
   };
 
   const updateAnchor = (dimIdx: number, anchorIdx: number, field: string, value: string) => {
-    const updated = JSON.parse(JSON.stringify(editedRubric));
+    const updated = JSON.parse(JSON.stringify(rubric));
     (updated.dimensions[dimIdx].anchors[anchorIdx] as any)[field] = value;
-    setEditedRubric(updated);
-    setIsDirty(true);
-    onRubricChange(updated, true);
+    updateRubric(updated);
   };
 
   const removeDimension = (idx: number) => {
-    const updated = JSON.parse(JSON.stringify(editedRubric));
+    const updated = JSON.parse(JSON.stringify(rubric));
     updated.dimensions.splice(idx, 1);
-    setEditedRubric(updated);
-    setIsDirty(true);
-    onRubricChange(updated, true);
+    updateRubric(updated);
   };
 
   const addDimension = () => {
-    const updated = JSON.parse(JSON.stringify(editedRubric));
+    const updated = JSON.parse(JSON.stringify(rubric));
     updated.dimensions.push({
       id: `new_dimension_${Date.now()}`,
       name: 'New Dimension',
@@ -89,111 +90,74 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
       weight: 0,
       anchors: [5,4,3,2,1].map(l => ({ level: l, score_range: `${(l-1)*20}-${l*20}`, behavior: '' })),
     });
-    setEditedRubric(updated);
-    setIsDirty(true);
-    onRubricChange(updated, true);
+    updateRubric(updated);
   };
 
   const updateCriticalFlag = (flagId: string, field: string, value: any) => {
-    const updated = JSON.parse(JSON.stringify(editedRubric));
+    const updated = JSON.parse(JSON.stringify(rubric));
     if (!updated.critical_flags) updated.critical_flags = {};
     if (!updated.critical_flags[flagId]) updated.critical_flags[flagId] = { condition: '' };
     updated.critical_flags[flagId][field] = value;
-    setEditedRubric(updated);
-    setIsDirty(true);
-    onRubricChange(updated, true);
+    updateRubric(updated);
   };
 
   const removeCriticalFlag = (flagId: string) => {
-    const updated = JSON.parse(JSON.stringify(editedRubric));
+    const updated = JSON.parse(JSON.stringify(rubric));
     if (updated.critical_flags) delete updated.critical_flags[flagId];
-    setEditedRubric(updated);
-    setIsDirty(true);
-    onRubricChange(updated, true);
+    updateRubric(updated);
   };
 
   const addCriticalFlag = () => {
-    const updated = JSON.parse(JSON.stringify(editedRubric));
+    const updated = JSON.parse(JSON.stringify(rubric));
     if (!updated.critical_flags) updated.critical_flags = {};
-    const newId = `flag_${Date.now()}`;
-    updated.critical_flags[newId] = { condition: 'New flag condition', signals: [], action: '', max_score: null };
-    setEditedRubric(updated);
-    setIsDirty(true);
-    onRubricChange(updated, true);
+    updated.critical_flags[`flag_${Date.now()}`] = { condition: 'New flag condition', signals: [], action: '', max_score: null };
+    updateRubric(updated);
   };
 
   const updateCeiling = (field: string, value: any) => {
     const updated = { ...ceilingRule, [field]: value } as CeilingRule;
     setCeilingRule(updated);
-    setIsDirty(true);
-    // Ceiling changes are tracked in dirty state but saved/published separately
-    onRubricChange(editedRubric, true);
+    autoSave(rubric, updated);
   };
 
-  const resetToLive = () => {
-    setEditedRubric(JSON.parse(JSON.stringify(liveRubric)));
-    setIsDirty(false);
-    onRubricChange(null, false);
-    setMessage('Reset to live rubric');
-    setTimeout(() => setMessage(''), 2000);
-  };
-
-  const saveDraft = async () => {
-    setSaving(true);
+  const resetToLive = async () => {
     try {
-      const r = await fetch(`${DOCS_API}/admin/docs/playground/rubric-drafts`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question_code: questionCode, rubric: editedRubric, notes: draftNotes }),
-      });
-      if (r.ok) {
-        setMessage('Draft saved ✓');
-        setDraftNotes('');
-        // Refresh drafts list
-        const dr = await fetch(`${DOCS_API}/admin/docs/playground/rubric-drafts/${questionCode}`);
-        setDrafts(await dr.json());
-      } else {
-        const err = await r.json();
-        setMessage(`Error: ${err.detail}`);
-      }
-    } catch (e: any) {
-      setMessage(`Error: ${e.message}`);
-    }
-    setSaving(false);
-    setTimeout(() => setMessage(''), 3000);
-  };
-
-  const loadDraft = async (filename: string) => {
-    try {
-      // Find full draft from list or fetch latest
-      const r = await fetch(`${DOCS_API}/admin/docs/playground/rubric-drafts/${questionCode}/latest`);
-      if (r.ok) {
-        const draft = await r.json();
-        setEditedRubric(draft.rubric);
-        setIsDirty(true);
-        onRubricChange(draft.rubric, true);
-        setShowDrafts(false);
-        setMessage(`Loaded draft from ${draft.saved_at}`);
-        setTimeout(() => setMessage(''), 3000);
-      }
+      await fetch(`${DOCS_API}/admin/docs/playground/state/${questionCode}`, { method: 'DELETE' });
+      const r = await fetch(`${DOCS_API}/admin/docs/playground/state/${questionCode}`);
+      const d = await r.json();
+      setRubric(d.rubric || {});
+      setCeilingRule(d.ceiling_rule || null);
+      setSource('live');
+      onRubricChange(null, false);
+      setMessage('Reset to live rubric');
+      setTimeout(() => setMessage(''), 2000);
     } catch {}
   };
 
-  const publishDraft = async () => {
-    if (!drafts.length) { setMessage('Save a draft first'); return; }
+  const publishToLive = async () => {
     setPublishing(true);
     try {
-      const r = await fetch(`${DOCS_API}/admin/docs/playground/rubric-drafts/${questionCode}/publish`, {
+      // First save current state
+      await fetch(`${DOCS_API}/admin/docs/playground/state/${questionCode}`, {
+        method: 'PUT',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ rubric, ceiling_rule: ceilingRule }),
+      });
+
+      // Then publish — overwrite live rubric
+      const question_id = `q_cabas_${questionCode.toLowerCase()}`;
+      const r = await fetch(`${DOCS_API}/admin/docs/playground/publish/${questionCode}`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ filename: drafts[0].filename }),
+        body: JSON.stringify({ rubric }),
       });
+
       if (r.ok) {
         setMessage('Published to live ✓');
-        setLiveRubric(JSON.parse(JSON.stringify(editedRubric)));
-        setIsDirty(false);
+        setSource('live');
         onRubricChange(null, false);
-        setShowPublishConfirm(false);
+        // Delete playground state since it now matches live
+        await fetch(`${DOCS_API}/admin/docs/playground/state/${questionCode}`, { method: 'DELETE' });
       } else {
         const err = await r.json();
         setMessage(`Error: ${err.detail}`);
@@ -211,12 +175,18 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
       <div className="re-header">
         <h3>Advanced Settings — {questionCode}</h3>
         <div className="re-header-actions">
-          {isDirty && <span className="re-dirty-badge">Modified</span>}
+          <span className={`re-source-badge re-source-badge--${source}`}>
+            {source === 'playground' ? '⚙️ Playground' : '🟢 Live'}
+          </span>
           <button className="re-btn re-btn--ghost" onClick={resetToLive}>Reset to Live</button>
         </div>
       </div>
 
       {message && <div className="re-message">{message}</div>}
+
+      {source === 'playground' && (
+        <div className="re-auto-save-note">Changes auto-saved to playground. Production not affected.</div>
+      )}
 
       {/* Weight indicator */}
       <div className={`re-weight-bar ${weightValid ? 're-weight-bar--valid' : 're-weight-bar--invalid'}`}>
@@ -225,43 +195,33 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
       </div>
 
       {/* Dimensions */}
-      {editedRubric.dimensions.map((dim, di) => (
+      {rubric.dimensions.map((dim, di) => (
         <div key={dim.id} className="re-dim">
           <div className="re-dim-header">
             <input className="re-input re-input--name" value={dim.name}
-              onChange={e => updateDimension(di, 'name', e.target.value)}
-              placeholder="Dimension name" />
+              onChange={e => updateDimension(di, 'name', e.target.value)} placeholder="Dimension name" />
             <div className="re-dim-weight">
               <input className="re-input re-input--weight" type="number" min={0} max={100}
-                value={dim.weight}
-                onChange={e => updateDimension(di, 'weight', parseInt(e.target.value) || 0)} />
+                value={dim.weight} onChange={e => updateDimension(di, 'weight', parseInt(e.target.value) || 0)} />
               <span>%</span>
             </div>
             <button className="re-btn re-btn--danger-sm" onClick={() => removeDimension(di)} title="Remove">×</button>
           </div>
-
           <input className="re-input re-input--id" value={dim.id}
-            onChange={e => updateDimension(di, 'id', e.target.value)}
-            placeholder="dimension_id (snake_case)" />
-
+            onChange={e => updateDimension(di, 'id', e.target.value)} placeholder="dimension_id (snake_case)" />
           {dim.description !== undefined && (
             <textarea className="re-input re-input--desc" value={dim.description || ''}
-              onChange={e => updateDimension(di, 'description', e.target.value)}
-              placeholder="Description (optional)" rows={2} />
+              onChange={e => updateDimension(di, 'description', e.target.value)} placeholder="Description (optional)" rows={2} />
           )}
-
-          {/* BARS Anchors */}
           <div className="re-anchors">
             <div className="re-anchors-label">BARS Anchors</div>
             {dim.anchors.map((a, ai) => (
               <div key={a.level} className="re-anchor">
                 <div className={`re-anchor-level re-anchor-level--${a.level}`}>{a.level}</div>
                 <input className="re-input re-input--range" value={a.score_range}
-                  onChange={e => updateAnchor(di, ai, 'score_range', e.target.value)}
-                  placeholder="0-20" />
+                  onChange={e => updateAnchor(di, ai, 'score_range', e.target.value)} placeholder="0-20" />
                 <textarea className="re-input re-input--behavior" value={a.behavior}
-                  onChange={e => updateAnchor(di, ai, 'behavior', e.target.value)}
-                  placeholder="Behavioral anchor description" rows={2} />
+                  onChange={e => updateAnchor(di, ai, 'behavior', e.target.value)} placeholder="Behavioral anchor description" rows={2} />
               </div>
             ))}
           </div>
@@ -277,12 +237,10 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
           <div className="re-ceiling-edit">
             <span className="re-ceiling-prefix">≤</span>
             <input className="re-input re-input--ceiling-val" type="number" min={0} max={100}
-              value={ceilingRule.ceiling}
-              onChange={e => updateCeiling('ceiling', parseInt(e.target.value) || 0)} />
+              value={ceilingRule.ceiling} onChange={e => updateCeiling('ceiling', parseInt(e.target.value) || 0)} />
           </div>
           <textarea className="re-input re-input--ceiling-cond" value={ceilingRule.condition}
-            onChange={e => updateCeiling('condition', e.target.value)}
-            rows={2} placeholder="Ceiling condition" />
+            onChange={e => updateCeiling('condition', e.target.value)} rows={2} placeholder="Ceiling condition" />
         </div>
       )}
 
@@ -292,8 +250,8 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
           <div className="re-flags-label">Critical Flags</div>
           <button className="re-btn re-btn--ghost" onClick={addCriticalFlag}>+ Add Flag</button>
         </div>
-        {editedRubric.critical_flags && typeof editedRubric.critical_flags === 'object' &&
-          Object.entries(editedRubric.critical_flags).map(([id, flag]: [string, any]) => {
+        {rubric.critical_flags && typeof rubric.critical_flags === 'object' &&
+          Object.entries(rubric.critical_flags).map(([id, flag]: [string, any]) => {
             const flagObj = typeof flag === 'string' ? { condition: flag } : flag;
             return (
               <div key={id} className="re-flag-card">
@@ -302,79 +260,35 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
                   <button className="re-btn re-btn--danger-sm" onClick={() => removeCriticalFlag(id)} title="Remove">×</button>
                 </div>
                 <textarea className="re-input re-input--flag-cond" value={flagObj.condition || ''}
-                  onChange={e => updateCriticalFlag(id, 'condition', e.target.value)}
-                  placeholder="Condition (when does this flag trigger?)" rows={2} />
+                  onChange={e => updateCriticalFlag(id, 'condition', e.target.value)} placeholder="Condition" rows={2} />
                 <div className="re-flag-row">
                   <div className="re-flag-field">
                     <label>Max Score</label>
                     <input className="re-input re-input--flag-max" type="number" min={0} max={100}
-                      value={flagObj.max_score || ''}
-                      onChange={e => updateCriticalFlag(id, 'max_score', e.target.value ? parseInt(e.target.value) : null)}
-                      placeholder="—" />
+                      value={flagObj.max_score || ''} onChange={e => updateCriticalFlag(id, 'max_score', e.target.value ? parseInt(e.target.value) : null)} placeholder="—" />
                   </div>
                   <div className="re-flag-field">
                     <label>Action</label>
                     <input className="re-input" value={flagObj.action || ''}
-                      onChange={e => updateCriticalFlag(id, 'action', e.target.value)}
-                      placeholder="What happens when triggered" />
+                      onChange={e => updateCriticalFlag(id, 'action', e.target.value)} placeholder="What happens when triggered" />
                   </div>
                 </div>
               </div>
             );
           })
         }
-        {(!editedRubric.critical_flags || Object.keys(editedRubric.critical_flags).length === 0) && (
+        {(!rubric.critical_flags || Object.keys(rubric.critical_flags).length === 0) && (
           <div className="re-empty">No critical flags defined.</div>
         )}
       </div>
 
-      {/* Draft actions */}
+      {/* Publish */}
       <div className="re-actions">
-        <div className="re-draft-row">
-          <input className="re-input re-input--notes" value={draftNotes}
-            onChange={e => setDraftNotes(e.target.value)}
-            placeholder="Draft notes (optional)" />
-          <button className="re-btn re-btn--primary" onClick={saveDraft} disabled={saving || !weightValid}>
-            {saving ? 'Saving...' : 'Save Draft'}
-          </button>
-        </div>
-
-        <div className="re-draft-row">
-          <button className="re-btn re-btn--ghost" onClick={() => setShowDrafts(!showDrafts)}>
-            {showDrafts ? 'Hide' : 'Load'} Drafts ({drafts.length})
-          </button>
-          <button className="re-btn re-btn--publish" onClick={() => setShowPublishConfirm(true)}
-            disabled={!drafts.length || publishing}>
-            Publish to Live
-          </button>
-        </div>
+        <button className="re-btn re-btn--publish" onClick={publishToLive} disabled={publishing || !weightValid || source === 'live'}>
+          {publishing ? 'Publishing...' : 'Publish to Live'}
+        </button>
+        {source === 'live' && <span className="re-publish-note">No changes to publish — matches live.</span>}
       </div>
-
-      {/* Drafts list */}
-      {showDrafts && (
-        <div className="re-drafts-list">
-          {drafts.length === 0 && <div className="re-empty">No drafts saved yet.</div>}
-          {drafts.map(d => (
-            <button key={d.filename} className="re-draft-item" onClick={() => loadDraft(d.filename)}>
-              <span className="re-draft-date">{new Date(d.saved_at).toLocaleString()}</span>
-              <span className="re-draft-notes">{d.notes || 'No notes'}</span>
-            </button>
-          ))}
-        </div>
-      )}
-
-      {/* Publish confirmation */}
-      {showPublishConfirm && (
-        <div className="re-confirm">
-          <p>This will overwrite the <strong>live scoring rubric</strong> for {questionCode}. The latest saved draft will become production.</p>
-          <div className="re-confirm-actions">
-            <button className="re-btn re-btn--ghost" onClick={() => setShowPublishConfirm(false)}>Cancel</button>
-            <button className="re-btn re-btn--publish" onClick={publishDraft} disabled={publishing}>
-              {publishing ? 'Publishing...' : 'Confirm Publish'}
-            </button>
-          </div>
-        </div>
-      )}
     </div>
   );
 }

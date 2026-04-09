@@ -307,3 +307,26 @@
   font-family: var(--mono);
   text-align: center;
 }
+
+/* ─── SOURCE BADGE & AUTO-SAVE ─── */
+.re-source-badge {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 100px;
+}
+.re-source-badge--live { color: var(--green); background: var(--green-bg); }
+.re-source-badge--playground { color: var(--amber); background: var(--amber-bg); }
+.re-auto-save-note {
+  font-size: 11px;
+  color: var(--text-3);
+  text-align: center;
+  padding: 6px 0;
+  margin-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.re-publish-note {
+  font-size: 11px;
+  color: var(--text-3);
+  margin-left: 8px;
+}
