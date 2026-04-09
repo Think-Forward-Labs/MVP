@@ -817,6 +817,16 @@ function PagePlayground() {
       {/* Results */}
       {result && !result.error && (
         <>
+          {/* Multi-select / extraction-only questions */}
+          {result.question_type === 'multi_select' && result.overall_score === 0 ? (
+            <Card className="pg-result-card">
+              <Info type="note" title="Data Extraction Question">
+                B5 is a data extraction question — it does not produce a standalone 0-100 score. The selected options are stored and used for cross-level comparison at the metric level (M1 Operational Strength, M11 Structure Fitness, M13 Defensible Strengths).
+              </Info>
+              <div className="pg-reasoning">{result.scoring_reasoning}</div>
+            </Card>
+          ) : (
+          <>
           {/* Overall Score */}
           <Card className="pg-result-card">
             <div className="pg-score-hero">
@@ -906,6 +916,8 @@ function PagePlayground() {
               <h3>AI Reasoning</h3>
               <div className="pg-reasoning">{result.scoring_reasoning}</div>
             </Card>
+          )}
+          </>
           )}
         </>
       )}
