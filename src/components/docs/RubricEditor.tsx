@@ -94,6 +94,42 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
     onRubricChange(updated, true);
   };
 
+  const updateCriticalFlag = (flagId: string, field: string, value: any) => {
+    const updated = JSON.parse(JSON.stringify(editedRubric));
+    if (!updated.critical_flags) updated.critical_flags = {};
+    if (!updated.critical_flags[flagId]) updated.critical_flags[flagId] = { condition: '' };
+    updated.critical_flags[flagId][field] = value;
+    setEditedRubric(updated);
+    setIsDirty(true);
+    onRubricChange(updated, true);
+  };
+
+  const removeCriticalFlag = (flagId: string) => {
+    const updated = JSON.parse(JSON.stringify(editedRubric));
+    if (updated.critical_flags) delete updated.critical_flags[flagId];
+    setEditedRubric(updated);
+    setIsDirty(true);
+    onRubricChange(updated, true);
+  };
+
+  const addCriticalFlag = () => {
+    const updated = JSON.parse(JSON.stringify(editedRubric));
+    if (!updated.critical_flags) updated.critical_flags = {};
+    const newId = `flag_${Date.now()}`;
+    updated.critical_flags[newId] = { condition: 'New flag condition', signals: [], action: '', max_score: null };
+    setEditedRubric(updated);
+    setIsDirty(true);
+    onRubricChange(updated, true);
+  };
+
+  const updateCeiling = (field: string, value: any) => {
+    const updated = { ...ceilingRule, [field]: value } as CeilingRule;
+    setCeilingRule(updated);
+    setIsDirty(true);
+    // Ceiling changes are tracked in dirty state but saved/published separately
+    onRubricChange(editedRubric, true);
+  };
+
   const resetToLive = () => {
     setEditedRubric(JSON.parse(JSON.stringify(liveRubric)));
     setIsDirty(false);
@@ -234,27 +270,63 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
 
       <button className="re-btn re-btn--add" onClick={addDimension}>+ Add Dimension</button>
 
-      {/* Ceiling rule (read-only) */}
+      {/* Ceiling rule (editable) */}
       {ceilingRule && (
         <div className="re-ceiling">
-          <div className="re-ceiling-label">Score Ceiling (read-only)</div>
-          <div className="re-ceiling-value">≤ {ceilingRule.ceiling}</div>
-          <div className="re-ceiling-condition">{ceilingRule.condition}</div>
+          <div className="re-ceiling-label">Score Ceiling</div>
+          <div className="re-ceiling-edit">
+            <span className="re-ceiling-prefix">≤</span>
+            <input className="re-input re-input--ceiling-val" type="number" min={0} max={100}
+              value={ceilingRule.ceiling}
+              onChange={e => updateCeiling('ceiling', parseInt(e.target.value) || 0)} />
+          </div>
+          <textarea className="re-input re-input--ceiling-cond" value={ceilingRule.condition}
+            onChange={e => updateCeiling('condition', e.target.value)}
+            rows={2} placeholder="Ceiling condition" />
         </div>
       )}
 
-      {/* Critical Flags (read-only for now) */}
-      {editedRubric.critical_flags && typeof editedRubric.critical_flags === 'object' && Object.keys(editedRubric.critical_flags).length > 0 && (
-        <div className="re-flags">
+      {/* Critical Flags (editable) */}
+      <div className="re-flags">
+        <div className="re-flags-header">
           <div className="re-flags-label">Critical Flags</div>
-          {Object.entries(editedRubric.critical_flags).map(([id, flag]: [string, any]) => (
-            <div key={id} className="re-flag">
-              <span className="re-flag-id">{id}</span>
-              <span>{typeof flag === 'string' ? flag : flag.condition || JSON.stringify(flag)}</span>
-            </div>
-          ))}
+          <button className="re-btn re-btn--ghost" onClick={addCriticalFlag}>+ Add Flag</button>
         </div>
-      )}
+        {editedRubric.critical_flags && typeof editedRubric.critical_flags === 'object' &&
+          Object.entries(editedRubric.critical_flags).map(([id, flag]: [string, any]) => {
+            const flagObj = typeof flag === 'string' ? { condition: flag } : flag;
+            return (
+              <div key={id} className="re-flag-card">
+                <div className="re-flag-card-header">
+                  <input className="re-input re-input--flag-id" value={id} readOnly />
+                  <button className="re-btn re-btn--danger-sm" onClick={() => removeCriticalFlag(id)} title="Remove">×</button>
+                </div>
+                <textarea className="re-input re-input--flag-cond" value={flagObj.condition || ''}
+                  onChange={e => updateCriticalFlag(id, 'condition', e.target.value)}
+                  placeholder="Condition (when does this flag trigger?)" rows={2} />
+                <div className="re-flag-row">
+                  <div className="re-flag-field">
+                    <label>Max Score</label>
+                    <input className="re-input re-input--flag-max" type="number" min={0} max={100}
+                      value={flagObj.max_score || ''}
+                      onChange={e => updateCriticalFlag(id, 'max_score', e.target.value ? parseInt(e.target.value) : null)}
+                      placeholder="—" />
+                  </div>
+                  <div className="re-flag-field">
+                    <label>Action</label>
+                    <input className="re-input" value={flagObj.action || ''}
+                      onChange={e => updateCriticalFlag(id, 'action', e.target.value)}
+                      placeholder="What happens when triggered" />
+                  </div>
+                </div>
+              </div>
+            );
+          })
+        }
+        {(!editedRubric.critical_flags || Object.keys(editedRubric.critical_flags).length === 0) && (
+          <div className="re-empty">No critical flags defined.</div>
+        )}
+      </div>
 
       {/* Draft actions */}
       <div className="re-actions">
