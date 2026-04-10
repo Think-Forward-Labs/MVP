@@ -197,14 +197,13 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
     {/* Slide-over panel */}
     <div className={`bcp ${panelOpen ? '' : 'bcp--closed'}`}>
       <div className="bcp-inner">
-      <button className="bcp-close" onClick={() => setPanelOpen(false)}>×</button>
-
       <input ref={fileRef} type="file" accept=".json" onChange={handleUpload} style={{ display: 'none' }} />
 
       {!cases.length ? (
         <>
         <div className="bcp-header">
           <h4>Business Cases</h4>
+          <button className="bcp-close" onClick={() => setPanelOpen(false)}>×</button>
         </div>
         <div className="bcp-empty">
           <p>Upload a JSON file with up to 10 business cases to score them all at once.</p>
@@ -223,6 +222,7 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
         <div className="bcp-header-actions">
           <button className="bcp-btn bcp-btn--ghost" onClick={() => fileRef.current?.click()}>Replace</button>
           <button className="bcp-btn bcp-btn--ghost" onClick={() => { setCases([]); setResults([]); }}>Clear</button>
+          <button className="bcp-close" onClick={() => setPanelOpen(false)}>×</button>
         </div>
       </div>
 
