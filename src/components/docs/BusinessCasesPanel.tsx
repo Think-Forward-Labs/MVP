@@ -268,35 +268,83 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
                   {/* Score details (only after scoring) */}
                   {result && !result.error && (
                     <>
+                      {/* Score hero */}
                       <div className="bcp-detail-section">
-                        <div className="bcp-detail-section-label">Score</div>
-                        <div className="bcp-detail-score">
-                          <span className="bcp-detail-big" style={{ color: scoreColor(result.overall_score) }}>
-                            {Math.round(result.overall_score)}/100
+                        <div className="bcp-score-hero">
+                          <span className="bcp-score-big" style={{ color: scoreColor(result.overall_score) }}>
+                            {Math.round(result.overall_score)}
                           </span>
-                          <span className="bcp-detail-conf">{result.confidence}</span>
-                          {result.ceiling_applied && (
-                            <span className="bcp-detail-ceiling">⚠ {result.original_score} → {Math.round(result.overall_score)}</span>
-                          )}
+                          <span className="bcp-score-slash">/100</span>
+                          <span className={`bcp-conf-badge bcp-conf-badge--${result.confidence}`}>{result.confidence}</span>
                         </div>
                       </div>
 
-                      {/* Dimensions */}
+                      {/* Ceiling */}
+                      {result.ceiling_applied && (
+                        <div className="bcp-ceiling-card">
+                          <div className="bcp-ceiling-badge">⚠️ CEILING APPLIED</div>
+                          <div className="bcp-ceiling-detail">
+                            Original: <strong>{Math.round(result.original_score || 0)}</strong> → Capped: <strong>{Math.round(result.overall_score)}</strong>
+                          </div>
+                          <div className="bcp-ceiling-reason">{result.ceiling_reason}</div>
+                        </div>
+                      )}
+
+                      {/* Dimension breakdown */}
                       {result.dimension_scores?.length > 0 && (
                         <div className="bcp-detail-section">
-                          <div className="bcp-detail-section-label">Dimensions</div>
-                          <div className="bcp-detail-dims">
-                            {result.dimension_scores.map((ds: any, di: number) => (
-                              <div key={di} className="bcp-detail-dim">
-                                <span className="bcp-dim-name">{ds.dimension_name}</span>
-                                <span className={`bcp-dim-score bcp-dim-score--${ds.score}`}>{ds.score}/5</span>
+                          <div className="bcp-detail-section-label">Dimension Breakdown</div>
+                          {result.dimension_scores.map((ds: any, di: number) => {
+                            const rubricDim = result.rubric_used?.dimensions?.find((d: any) => d.id === ds.dimension_id);
+                            const weight = ds.weight || rubricDim?.weight || 0;
+                            const matchedAnchor = rubricDim?.anchors?.find((a: any) => a.level === ds.score);
+                            return (
+                              <div key={di} className="bcp-dim-card">
+                                <div className="bcp-dim-header">
+                                  <span className="bcp-dim-name">{ds.dimension_name}</span>
+                                  <div className="bcp-dim-meta">
+                                    <span className={`bcp-dim-score bcp-dim-score--${ds.score}`}>{ds.score}</span>
+                                    <span className="bcp-dim-weight">{weight}%</span>
+                                  </div>
+                                </div>
+                                {ds.reasoning && (
+                                  <div className="bcp-dim-reasoning">{ds.reasoning}</div>
+                                )}
+                                {matchedAnchor && (
+                                  <div className="bcp-dim-anchor">
+                                    <span className="bcp-dim-anchor-label">Matched:</span> {matchedAnchor.behavior}
+                                  </div>
+                                )}
                               </div>
-                            ))}
+                            );
+                          })}
+
+                          {/* Formula */}
+                          <div className="bcp-formula">
+                            {result.dimension_scores.map((ds: any) => {
+                              const rubricDim = result.rubric_used?.dimensions?.find((d: any) => d.id === ds.dimension_id);
+                              return `${ds.score}×${ds.weight || rubricDim?.weight || '?'}%`;
+                            }).join(' + ')}
+                            {' = '}{Math.round(result.original_score || result.overall_score)}
                           </div>
                         </div>
                       )}
 
-                      {/* Reasoning */}
+                      {/* Critical flags */}
+                      {result.rubric_used?.critical_flags && Object.keys(result.rubric_used.critical_flags).length > 0 && (
+                        <div className="bcp-detail-section">
+                          <div className="bcp-detail-section-label">Critical Flags</div>
+                          {Object.entries(result.rubric_used.critical_flags).map(([fid, f]: [string, any]) => (
+                            <div key={fid} className="bcp-flag">
+                              <span className="bcp-flag-id">{fid}</span>
+                              <span>{typeof f === 'string' ? f : f.condition || ''}</span>
+                              {(typeof f === 'object' && f.max_score) && <span className="bcp-flag-max">max: {f.max_score}</span>}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+
+                      {/* AI Reasoning */}
                       {result.scoring_reasoning && (
                         <div className="bcp-detail-section">
                           <div className="bcp-detail-section-label">AI Reasoning</div>

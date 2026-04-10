@@ -298,3 +298,132 @@
   font-style: italic;
   padding: 8px 0;
 }
+
+/* ─── IMPROVED SCORE BREAKDOWN ─── */
+.bcp-score-hero {
+  display: flex;
+  align-items: baseline;
+  gap: 4px;
+  padding: 4px 0;
+}
+.bcp-score-big {
+  font-size: 36px;
+  font-weight: 800;
+  letter-spacing: -0.03em;
+  line-height: 1;
+}
+.bcp-score-slash {
+  font-size: 16px;
+  color: var(--text-3);
+  margin-right: 8px;
+}
+.bcp-conf-badge {
+  font-size: 9px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 100px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+.bcp-conf-badge--high { background: var(--green-bg); color: var(--green); }
+.bcp-conf-badge--medium { background: var(--amber-bg); color: var(--amber); }
+.bcp-conf-badge--low { background: var(--red-bg); color: var(--red); }
+
+/* Ceiling card */
+.bcp-ceiling-card {
+  padding: 10px 12px;
+  background: var(--amber-bg);
+  border: 1px solid rgba(217,119,6,.15);
+  border-radius: 8px;
+  margin-bottom: 12px;
+}
+.bcp-ceiling-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--amber);
+  margin-bottom: 4px;
+}
+.bcp-ceiling-detail { font-size: 12px; color: var(--text-2); margin-bottom: 4px; }
+.bcp-ceiling-reason { font-size: 11px; color: var(--text-3); }
+
+/* Dimension cards */
+.bcp-dim-card {
+  padding: 10px 0;
+  border-bottom: 1px solid var(--border);
+}
+.bcp-dim-card:last-of-type { border-bottom: none; }
+.bcp-dim-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.bcp-dim-meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.bcp-dim-weight {
+  font-family: var(--mono);
+  font-size: 10px;
+  color: var(--text-3);
+  background: var(--bg-2);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.bcp-dim-reasoning {
+  font-size: 11px;
+  color: var(--text-2);
+  line-height: 1.5;
+  margin-bottom: 4px;
+}
+.bcp-dim-anchor {
+  font-size: 10px;
+  color: var(--text-3);
+  padding: 4px 8px;
+  background: var(--bg-1);
+  border-left: 2px solid var(--border);
+  border-radius: 0 4px 4px 0;
+}
+.bcp-dim-anchor-label {
+  font-weight: 600;
+  margin-right: 4px;
+}
+
+/* Formula */
+.bcp-formula {
+  font-family: var(--mono);
+  font-size: 11px;
+  color: var(--text-2);
+  background: var(--bg-1);
+  padding: 8px 10px;
+  border-radius: 6px;
+  margin-top: 8px;
+  border: 1px solid var(--border);
+}
+
+/* Flags */
+.bcp-flag {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11px;
+  color: var(--text-2);
+  margin-bottom: 4px;
+}
+.bcp-flag-id {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--red);
+  background: var(--red-bg);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
+.bcp-flag-max {
+  font-family: var(--mono);
+  font-size: 9px;
+  color: var(--amber);
+  background: var(--amber-bg);
+  padding: 1px 6px;
+  border-radius: 3px;
+}
