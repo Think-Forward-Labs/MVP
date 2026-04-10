@@ -427,3 +427,10 @@
   padding: 1px 6px;
   border-radius: 3px;
 }
+
+.bcp-flag-note {
+  font-size: 10px;
+  color: var(--text-3);
+  font-style: italic;
+  margin-top: 6px;
+}

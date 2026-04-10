@@ -898,10 +898,11 @@ function PagePlayground() {
             </Card>
           )}
 
-          {/* Critical Flags */}
+          {/* Critical Flags — active rules (config, not triggered indicators) */}
           {result.rubric_used?.critical_flags && Object.keys(result.rubric_used.critical_flags).length > 0 && (
             <Card>
-              <h3>Critical Flags</h3>
+              <h3>Active Flag Rules</h3>
+              <p className="dc-text-muted" style={{ marginBottom: 12 }}>Defined rules the AI uses as scoring guidance. Not triggered indicators.</p>
               {Object.entries(result.rubric_used.critical_flags).map(([fid, f]: [string, any]) => (
                 <div key={fid} className="dc-rubric-flag" style={{ marginBottom: 8 }}>
                   <Badge variant="red">{fid}</Badge>

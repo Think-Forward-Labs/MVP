@@ -330,10 +330,10 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
                         </div>
                       )}
 
-                      {/* Critical flags */}
+                      {/* Critical flags — shown as reference config, not triggered status */}
                       {result.rubric_used?.critical_flags && Object.keys(result.rubric_used.critical_flags).length > 0 && (
                         <div className="bcp-detail-section">
-                          <div className="bcp-detail-section-label">Critical Flags</div>
+                          <div className="bcp-detail-section-label">Active Flag Rules</div>
                           {Object.entries(result.rubric_used.critical_flags).map(([fid, f]: [string, any]) => (
                             <div key={fid} className="bcp-flag">
                               <span className="bcp-flag-id">{fid}</span>
@@ -341,6 +341,7 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
                               {(typeof f === 'object' && f.max_score) && <span className="bcp-flag-max">max: {f.max_score}</span>}
                             </div>
                           ))}
+                          <div className="bcp-flag-note">These are defined rules, not triggered indicators. The AI uses them as scoring guidance.</div>
                         </div>
                       )}
 
