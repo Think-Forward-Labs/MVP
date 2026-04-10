@@ -7,12 +7,18 @@
   border: 1px solid var(--border);
   border-radius: 12px;
   padding: 16px;
-  min-width: 300px;
-  max-width: 380px;
+  width: 340px;
+  min-width: 240px;
+  max-width: 500px;
   max-height: calc(100vh - 140px);
   overflow-y: auto;
   position: sticky;
   top: 70px;
+  resize: horizontal;
+  overflow-x: hidden;
+}
+.bcp::-webkit-resizer {
+  background: transparent;
 }
 .bcp-header {
   display: flex;
@@ -227,3 +233,19 @@
   transition: all 0.15s;
 }
 .bcp-template-btn:hover { border-color: var(--text-3); background: var(--bg-1); }
+
+/* ─── RESIZE HANDLE ─── */
+.bcp::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 4px;
+  height: 40px;
+  background: var(--border);
+  border-radius: 2px;
+  opacity: 0.4;
+  pointer-events: none;
+}
+.bcp:hover::after { opacity: 0.7; }
