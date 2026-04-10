@@ -2077,6 +2077,9 @@ export function DocsPage() {
 
   const navigate = (id: string) => {
     setActivePage(id);
+    // Auto-close sidebar on playground, auto-open on other pages
+    if (id === 'q-playground') setSidebarOpen(false);
+    else if (activePage === 'q-playground') setSidebarOpen(true);
     window.scrollTo({ top: 0, behavior: 'smooth' });
   };
 
@@ -2103,7 +2106,7 @@ export function DocsPage() {
       </header>
 
       <div className="dc-layout">
-        <aside className={`dc-sidebar ${sidebarOpen && activePage !== 'q-playground' ? '' : 'dc-sidebar--closed'}`}>
+        <aside className={`dc-sidebar ${sidebarOpen ? '' : 'dc-sidebar--closed'}`}>
           <nav>
             {GROUPS.map(g => (
               <div key={g.id} className="dc-nav-group">
@@ -2118,7 +2121,7 @@ export function DocsPage() {
           </nav>
         </aside>
 
-        <main className={`dc-main ${sidebarOpen && activePage !== 'q-playground' ? '' : 'dc-main--full'}`}>
+        <main className={`dc-main ${sidebarOpen ? '' : 'dc-main--full'}`}>
           <Content />
           <div className="dc-page-nav">
             {prevPage ? (
