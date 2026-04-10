@@ -17,6 +17,7 @@ interface CaseResult {
   confidence?: string;
   dimension_scores?: any[];
   scoring_reasoning?: string;
+  rubric_used?: { dimensions?: any[]; critical_flags?: Record<string, any> };
   error?: string;
 }
 
@@ -291,10 +292,10 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
                       )}
 
                       {/* Dimension breakdown */}
-                      {result.dimension_scores?.length > 0 && (
+                      {(result.dimension_scores?.length ?? 0) > 0 && (
                         <div className="bcp-detail-section">
                           <div className="bcp-detail-section-label">Dimension Breakdown</div>
-                          {result.dimension_scores.map((ds: any, di: number) => {
+                          {result.dimension_scores?.map((ds: any, di: number) => {
                             const rubricDim = result.rubric_used?.dimensions?.find((d: any) => d.id === ds.dimension_id);
                             const weight = rubricDim?.weight || ds.weight || 0;
                             const matchedAnchor = rubricDim?.anchors?.find((a: any) => a.level === ds.score);
@@ -321,7 +322,7 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
 
                           {/* Formula */}
                           <div className="bcp-formula">
-                            {result.dimension_scores.map((ds: any) => {
+                            {result.dimension_scores?.map((ds: any) => {
                               const rd = result.rubric_used?.dimensions?.find((d: any) => d.id === ds.dimension_id);
                               return `${ds.score}×${rd?.weight || ds.weight || '?'}%`;
                             }).join(' + ')}
