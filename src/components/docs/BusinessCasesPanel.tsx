@@ -249,50 +249,70 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
                 {!result && <div className="bcp-case-pending">—</div>}
               </div>
 
-              {/* Preview answer */}
-              <div className="bcp-case-preview">
-                {answer ? answer.slice(0, 80) + (answer.length > 80 ? '...' : '') : <em>No answer for {questionCode}</em>}
-              </div>
-
-              {/* Expanded detail */}
-              {isExpanded && result && !result.error && (
-                <div className="bcp-case-detail">
-                  {/* Score bar */}
-                  <div className="bcp-detail-score">
-                    <span className="bcp-detail-big" style={{ color: scoreColor(result.overall_score) }}>
-                      {Math.round(result.overall_score)}/100
-                    </span>
-                    <span className="bcp-detail-conf">{result.confidence}</span>
-                    {result.ceiling_applied && (
-                      <span className="bcp-detail-ceiling">⚠ Ceiling: {result.original_score} → {Math.round(result.overall_score)}</span>
-                    )}
-                  </div>
-
-                  {/* Full answer */}
-                  <div className="bcp-detail-answer">"{answer}"</div>
-
-                  {/* Dimensions */}
-                  {result.dimension_scores?.length > 0 && (
-                    <div className="bcp-detail-dims">
-                      {result.dimension_scores.map((ds: any, di: number) => (
-                        <div key={di} className="bcp-detail-dim">
-                          <span className="bcp-dim-name">{ds.dimension_name}</span>
-                          <span className={`bcp-dim-score bcp-dim-score--${ds.score}`}>{ds.score}/5</span>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-
-                  {/* Reasoning */}
-                  {result.scoring_reasoning && (
-                    <div className="bcp-detail-reasoning">{result.scoring_reasoning.slice(0, 300)}</div>
-                  )}
+              {/* Collapsed preview */}
+              {!isExpanded && (
+                <div className="bcp-case-preview">
+                  {answer ? answer.slice(0, 80) + (answer.length > 80 ? '...' : '') : <em>No answer for {questionCode}</em>}
                 </div>
               )}
 
-              {isExpanded && result?.error && (
+              {/* Expanded view — always shows full answer, plus score details if scored */}
+              {isExpanded && (
                 <div className="bcp-case-detail">
-                  <div className="bcp-detail-error">{result.error}</div>
+                  {/* Full answer (always visible when expanded) */}
+                  <div className="bcp-detail-section">
+                    <div className="bcp-detail-section-label">Response</div>
+                    <div className="bcp-detail-answer">{answer || <em>No answer for {questionCode}</em>}</div>
+                  </div>
+
+                  {/* Score details (only after scoring) */}
+                  {result && !result.error && (
+                    <>
+                      <div className="bcp-detail-section">
+                        <div className="bcp-detail-section-label">Score</div>
+                        <div className="bcp-detail-score">
+                          <span className="bcp-detail-big" style={{ color: scoreColor(result.overall_score) }}>
+                            {Math.round(result.overall_score)}/100
+                          </span>
+                          <span className="bcp-detail-conf">{result.confidence}</span>
+                          {result.ceiling_applied && (
+                            <span className="bcp-detail-ceiling">⚠ {result.original_score} → {Math.round(result.overall_score)}</span>
+                          )}
+                        </div>
+                      </div>
+
+                      {/* Dimensions */}
+                      {result.dimension_scores?.length > 0 && (
+                        <div className="bcp-detail-section">
+                          <div className="bcp-detail-section-label">Dimensions</div>
+                          <div className="bcp-detail-dims">
+                            {result.dimension_scores.map((ds: any, di: number) => (
+                              <div key={di} className="bcp-detail-dim">
+                                <span className="bcp-dim-name">{ds.dimension_name}</span>
+                                <span className={`bcp-dim-score bcp-dim-score--${ds.score}`}>{ds.score}/5</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Reasoning */}
+                      {result.scoring_reasoning && (
+                        <div className="bcp-detail-section">
+                          <div className="bcp-detail-section-label">AI Reasoning</div>
+                          <div className="bcp-detail-reasoning">{result.scoring_reasoning}</div>
+                        </div>
+                      )}
+                    </>
+                  )}
+
+                  {result?.error && (
+                    <div className="bcp-detail-error">{result.error}</div>
+                  )}
+
+                  {!result && (
+                    <div className="bcp-detail-not-scored">Not scored yet — click "Score All" above</div>
+                  )}
                 </div>
               )}
             </div>
