@@ -712,7 +712,18 @@ function PagePlayground() {
   };
 
   return (
-    <div className="dc-page">
+    <div className="dc-page dc-page--playground">
+      {/* Business Cases side panel (left) */}
+      {selectedCode && (
+        <BusinessCasesPanel
+          questionCode={selectedCode}
+          questionType={selectedQ?.type || 'open'}
+          rubricOverride={rubricOverride}
+          rubricDirty={rubricDirty}
+        />
+      )}
+
+      <div className="pg-content">
       <Hero badge="✨ Interactive" badgeVariant="green" title="Scoring Playground" subtitle="Test the scoring engine live. Select a question, provide an answer, and see exactly how the pipeline scores it." />
 
       {/* Question selector */}
@@ -930,15 +941,7 @@ function PagePlayground() {
           <Info type="danger" title="Scoring Error">{result.error}</Info>
         </Card>
       )}
-      {/* Business Cases overlay panel */}
-      {selectedCode && (
-        <BusinessCasesPanel
-          questionCode={selectedCode}
-          questionType={selectedQ?.type || 'open'}
-          rubricOverride={rubricOverride}
-          rubricDirty={rubricDirty}
-        />
-      )}
+      </div>
     </div>
   );
 }

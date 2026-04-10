@@ -1325,13 +1325,19 @@
 }
 
 /* ─── PLAYGROUND LAYOUT ─── */
-.pg-layout {
+.dc-page--playground {
   display: flex;
-  gap: 20px;
-  align-items: flex-start;
+  gap: 0;
+  max-width: none;
+  padding: 0;
 }
-.pg-main { flex: 1; min-width: 0; }
+.pg-content {
+  flex: 1;
+  min-width: 0;
+  padding: 48px 40px 40px;
+  max-width: 800px;
+}
 @media (max-width: 900px) {
-  .pg-layout { flex-direction: column; }
-  .bcp { max-width: 100%; min-width: 0; position: static; }
+  .dc-page--playground { flex-direction: column; }
+  .pg-content { padding: 24px 16px; max-width: none; }
 }

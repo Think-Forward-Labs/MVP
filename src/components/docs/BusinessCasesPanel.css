@@ -3,23 +3,19 @@
    ═══════════════════════════════════════════════════════════ */
 
 .bcp {
-  position: fixed;
-  right: 0;
-  top: var(--header-h, 52px);
-  bottom: 0;
-  width: 380px;
+  width: 420px;
+  min-width: 320px;
+  flex-shrink: 0;
   background: var(--bg-0);
-  border-left: 1px solid var(--border);
+  border-right: 1px solid var(--border);
   padding: 0;
   overflow-y: auto;
-  z-index: 90;
-  box-shadow: -4px 0 20px rgba(0,0,0,.08);
-  transform: translateX(0);
-  transition: transform 0.25s ease;
+  max-height: calc(100vh - var(--header-h, 52px));
+  position: sticky;
+  top: var(--header-h, 52px);
 }
 .bcp--closed {
-  transform: translateX(100%);
-  box-shadow: none;
+  display: none;
 }
 .bcp-inner {
   padding: 16px;
@@ -240,9 +236,10 @@
 
 /* ─── CLOSE BUTTON ─── */
 .bcp-close {
-  position: absolute;
-  top: 12px;
-  right: 12px;
+  position: sticky;
+  top: 0;
+  float: right;
+  margin: 8px 8px 0 0;
   width: 28px;
   height: 28px;
   border: 1px solid var(--border);
@@ -259,9 +256,6 @@
 
 /* ─── TOGGLE BUTTON (shown when panel closed) ─── */
 .bcp-toggle {
-  position: fixed;
-  right: 16px;
-  bottom: 20px;
   padding: 10px 16px;
   border: 1px solid var(--border);
   border-radius: 10px;
@@ -270,14 +264,13 @@
   font-size: 12px;
   font-weight: 600;
   cursor: pointer;
-  box-shadow: 0 2px 12px rgba(0,0,0,.1);
-  z-index: 80;
   transition: all 0.15s;
+  margin-bottom: 12px;
 }
-.bcp-toggle:hover { background: var(--bg-2); box-shadow: 0 4px 16px rgba(0,0,0,.15); }
+.bcp-toggle:hover { background: var(--bg-2); }
 
-@media (max-width: 640px) {
-  .bcp { width: 100%; }
+@media (max-width: 900px) {
+  .bcp { width: 100%; min-width: 0; }
 }
 
 /* ─── DETAIL SECTIONS ─── */
