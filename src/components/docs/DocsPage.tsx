@@ -713,16 +713,6 @@ function PagePlayground() {
 
   return (
     <div className="dc-page dc-page--playground">
-      {/* Business Cases side panel (left) */}
-      {selectedCode && (
-        <BusinessCasesPanel
-          questionCode={selectedCode}
-          questionType={selectedQ?.type || 'open'}
-          rubricOverride={rubricOverride}
-          rubricDirty={rubricDirty}
-        />
-      )}
-
       <div className="pg-content">
       <Hero badge="✨ Interactive" badgeVariant="green" title="Scoring Playground" subtitle="Test the scoring engine live. Select a question, provide an answer, and see exactly how the pipeline scores it." />
 
@@ -942,6 +932,16 @@ function PagePlayground() {
         </Card>
       )}
       </div>
+
+      {/* Business Cases side panel (right) */}
+      {selectedCode && (
+        <BusinessCasesPanel
+          questionCode={selectedCode}
+          questionType={selectedQ?.type || 'open'}
+          rubricOverride={rubricOverride}
+          rubricDirty={rubricDirty}
+        />
+      )}
     </div>
   );
 }
@@ -2103,7 +2103,7 @@ export function DocsPage() {
       </header>
 
       <div className="dc-layout">
-        <aside className={`dc-sidebar ${sidebarOpen ? '' : 'dc-sidebar--closed'}`}>
+        <aside className={`dc-sidebar ${sidebarOpen && activePage !== 'q-playground' ? '' : 'dc-sidebar--closed'}`}>
           <nav>
             {GROUPS.map(g => (
               <div key={g.id} className="dc-nav-group">
@@ -2118,7 +2118,7 @@ export function DocsPage() {
           </nav>
         </aside>
 
-        <main className={`dc-main ${sidebarOpen ? '' : 'dc-main--full'}`}>
+        <main className={`dc-main ${sidebarOpen && activePage !== 'q-playground' ? '' : 'dc-main--full'}`}>
           <Content />
           <div className="dc-page-nav">
             {prevPage ? (
