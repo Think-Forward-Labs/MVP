@@ -1323,3 +1323,15 @@
   width: 20px;
   text-align: center;
 }
+
+/* ─── PLAYGROUND LAYOUT ─── */
+.pg-layout {
+  display: flex;
+  gap: 20px;
+  align-items: flex-start;
+}
+.pg-main { flex: 1; min-width: 0; }
+@media (max-width: 900px) {
+  .pg-layout { flex-direction: column; }
+  .bcp { max-width: 100%; min-width: 0; position: static; }
+}

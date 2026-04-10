@@ -1,0 +1,215 @@
+import { useState, useEffect, useRef } from 'react';
+
+const DOCS_API = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
+
+interface BusinessCase {
+  name: string;
+  respondent?: string;
+  responses: Record<string, string>;
+}
+
+interface CaseResult {
+  case_name: string;
+  overall_score: number;
+  original_score?: number;
+  ceiling_applied?: boolean;
+  ceiling_reason?: string;
+  confidence?: string;
+  dimension_scores?: any[];
+  scoring_reasoning?: string;
+  error?: string;
+}
+
+interface Props {
+  questionCode: string;
+  questionType: string;
+  rubricOverride: any;
+  rubricDirty: boolean;
+}
+
+export function BusinessCasesPanel({ questionCode, questionType, rubricOverride, rubricDirty }: Props) {
+  const [cases, setCases] = useState<BusinessCase[]>([]);
+  const [results, setResults] = useState<CaseResult[]>([]);
+  const [scoring, setScoring] = useState(false);
+  const [expandedCase, setExpandedCase] = useState<number | null>(null);
+  const fileRef = useRef<HTMLInputElement>(null);
+
+  // Load saved cases on mount
+  useEffect(() => {
+    fetch(`${DOCS_API}/admin/docs/playground/cases`)
+      .then(r => r.json())
+      .then(d => setCases(d.cases || []))
+      .catch(() => {});
+  }, []);
+
+  // Clear results when question changes
+  useEffect(() => { setResults([]); setExpandedCase(null); }, [questionCode]);
+
+  const handleUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      try {
+        const data = JSON.parse(ev.target?.result as string);
+        const uploaded = data.cases || data;
+        const caseList = Array.isArray(uploaded) ? uploaded.slice(0, 10) : [];
+        setCases(caseList);
+        setResults([]);
+        // Save to backend
+        await fetch(`${DOCS_API}/admin/docs/playground/cases`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ cases: caseList }),
+        });
+      } catch { alert('Invalid JSON file'); }
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  };
+
+  const scoreAll = async () => {
+    if (!cases.length || !questionCode) return;
+    setScoring(true);
+    setResults([]);
+    setExpandedCase(null);
+
+    const responses = cases.map(c => ({
+      case_name: c.name,
+      response_text: c.responses?.[questionCode] || '',
+    }));
+
+    try {
+      const r = await fetch(`${DOCS_API}/admin/docs/playground/score-batch`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          question_code: questionCode,
+          question_type: questionType,
+          responses,
+          ...(rubricDirty && rubricOverride ? { rubric_override: rubricOverride } : {}),
+        }),
+      });
+      if (r.ok) {
+        const d = await r.json();
+        setResults(d.results || []);
+      }
+    } catch {}
+    setScoring(false);
+  };
+
+  const scoreColor = (s: number) => s >= 70 ? 'var(--green)' : s >= 40 ? 'var(--amber)' : 'var(--red)';
+
+  if (!cases.length) {
+    return (
+      <div className="bcp">
+        <div className="bcp-header">
+          <h4>Business Cases</h4>
+        </div>
+        <div className="bcp-empty">
+          <p>Upload a JSON file with up to 10 business cases to score them all at once.</p>
+          <input ref={fileRef} type="file" accept=".json" onChange={handleUpload} style={{ display: 'none' }} />
+          <button className="bcp-upload-btn" onClick={() => fileRef.current?.click()}>
+            📁 Upload Cases JSON
+          </button>
+          <div className="bcp-format-hint">
+            Format: {'{'}"cases": [{'{'}"name": "...", "responses": {'{'}"B1": "...", "M4": "3", ...{'}'}{'}'}, ...]{'}'}
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="bcp">
+      <div className="bcp-header">
+        <h4>Business Cases ({cases.length})</h4>
+        <div className="bcp-header-actions">
+          <input ref={fileRef} type="file" accept=".json" onChange={handleUpload} style={{ display: 'none' }} />
+          <button className="bcp-btn bcp-btn--ghost" onClick={() => fileRef.current?.click()}>Replace</button>
+          <button className="bcp-btn bcp-btn--ghost" onClick={() => { setCases([]); setResults([]); }}>Clear</button>
+        </div>
+      </div>
+
+      {rubricDirty && (
+        <div className="bcp-override-note">⚙️ Using modified rubric</div>
+      )}
+
+      {/* Case list */}
+      <div className="bcp-cases">
+        {cases.map((c, i) => {
+          const answer = c.responses?.[questionCode] || '';
+          const result = results[i];
+          const isExpanded = expandedCase === i;
+
+          return (
+            <div key={i} className={`bcp-case ${isExpanded ? 'bcp-case--expanded' : ''}`}>
+              <div className="bcp-case-header" onClick={() => setExpandedCase(isExpanded ? null : i)}>
+                <div className="bcp-case-name">{c.name}</div>
+                {result && !result.error && (
+                  <div className="bcp-case-score" style={{ color: scoreColor(result.overall_score) }}>
+                    {Math.round(result.overall_score)}
+                  </div>
+                )}
+                {result?.error && <div className="bcp-case-error">err</div>}
+                {!result && <div className="bcp-case-pending">—</div>}
+              </div>
+
+              {/* Preview answer */}
+              <div className="bcp-case-preview">
+                {answer ? answer.slice(0, 80) + (answer.length > 80 ? '...' : '') : <em>No answer for {questionCode}</em>}
+              </div>
+
+              {/* Expanded detail */}
+              {isExpanded && result && !result.error && (
+                <div className="bcp-case-detail">
+                  {/* Score bar */}
+                  <div className="bcp-detail-score">
+                    <span className="bcp-detail-big" style={{ color: scoreColor(result.overall_score) }}>
+                      {Math.round(result.overall_score)}/100
+                    </span>
+                    <span className="bcp-detail-conf">{result.confidence}</span>
+                    {result.ceiling_applied && (
+                      <span className="bcp-detail-ceiling">⚠ Ceiling: {result.original_score} → {Math.round(result.overall_score)}</span>
+                    )}
+                  </div>
+
+                  {/* Full answer */}
+                  <div className="bcp-detail-answer">"{answer}"</div>
+
+                  {/* Dimensions */}
+                  {result.dimension_scores?.length > 0 && (
+                    <div className="bcp-detail-dims">
+                      {result.dimension_scores.map((ds: any, di: number) => (
+                        <div key={di} className="bcp-detail-dim">
+                          <span className="bcp-dim-name">{ds.dimension_name}</span>
+                          <span className={`bcp-dim-score bcp-dim-score--${ds.score}`}>{ds.score}/5</span>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+
+                  {/* Reasoning */}
+                  {result.scoring_reasoning && (
+                    <div className="bcp-detail-reasoning">{result.scoring_reasoning.slice(0, 300)}</div>
+                  )}
+                </div>
+              )}
+
+              {isExpanded && result?.error && (
+                <div className="bcp-case-detail">
+                  <div className="bcp-detail-error">{result.error}</div>
+                </div>
+              )}
+            </div>
+          );
+        })}
+      </div>
+
+      {/* Score All button */}
+      <button className="bcp-score-all" onClick={scoreAll} disabled={scoring}>
+        {scoring ? `Scoring ${cases.length} cases...` : `⚡ Score All ${cases.length} Cases`}
+      </button>
+    </div>
+  );
+}

@@ -2,6 +2,8 @@ import { useState, useEffect } from 'react';
 import './DocsPage.css';
 import { RubricEditor } from './RubricEditor';
 import './RubricEditor.css';
+import { BusinessCasesPanel } from './BusinessCasesPanel';
+import './BusinessCasesPanel.css';
 
 // ─── API ───
 const DOCS_API = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
@@ -713,6 +715,8 @@ function PagePlayground() {
     <div className="dc-page">
       <Hero badge="✨ Interactive" badgeVariant="green" title="Scoring Playground" subtitle="Test the scoring engine live. Select a question, provide an answer, and see exactly how the pipeline scores it." />
 
+      <div className="pg-layout">
+      <div className="pg-main">
       {/* Question selector */}
       <Card>
         <h3>Select a Question</h3>
@@ -927,6 +931,18 @@ function PagePlayground() {
           <Info type="danger" title="Scoring Error">{result.error}</Info>
         </Card>
       )}
+      </div>
+
+      {/* Right panel: Business Cases */}
+      {selectedCode && (
+        <BusinessCasesPanel
+          questionCode={selectedCode}
+          questionType={selectedQ?.type || 'open'}
+          rubricOverride={rubricOverride}
+          rubricDirty={rubricDirty}
+        />
+      )}
+      </div>
     </div>
   );
 }
