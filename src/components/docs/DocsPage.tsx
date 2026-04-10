@@ -860,7 +860,7 @@ function PagePlayground() {
               <div className="pg-dimensions">
                 {result.dimension_scores.map((ds: any, i: number) => {
                   const rubricDim = result.rubric_used?.dimensions?.find((d: any) => d.id === ds.dimension_id);
-                  const weight = ds.weight || rubricDim?.weight || 0;
+                  const weight = rubricDim?.weight || ds.weight || 0;
                   return (
                     <div key={i} className="pg-dim">
                       <div className="pg-dim-header">
@@ -889,7 +889,7 @@ function PagePlayground() {
                 <div className="dc-formula-expr">
                   {result.dimension_scores.map((ds: any, i: number) => {
                     const rubricDim = result.rubric_used?.dimensions?.find((d: any) => d.id === ds.dimension_id);
-                    const weight = ds.weight || rubricDim?.weight || 0;
+                    const weight = rubricDim?.weight || ds.weight || 0;
                     return `${ds.score}×${weight}%`;
                   }).join(' + ')}
                   {' = '}{Math.round(result.original_score_before_ceiling)}

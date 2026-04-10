@@ -296,7 +296,7 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
                           <div className="bcp-detail-section-label">Dimension Breakdown</div>
                           {result.dimension_scores.map((ds: any, di: number) => {
                             const rubricDim = result.rubric_used?.dimensions?.find((d: any) => d.id === ds.dimension_id);
-                            const weight = ds.weight || rubricDim?.weight || 0;
+                            const weight = rubricDim?.weight || ds.weight || 0;
                             const matchedAnchor = rubricDim?.anchors?.find((a: any) => a.level === ds.score);
                             return (
                               <div key={di} className="bcp-dim-card">
@@ -322,8 +322,8 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
                           {/* Formula */}
                           <div className="bcp-formula">
                             {result.dimension_scores.map((ds: any) => {
-                              const rubricDim = result.rubric_used?.dimensions?.find((d: any) => d.id === ds.dimension_id);
-                              return `${ds.score}×${ds.weight || rubricDim?.weight || '?'}%`;
+                              const rd = result.rubric_used?.dimensions?.find((d: any) => d.id === ds.dimension_id);
+                              return `${ds.score}×${rd?.weight || ds.weight || '?'}%`;
                             }).join(' + ')}
                             {' = '}{Math.round(result.original_score || result.overall_score)}
                           </div>
