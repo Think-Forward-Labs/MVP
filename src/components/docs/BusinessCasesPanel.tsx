@@ -260,10 +260,29 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
               {/* Expanded view — always shows full answer, plus score details if scored */}
               {isExpanded && (
                 <div className="bcp-case-detail">
-                  {/* Full answer (always visible when expanded) */}
+                  {/* Editable answer */}
                   <div className="bcp-detail-section">
                     <div className="bcp-detail-section-label">Response</div>
-                    <div className="bcp-detail-answer">{answer || <em>No answer for {questionCode}</em>}</div>
+                    <textarea
+                      className="bcp-detail-answer bcp-detail-answer--editable"
+                      value={answer}
+                      onChange={e => {
+                        const updated = [...cases];
+                        if (!updated[i].responses) updated[i].responses = {};
+                        updated[i].responses[questionCode] = e.target.value;
+                        setCases(updated);
+                      }}
+                      onBlur={() => {
+                        // Auto-save to backend on blur
+                        fetch(`${DOCS_API}/admin/docs/playground/cases`, {
+                          method: 'POST',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ cases }),
+                        });
+                      }}
+                      rows={4}
+                      placeholder={`Enter response for ${questionCode}...`}
+                    />
                   </div>
 
                   {/* Score details (only after scoring) */}

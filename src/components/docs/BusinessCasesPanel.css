@@ -434,3 +434,23 @@
   font-style: italic;
   margin-top: 6px;
 }
+
+/* ─── EDITABLE ANSWER ─── */
+.bcp-detail-answer--editable {
+  width: 100%;
+  font-family: var(--font);
+  font-size: 12px;
+  color: var(--text-1);
+  line-height: 1.6;
+  padding: 10px;
+  background: var(--bg-0);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  resize: vertical;
+  transition: border-color 0.15s;
+  font-style: normal;
+}
+.bcp-detail-answer--editable:focus {
+  outline: none;
+  border-color: var(--accent);
+}
