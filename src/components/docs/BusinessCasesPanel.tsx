@@ -55,7 +55,7 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
       try {
         const data = JSON.parse(ev.target?.result as string);
         const uploaded = data.cases || data;
-        const caseList = Array.isArray(uploaded) ? uploaded.slice(0, 10) : [];
+        const caseList = Array.isArray(uploaded) ? uploaded : [];
         setCases(caseList);
         setResults([]);
         // Save to backend
