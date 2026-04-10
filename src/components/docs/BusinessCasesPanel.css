@@ -212,3 +212,18 @@
 }
 .bcp-score-all:hover { opacity: 0.9; }
 .bcp-score-all:disabled { opacity: 0.4; cursor: not-allowed; }
+
+/* ─── TEMPLATE DOWNLOAD ─── */
+.bcp-template-btn {
+  margin-top: 8px;
+  padding: 8px 16px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg-0);
+  color: var(--text-2);
+  font-size: 12px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.15s;
+}
+.bcp-template-btn:hover { border-color: var(--text-3); background: var(--bg-1); }

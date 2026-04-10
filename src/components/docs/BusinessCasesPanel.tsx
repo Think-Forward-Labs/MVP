@@ -68,6 +68,89 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
     e.target.value = '';
   };
 
+  const downloadTemplate = () => {
+    const template = {
+      _instructions: "Fill in responses for each business case. Up to 10 cases. For scale questions (M4, C3, S3a, S5, I4, X4, R3, P4) use a number 1-5. For percentage questions (X3a, X3b) use a number 0-100. For single-select (B6) use the full option text. For multi-select (B5) separate options with |||. For open-ended questions, provide the respondent's narrative answer.",
+      cases: [
+        {
+          name: "Example Company 1",
+          respondent: "Managing Director",
+          responses: {
+            B1: "I'm the managing director, been here 8 years...",
+            B2: "We provide engineering services to oil and gas operators...",
+            B5: "Reliability/Dependability|||Technical Quality|||Speed/Responsiveness",
+            B6: "Fast - Significant disruption underway",
+            M1: "We meet weekly with the senior team to discuss...",
+            M4: "3",
+            S1: "I notice regulatory changes through industry briefings...",
+            S3A: "2",
+            S5: "3",
+            I1: "One example: new emissions reporting rules came in...",
+            I2: "What helps is having a clear mandate from leadership...",
+            I4: "3",
+            X3A: "85",
+            X3B: "15",
+            X4: "3",
+            C1: "When a mistake happens, there was some finger pointing...",
+            C2: "Leaders encourage training and share lessons...",
+            C3: "3",
+            C4: "Different teams respond differently to mistakes...",
+            R1: "Our main platform helps streamline orders but can create friction...",
+            R2: "We did a pilot with an external vendor last year...",
+            R3: "3",
+            P2: "Time, budget constraints, unclear priorities",
+            P4: "3",
+            RA1: "We bid on an offshore wind project last year...",
+            RA2: "Generally leadership is fair, people aren't punished...",
+            OL1: "Usually it lingers till leadership assigns an owner...",
+            OL2: "It usually takes days, sometimes longer for complex issues...",
+          }
+        },
+        {
+          name: "Example Company 2",
+          respondent: "Operations Director",
+          responses: {
+            B1: "",
+            B2: "",
+            B5: "",
+            B6: "",
+            M1: "",
+            M4: "",
+            S1: "",
+            S3A: "",
+            S5: "",
+            I1: "",
+            I2: "",
+            I4: "",
+            X3A: "",
+            X3B: "",
+            X4: "",
+            C1: "",
+            C2: "",
+            C3: "",
+            C4: "",
+            R1: "",
+            R2: "",
+            R3: "",
+            P2: "",
+            P4: "",
+            RA1: "",
+            RA2: "",
+            OL1: "",
+            OL2: "",
+          }
+        }
+      ]
+    };
+    const blob = new Blob([JSON.stringify(template, null, 2)], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'cabas-business-cases-template.json';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   const scoreAll = async () => {
     if (!cases.length || !questionCode) return;
     setScoring(true);
@@ -112,9 +195,9 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
           <button className="bcp-upload-btn" onClick={() => fileRef.current?.click()}>
             📁 Upload Cases JSON
           </button>
-          <div className="bcp-format-hint">
-            Format: {'{'}"cases": [{'{'}"name": "...", "responses": {'{'}"B1": "...", "M4": "3", ...{'}'}{'}'}, ...]{'}'}
-          </div>
+          <button className="bcp-template-btn" onClick={downloadTemplate}>
+            📥 Download Template
+          </button>
         </div>
       </div>
     );
