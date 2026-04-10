@@ -32,6 +32,7 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
   const [results, setResults] = useState<CaseResult[]>([]);
   const [scoring, setScoring] = useState(false);
   const [expandedCase, setExpandedCase] = useState<number | null>(null);
+  const [panelOpen, setPanelOpen] = useState(false);
   const fileRef = useRef<HTMLInputElement>(null);
 
   // Load saved cases on mount
@@ -183,15 +184,29 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
 
   const scoreColor = (s: number) => s >= 70 ? 'var(--green)' : s >= 40 ? 'var(--amber)' : 'var(--red)';
 
-  if (!cases.length) {
-    return (
-      <div className="bcp">
+  return (
+    <>
+    {/* Toggle button — always visible */}
+    {!panelOpen && (
+      <button className="bcp-toggle" onClick={() => setPanelOpen(true)}>
+        📊 Business Cases {cases.length > 0 ? `(${cases.length})` : ''}
+      </button>
+    )}
+
+    {/* Slide-over panel */}
+    <div className={`bcp ${panelOpen ? '' : 'bcp--closed'}`}>
+      <div className="bcp-inner">
+      <button className="bcp-close" onClick={() => setPanelOpen(false)}>×</button>
+
+      <input ref={fileRef} type="file" accept=".json" onChange={handleUpload} style={{ display: 'none' }} />
+
+      {!cases.length ? (
+        <>
         <div className="bcp-header">
           <h4>Business Cases</h4>
         </div>
         <div className="bcp-empty">
           <p>Upload a JSON file with up to 10 business cases to score them all at once.</p>
-          <input ref={fileRef} type="file" accept=".json" onChange={handleUpload} style={{ display: 'none' }} />
           <button className="bcp-upload-btn" onClick={() => fileRef.current?.click()}>
             📁 Upload Cases JSON
           </button>
@@ -199,16 +214,12 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
             📥 Download Template
           </button>
         </div>
-      </div>
-    );
-  }
-
-  return (
-    <div className="bcp">
+        </>
+      ) : (
+        <>
       <div className="bcp-header">
         <h4>Business Cases ({cases.length})</h4>
         <div className="bcp-header-actions">
-          <input ref={fileRef} type="file" accept=".json" onChange={handleUpload} style={{ display: 'none' }} />
           <button className="bcp-btn bcp-btn--ghost" onClick={() => fileRef.current?.click()}>Replace</button>
           <button className="bcp-btn bcp-btn--ghost" onClick={() => { setCases([]); setResults([]); }}>Clear</button>
         </div>
@@ -293,6 +304,10 @@ export function BusinessCasesPanel({ questionCode, questionType, rubricOverride,
       <button className="bcp-score-all" onClick={scoreAll} disabled={scoring}>
         {scoring ? `Scoring ${cases.length} cases...` : `⚡ Score All ${cases.length} Cases`}
       </button>
+      </>
+      )}
+      </div>
     </div>
+    </>
   );
 }

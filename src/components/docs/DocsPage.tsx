@@ -715,8 +715,6 @@ function PagePlayground() {
     <div className="dc-page">
       <Hero badge="✨ Interactive" badgeVariant="green" title="Scoring Playground" subtitle="Test the scoring engine live. Select a question, provide an answer, and see exactly how the pipeline scores it." />
 
-      <div className="pg-layout">
-      <div className="pg-main">
       {/* Question selector */}
       <Card>
         <h3>Select a Question</h3>
@@ -931,9 +929,7 @@ function PagePlayground() {
           <Info type="danger" title="Scoring Error">{result.error}</Info>
         </Card>
       )}
-      </div>
-
-      {/* Right panel: Business Cases */}
+      {/* Business Cases overlay panel */}
       {selectedCode && (
         <BusinessCasesPanel
           questionCode={selectedCode}
@@ -942,7 +938,6 @@ function PagePlayground() {
           rubricDirty={rubricDirty}
         />
       )}
-      </div>
     </div>
   );
 }

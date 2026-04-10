@@ -3,22 +3,26 @@
    ═══════════════════════════════════════════════════════════ */
 
 .bcp {
-  background: var(--bg-1);
-  border: 1px solid var(--border);
-  border-radius: 12px;
-  padding: 16px;
-  width: 340px;
-  min-width: 240px;
-  max-width: 500px;
-  max-height: calc(100vh - 140px);
+  position: fixed;
+  right: 0;
+  top: var(--header-h, 52px);
+  bottom: 0;
+  width: 380px;
+  background: var(--bg-0);
+  border-left: 1px solid var(--border);
+  padding: 0;
   overflow-y: auto;
-  position: sticky;
-  top: 70px;
-  resize: horizontal;
-  overflow-x: hidden;
+  z-index: 90;
+  box-shadow: -4px 0 20px rgba(0,0,0,.08);
+  transform: translateX(0);
+  transition: transform 0.25s ease;
 }
-.bcp::-webkit-resizer {
-  background: transparent;
+.bcp--closed {
+  transform: translateX(100%);
+  box-shadow: none;
+}
+.bcp-inner {
+  padding: 16px;
 }
 .bcp-header {
   display: flex;
@@ -234,18 +238,44 @@
 }
 .bcp-template-btn:hover { border-color: var(--text-3); background: var(--bg-1); }
 
-/* ─── RESIZE HANDLE ─── */
-.bcp::after {
-  content: '';
+/* ─── CLOSE BUTTON ─── */
+.bcp-close {
   position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  width: 4px;
-  height: 40px;
-  background: var(--border);
-  border-radius: 2px;
-  opacity: 0.4;
-  pointer-events: none;
+  top: 12px;
+  right: 12px;
+  width: 28px;
+  height: 28px;
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  background: var(--bg-0);
+  color: var(--text-3);
+  font-size: 16px;
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  z-index: 2;
 }
-.bcp:hover::after { opacity: 0.7; }
+.bcp-close:hover { background: var(--bg-2); color: var(--text-0); }
+
+/* ─── TOGGLE BUTTON (shown when panel closed) ─── */
+.bcp-toggle {
+  position: fixed;
+  right: 16px;
+  bottom: 20px;
+  padding: 10px 16px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-0);
+  color: var(--text-1);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  box-shadow: 0 2px 12px rgba(0,0,0,.1);
+  z-index: 80;
+  transition: all 0.15s;
+}
+.bcp-toggle:hover { background: var(--bg-2); box-shadow: 0 4px 16px rgba(0,0,0,.15); }
+
+@media (max-width: 640px) {
+  .bcp { width: 100%; }
+}
