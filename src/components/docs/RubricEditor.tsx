@@ -18,7 +18,10 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
   const [source, setSource] = useState<'live' | 'playground'>('live');
   const [publishing, setPublishing] = useState(false);
   const [message, setMessage] = useState('');
+  const [showHistory, setShowHistory] = useState(false);
+  const [history, setHistory] = useState<any[]>([]);
   const saveTimer = useRef<any>(null);
+  const historyTimer = useRef<any>(null);
 
   // Load playground state (or live as fallback) when question changes
   useEffect(() => {
@@ -36,6 +39,12 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
         }
       })
       .catch(() => {});
+
+    // Load history
+    fetch(`${DOCS_API}/admin/docs/playground/history/${questionCode}`)
+      .then(r => r.json())
+      .then(d => setHistory(d.entries || []))
+      .catch(() => setHistory([]));
   }, [questionCode]);
 
   if (!rubric || !rubric.dimensions?.length) {
@@ -49,11 +58,29 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
   const autoSave = (updatedRubric: Rubric, updatedCeiling?: CeilingRule | null) => {
     if (saveTimer.current) clearTimeout(saveTimer.current);
     saveTimer.current = setTimeout(() => {
+      const payload = { rubric: updatedRubric, ceiling_rule: updatedCeiling ?? ceilingRule };
+      // Save state
       fetch(`${DOCS_API}/admin/docs/playground/state/${questionCode}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rubric: updatedRubric, ceiling_rule: updatedCeiling ?? ceilingRule }),
+        body: JSON.stringify(payload),
       }).then(() => setSource('playground')).catch(() => {});
+
+      // Append to history (debounced longer to avoid flooding)
+      if (historyTimer.current) clearTimeout(historyTimer.current);
+      historyTimer.current = setTimeout(() => {
+        fetch(`${DOCS_API}/admin/docs/playground/history/${questionCode}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        }).then(r => r.json()).then(() => {
+          // Refresh history list
+          fetch(`${DOCS_API}/admin/docs/playground/history/${questionCode}`)
+            .then(r => r.json())
+            .then(d => setHistory(d.entries || []))
+            .catch(() => {});
+        }).catch(() => {});
+      }, 2000);
     }, 500);
   };
 
@@ -287,8 +314,125 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
         <button className="re-btn re-btn--publish" onClick={publishToLive} disabled={publishing || !weightValid || source === 'live'}>
           {publishing ? 'Publishing...' : 'Publish to Live'}
         </button>
+        <button className="re-btn re-btn--ghost" onClick={() => setShowHistory(!showHistory)}>
+          🕐 History ({history.length})
+        </button>
         {source === 'live' && <span className="re-publish-note">No changes to publish — matches live.</span>}
       </div>
+
+      {/* Change History */}
+      {showHistory && (
+        <div className="re-history">
+          <div className="re-history-label">Change History (last 20)</div>
+          {history.length === 0 && <div className="re-empty">No changes recorded yet.</div>}
+          {history.slice().reverse().map((entry, idx) => {
+            const prevEntry = history[history.length - 1 - idx - 1];
+            const changes = computeDiff(prevEntry?.rubric, entry.rubric, prevEntry?.ceiling_rule, entry.ceiling_rule);
+            const ts = new Date(entry.timestamp);
+            return (
+              <div key={idx} className="re-history-entry">
+                <div className="re-history-header">
+                  <span className="re-history-time">{ts.toLocaleDateString()} {ts.toLocaleTimeString()}</span>
+                  <button className="re-btn re-btn--ghost" onClick={() => {
+                    setRubric(JSON.parse(JSON.stringify(entry.rubric)));
+                    if (entry.ceiling_rule) setCeilingRule(entry.ceiling_rule);
+                    onRubricChange(entry.rubric, true);
+                    autoSave(entry.rubric, entry.ceiling_rule);
+                    setMessage(`Restored to ${ts.toLocaleTimeString()}`);
+                    setTimeout(() => setMessage(''), 2000);
+                  }}>Restore</button>
+                </div>
+                <div className="re-history-changes">
+                  {changes.length === 0 && <span className="re-history-initial">Initial snapshot</span>}
+                  {changes.map((c, ci) => (
+                    <div key={ci} className={`re-history-change re-history-change--${c.type}`}>
+                      {c.text}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+        </div>
+      )}
     </div>
   );
+}
+
+// ─── DIFF COMPUTATION ───
+function computeDiff(prevRubric: any, currRubric: any, prevCeiling: any, currCeiling: any): { type: 'modified' | 'added' | 'removed'; text: string }[] {
+  if (!prevRubric || !currRubric) return [];
+  const changes: { type: 'modified' | 'added' | 'removed'; text: string }[] = [];
+
+  const prevDims = prevRubric.dimensions || [];
+  const currDims = currRubric.dimensions || [];
+  const prevIds = new Set(prevDims.map((d: any) => d.id));
+  const currIds = new Set(currDims.map((d: any) => d.id));
+
+  // Added dimensions
+  for (const d of currDims) {
+    if (!prevIds.has(d.id)) {
+      changes.push({ type: 'added', text: `Added dimension: ${d.name}` });
+    }
+  }
+
+  // Removed dimensions
+  for (const d of prevDims) {
+    if (!currIds.has(d.id)) {
+      changes.push({ type: 'removed', text: `Removed dimension: ${d.name}` });
+    }
+  }
+
+  // Modified dimensions
+  for (const curr of currDims) {
+    const prev = prevDims.find((d: any) => d.id === curr.id);
+    if (!prev) continue;
+
+    if (prev.weight !== curr.weight) {
+      changes.push({ type: 'modified', text: `${curr.name} weight: ${prev.weight}% → ${curr.weight}%` });
+    }
+    if (prev.name !== curr.name) {
+      changes.push({ type: 'modified', text: `Renamed: ${prev.name} → ${curr.name}` });
+    }
+
+    // Check anchors
+    for (let i = 0; i < (curr.anchors || []).length; i++) {
+      const ca = curr.anchors?.[i];
+      const pa = prev.anchors?.[i];
+      if (ca && pa && ca.behavior !== pa.behavior) {
+        changes.push({ type: 'modified', text: `${curr.name} Level ${ca.level} anchor edited` });
+      }
+    }
+  }
+
+  // Critical flags
+  const prevFlags = Object.keys(prevRubric.critical_flags || {});
+  const currFlags = Object.keys(currRubric.critical_flags || {});
+  for (const f of currFlags) {
+    if (!prevFlags.includes(f)) changes.push({ type: 'added', text: `Added flag: ${f}` });
+  }
+  for (const f of prevFlags) {
+    if (!currFlags.includes(f)) changes.push({ type: 'removed', text: `Removed flag: ${f}` });
+  }
+  for (const f of currFlags) {
+    if (prevFlags.includes(f)) {
+      const pf = prevRubric.critical_flags[f];
+      const cf = currRubric.critical_flags[f];
+      if (JSON.stringify(pf) !== JSON.stringify(cf)) {
+        changes.push({ type: 'modified', text: `Modified flag: ${f}` });
+      }
+    }
+  }
+
+  // Ceiling
+  if (prevCeiling && currCeiling) {
+    if (prevCeiling.ceiling !== currCeiling.ceiling) {
+      changes.push({ type: 'modified', text: `Ceiling: ${prevCeiling.ceiling} → ${currCeiling.ceiling}` });
+    }
+    if (prevCeiling.condition !== currCeiling.condition) {
+      changes.push({ type: 'modified', text: `Ceiling condition edited` });
+    }
+  }
+
+  return changes;
 }
