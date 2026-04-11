@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 
 const DOCS_API = import.meta.env.VITE_API_URL || 'http://localhost:8000/api/v1';
 
@@ -20,8 +20,6 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
   const [message, setMessage] = useState('');
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<any[]>([]);
-  const saveTimer = useRef<any>(null);
-  const historyTimer = useRef<any>(null);
 
   // Load playground state (or live as fallback) when question changes
   useEffect(() => {
@@ -54,40 +52,45 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
   const totalWeight = rubric.dimensions.reduce((s, d) => s + (d.weight || 0), 0);
   const weightValid = Math.abs(totalWeight - 100) <= 1;
 
-  // Auto-save to playground state after each change (debounced)
-  const autoSave = (updatedRubric: Rubric, updatedCeiling?: CeilingRule | null) => {
-    if (saveTimer.current) clearTimeout(saveTimer.current);
-    saveTimer.current = setTimeout(() => {
-      const payload = { rubric: updatedRubric, ceiling_rule: updatedCeiling ?? ceilingRule };
+  const [hasUnsaved, setHasUnsaved] = useState(false);
+  const [saving, setSaving] = useState(false);
+
+  const saveChanges = async () => {
+    if (!rubric) return;
+    setSaving(true);
+    const payload = { rubric, ceiling_rule: ceilingRule };
+    try {
       // Save state
-      fetch(`${DOCS_API}/admin/docs/playground/state/${questionCode}`, {
+      await fetch(`${DOCS_API}/admin/docs/playground/state/${questionCode}`, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(payload),
-      }).then(() => setSource('playground')).catch(() => {});
-
-      // Append to history (debounced longer to avoid flooding)
-      if (historyTimer.current) clearTimeout(historyTimer.current);
-      historyTimer.current = setTimeout(() => {
-        fetch(`${DOCS_API}/admin/docs/playground/history/${questionCode}`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(payload),
-        }).then(r => r.json()).then(() => {
-          // Refresh history list
-          fetch(`${DOCS_API}/admin/docs/playground/history/${questionCode}`)
-            .then(r => r.json())
-            .then(d => setHistory(d.entries || []))
-            .catch(() => {});
-        }).catch(() => {});
-      }, 2000);
-    }, 500);
+      });
+      // Append to history
+      await fetch(`${DOCS_API}/admin/docs/playground/history/${questionCode}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      // Refresh history
+      const hr = await fetch(`${DOCS_API}/admin/docs/playground/history/${questionCode}`);
+      const hd = await hr.json();
+      setHistory(hd.entries || []);
+      setSource('playground');
+      setHasUnsaved(false);
+      onRubricChange(rubric, true);
+      setMessage('Saved ✓');
+    } catch (e: any) {
+      setMessage(`Error: ${e.message}`);
+    }
+    setSaving(false);
+    setTimeout(() => setMessage(''), 2000);
   };
 
   const updateRubric = (updated: Rubric) => {
     setRubric(updated);
-    onRubricChange(updated, true);
-    autoSave(updated);
+    setHasUnsaved(true);
+    // Don't call onRubricChange yet — only after Save
   };
 
   const updateDimension = (idx: number, field: string, value: any) => {
@@ -144,7 +147,7 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
   const updateCeiling = (field: string, value: any) => {
     const updated = { ...ceilingRule, [field]: value } as CeilingRule;
     setCeilingRule(updated);
-    autoSave(rubric, updated);
+    setHasUnsaved(true);
   };
 
   const resetToLive = async () => {
@@ -155,6 +158,7 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
       setRubric(d.rubric || {});
       setCeilingRule(d.ceiling_rule || null);
       setSource('live');
+      setHasUnsaved(false);
       onRubricChange(null, false);
       setMessage('Reset to live rubric');
       setTimeout(() => setMessage(''), 2000);
@@ -205,14 +209,15 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
           <span className={`re-source-badge re-source-badge--${source}`}>
             {source === 'playground' ? '⚙️ Playground' : '🟢 Live'}
           </span>
+          {hasUnsaved && <span className="re-unsaved-badge">Unsaved changes</span>}
           <button className="re-btn re-btn--ghost" onClick={resetToLive}>Reset to Live</button>
         </div>
       </div>
 
       {message && <div className="re-message">{message}</div>}
 
-      {source === 'playground' && (
-        <div className="re-auto-save-note">Changes auto-saved to playground. Production not affected.</div>
+      {hasUnsaved && (
+        <div className="re-unsaved-note">You have unsaved changes. Click "Save" to apply them to the playground.</div>
       )}
 
       {/* Weight indicator */}
@@ -311,13 +316,17 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
 
       {/* Publish */}
       <div className="re-actions">
-        <button className="re-btn re-btn--publish" onClick={publishToLive} disabled={publishing || !weightValid || source === 'live'}>
+        <button className="re-btn re-btn--save" onClick={saveChanges} disabled={saving || !weightValid || !hasUnsaved}>
+          {saving ? 'Saving...' : '💾 Save'}
+        </button>
+        <button className="re-btn re-btn--publish" onClick={publishToLive} disabled={publishing || !weightValid || source === 'live' || hasUnsaved}>
           {publishing ? 'Publishing...' : 'Publish to Live'}
         </button>
         <button className="re-btn re-btn--ghost" onClick={() => setShowHistory(!showHistory)}>
           🕐 History ({history.length})
         </button>
-        {source === 'live' && <span className="re-publish-note">No changes to publish — matches live.</span>}
+        {hasUnsaved && <span className="re-publish-note">Save first before publishing.</span>}
+        {!hasUnsaved && source === 'live' && <span className="re-publish-note">No changes to publish.</span>}
       </div>
 
       {/* Change History */}
@@ -336,10 +345,9 @@ export function RubricEditor({ questionCode, onRubricChange }: Props) {
                   <button className="re-btn re-btn--ghost" onClick={() => {
                     setRubric(JSON.parse(JSON.stringify(entry.rubric)));
                     if (entry.ceiling_rule) setCeilingRule(entry.ceiling_rule);
-                    onRubricChange(entry.rubric, true);
-                    autoSave(entry.rubric, entry.ceiling_rule);
-                    setMessage(`Restored to ${ts.toLocaleTimeString()}`);
-                    setTimeout(() => setMessage(''), 2000);
+                    setHasUnsaved(true);
+                    setMessage(`Restored to ${ts.toLocaleTimeString()} — click Save to apply`);
+                    setTimeout(() => setMessage(''), 3000);
                   }}>Restore</button>
                 </div>
                 <div className="re-history-changes">

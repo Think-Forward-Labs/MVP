@@ -394,3 +394,31 @@
   color: var(--red);
   border-left: 2px solid var(--red);
 }
+
+/* ─── SAVE BUTTON & UNSAVED STATE ─── */
+.re-btn--save {
+  background: var(--accent);
+  color: var(--bg-0);
+  border-color: var(--accent);
+  font-size: 13px;
+  padding: 8px 20px;
+}
+.re-btn--save:hover { opacity: 0.9; }
+.re-unsaved-badge {
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--red);
+  background: var(--red-bg);
+  padding: 2px 8px;
+  border-radius: 100px;
+}
+.re-unsaved-note {
+  font-size: 11px;
+  color: var(--amber);
+  background: var(--amber-bg);
+  border: 1px solid rgba(217,119,6,.15);
+  padding: 8px 12px;
+  border-radius: 8px;
+  text-align: center;
+  margin-bottom: 12px;
+}
